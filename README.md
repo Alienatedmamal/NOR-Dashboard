@@ -30,7 +30,7 @@ Leave the console window open while using the dashboard - closing it shuts the d
 - **Permissions** - grant/revoke an Oxide permission on a player or group, add/remove a player from a group, and check what permissions/groups a player or group currently has.
 - **Player Lookup** - paste a SteamID64 to see their Steam profile, account age, VAC/game ban counts, and community/economy ban status.
 - **Live Map** - your actual map image (via RustMaps.com) with live-updating markers for online players (avatar + name) and world events - cargo ship, patrol helicopter, Bradley APC, CH47, cargo plane. No plugin required; built entirely on vanilla RCON commands.
-- **AMAP Scripts** - password-protected tab that runs a fixed set of your AMAP server-management scripts (backup, update plugins/server, map/full wipe, stop, nightly restart) over RCON - no SSH needed. See "AMAP Scripts setup" below for how this actually works.
+- **AMAP Scripts** - password-protected tab that runs a fixed set of your AMAP server-management scripts (backup, log cleaner, server checker, wipe configurator, updater, nightly restart, map/full wipe) over RCON - no SSH needed. Each is shown as a card with a description and a Critical/Noncritical tag. See "AMAP Scripts setup" below for how this actually works, and `ADMIN-GUIDE.md` for what each one does.
 - **Wipe countdown** - in the header, counting down to 2pm Central on the first Thursday of the month, DST-aware.
 
 ## AMAP Scripts setup
@@ -61,4 +61,4 @@ Each admin then:
 - If the RCON connection drops or the server restarts, the dashboard reconnects automatically next time it needs to talk to it.
 - The Players list parses your server's `playerlist` RCON response into a table; the Server Info tab uses the built-in `serverinfo` command; the Live Map's event markers use the built-in `find_entity` command - all tested against your actual server and working.
 - Without a `rustmaps_api_key`, the Live Map tab still shows live player/event markers - just without the background map image. The very first time RustMaps sees a given seed/world size, generating the image can take a couple minutes; the tab shows a "generating" message and a Refresh button until it's ready.
-- Several AMAP Scripts actions (Stop, Map Wipe, Full Wipe, Nightly Restart) stop the live Rust server, which is the very process the AmapBridge plugin runs inside - expect the RCON connection to drop right after using one of those, same as it would if you stopped the server any other way. The dashboard reconnects automatically once the server's back up.
+- Several AMAP Scripts actions (Updater, Map Wipe, Full Wipe, Nightly Restart) stop the live Rust server, which is the very process the AmapBridge plugin runs inside - expect the RCON connection to drop right after using one of those, same as it would if you stopped the server any other way. The dashboard reconnects automatically once the server's back up.

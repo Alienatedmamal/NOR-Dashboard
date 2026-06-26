@@ -482,12 +482,13 @@ def api_amap_run():
     body = request.get_json(force=True) or {}
     password = body.get("password", "")
     action = body.get("action", "")
+    fields = body.get("fields") or {}
     if not _check_amap_password(password):
         return jsonify({"error": "Incorrect password"}), 401
     if action not in AMAP_ACTIONS:
         return jsonify({"error": f"Unknown action: {action}"}), 400
     try:
-        response = run_amap_action(get_rcon_client(), action)
+        response = run_amap_action(get_rcon_client(), action, fields)
         return jsonify({"response": response})
     except RconError as exc:
         reset_rcon_client()

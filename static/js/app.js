@@ -807,6 +807,8 @@ async function loadServerSettings() {
 }
 loadServerSettings();
 
+const SETTING_LABELS = { hostname: "hostname", url: "server URL", description: "description", headerimage: "header image" };
+
 $all("[data-setting]").forEach((btn) => {
   btn.addEventListener("click", async () => {
     const field = btn.dataset.setting;
@@ -815,6 +817,12 @@ $all("[data-setting]").forEach((btn) => {
       alert("Enter a value before applying.");
       return;
     }
+    const confirmed = await showConfirmModal({
+      title: "Apply setting?",
+      message: `Set the server's ${SETTING_LABELS[field] || field} to "${value}"?`,
+      confirmLabel: "Apply",
+    });
+    if (!confirmed) return;
     const data = await postJson("/api/server/settings", { field, value });
     alert(data.error ? "Error: " + data.error : "Applied.");
   });
@@ -977,6 +985,60 @@ function stopMapPolling() {
 
 $("#refresh-map").addEventListener("click", () => loadMapImage().then(loadMapEntities));
 
+// ---- Reusable styled confirmation modal ----
+// Replaces native confirm()/prompt() so destructive actions match the
+// dashboard's theme instead of a jarring OS-native popup. Resolves true if
+// confirmed, false if cancelled (Cancel button, clicking outside, or Esc).
+// Pass requiredText to additionally require typing that exact text before
+// Confirm will go through - used for AMAP's Critical actions.
+function showConfirmModal({ title, message, requiredText, confirmLabel, confirmClass }) {
+  return new Promise((resolve) => {
+    const overlay = $("#confirm-modal");
+    const typedWrap = $("#confirm-modal-typed-wrap");
+    const typedInput = $("#confirm-modal-typed-input");
+    const confirmBtn = $("#confirm-modal-confirm");
+    const cancelBtn = $("#confirm-modal-cancel");
+
+    $("#confirm-modal-title").textContent = title || "Are you sure?";
+    $("#confirm-modal-message").textContent = message || "";
+    confirmBtn.textContent = confirmLabel || "Confirm";
+    confirmBtn.className = "btn " + (confirmClass || "btn-primary");
+    typedInput.value = "";
+    if (requiredText) {
+      typedWrap.hidden = false;
+      typedInput.placeholder = `Type "${requiredText}" to confirm`;
+    } else {
+      typedWrap.hidden = true;
+    }
+    overlay.hidden = false;
+    (requiredText ? typedInput : confirmBtn).focus();
+
+    function cleanup(result) {
+      overlay.hidden = true;
+      confirmBtn.removeEventListener("click", onConfirm);
+      cancelBtn.removeEventListener("click", onCancel);
+      overlay.removeEventListener("mousedown", onOverlayClick);
+      document.removeEventListener("keydown", onKeydown);
+      resolve(result);
+    }
+    function onConfirm() {
+      if (requiredText && typedInput.value.trim() !== requiredText) {
+        typedInput.focus();
+        return;
+      }
+      cleanup(true);
+    }
+    function onCancel() { cleanup(false); }
+    function onOverlayClick(e) { if (e.target === overlay) cleanup(false); }
+    function onKeydown(e) { if (e.key === "Escape") cleanup(false); }
+
+    confirmBtn.addEventListener("click", onConfirm);
+    cancelBtn.addEventListener("click", onCancel);
+    overlay.addEventListener("mousedown", onOverlayClick);
+    document.addEventListener("keydown", onKeydown);
+  });
+}
+
 // ---- AMAP Scripts ----
 // Kept locked behind its own password (separate from anything else in this
 // app) since these buttons can stop the live server or wipe data. The
@@ -1000,7 +1062,7 @@ $("#amap-unlock-form").addEventListener("submit", async (e) => {
     }
     amapPassword = password;
     amapActions = data.actions || [];
-    renderAmapButtons();
+    renderAmapCards();
     $("#amap-lock").hidden = true;
     $("#amap-actions").hidden = false;
   } catch (err) {
@@ -1008,16 +1070,29 @@ $("#amap-unlock-form").addEventListener("submit", async (e) => {
   }
 });
 
-function renderAmapButtons() {
-  const box = $("#amap-buttons");
+function renderAmapCards() {
+  const box = $("#amap-cards");
   box.innerHTML = "";
   amapActions.forEach((a) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "btn btn-small " + (a.danger ? "btn-danger" : "btn-outline");
-    btn.textContent = a.label;
-    btn.addEventListener("click", () => runAmapAction(a));
-    box.appendChild(btn);
+    const isCritical = a.category === "critical";
+    const card = document.createElement("div");
+    card.className = "amap-card amap-card-" + a.category;
+
+    const fieldsHtml = (a.fields || [])
+      .map((f) => `<input type="text" data-field="${escapeHtml(f.key)}" placeholder="${escapeHtml(f.placeholder || f.label)}">`)
+      .join("");
+
+    card.innerHTML = `
+      <div class="amap-card-header">
+        <span class="amap-card-title">${escapeHtml(a.label)}</span>
+        <span class="amap-tag amap-tag-${a.category}">${isCritical ? "Critical" : "Noncritical"}</span>
+      </div>
+      <p class="amap-card-desc">${escapeHtml(a.description || "")}</p>
+      ${fieldsHtml ? `<div class="amap-card-fields">${fieldsHtml}</div>` : ""}
+      <button type="button" class="btn btn-small ${isCritical ? "btn-danger" : "btn-outline"}">Run</button>
+    `;
+    card.querySelector("button").addEventListener("click", () => runAmapAction(a, card));
+    box.appendChild(card);
   });
 }
 
@@ -1030,18 +1105,33 @@ function amapLog(line) {
   box.scrollTop = box.scrollHeight;
 }
 
-async function runAmapAction(a) {
-  if (!confirm(a.confirm || `Run ${a.label}?`)) return;
-  if (a.danger) {
-    const typed = prompt(`This is a high-risk action. Type "${a.label}" exactly to confirm.`);
-    if (typed !== a.label) {
-      amapLog(`${a.label}: cancelled - confirmation text didn't match.`);
+async function runAmapAction(a, card) {
+  const fields = {};
+  for (const f of a.fields || []) {
+    const input = card.querySelector(`[data-field="${f.key}"]`);
+    const value = (input.value || "").trim();
+    if (!value) {
+      alert(`Please fill in ${f.label}.`);
       return;
     }
+    fields[f.key] = value;
+  }
+
+  const isCritical = a.category === "critical";
+  const confirmed = await showConfirmModal({
+    title: a.label,
+    message: a.confirm || `Run ${a.label}?`,
+    requiredText: isCritical ? a.label : null,
+    confirmLabel: isCritical ? "Run (Critical)" : "Run",
+    confirmClass: isCritical ? "btn-danger" : "btn-primary",
+  });
+  if (!confirmed) {
+    amapLog(`${a.label}: cancelled.`);
+    return;
   }
   amapLog(`${a.label}: sending...`);
   try {
-    const data = await postJson("/api/amap/run", { password: amapPassword, action: a.key });
+    const data = await postJson("/api/amap/run", { password: amapPassword, action: a.key, fields });
     amapLog(data.error ? `${a.label}: Error - ${data.error}` : `${a.label}: ${data.response}`);
   } catch (err) {
     amapLog(`${a.label}: Error - ${err.message}`);

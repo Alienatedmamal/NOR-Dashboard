@@ -38,7 +38,7 @@
   <button class="tab-btn" data-tab="permissions">Permissions</button>
   <button class="tab-btn" data-tab="lookup">Player Lookup</button>
   <button class="tab-btn" data-tab="map">Live Map</button>
-  <button class="tab-btn" data-tab="amap">AMAP Scripts</button>
+  <button class="tab-btn" data-tab="amap">AMAP</button>
 </nav>
 
 <main class="page-wrap">
@@ -290,13 +290,27 @@
       </div>
 
       <div id="amap-actions" hidden>
-        <div class="btn-row" id="amap-buttons"></div>
+        <div id="amap-cards" class="amap-cards"></div>
         <div id="amap-result-log" class="console-output small"></div>
       </div>
     </div>
   </section>
 
 </main>
+
+<div id="confirm-modal" class="modal-overlay" hidden>
+  <div class="modal-box">
+    <h3 id="confirm-modal-title">Are you sure?</h3>
+    <p id="confirm-modal-message" class="muted"></p>
+    <div id="confirm-modal-typed-wrap" class="confirm-modal-typed-wrap" hidden>
+      <input type="text" id="confirm-modal-typed-input" autocomplete="off">
+    </div>
+    <div class="btn-row">
+      <button type="button" id="confirm-modal-cancel" class="btn btn-outline">Cancel</button>
+      <button type="button" id="confirm-modal-confirm" class="btn btn-primary">Confirm</button>
+    </div>
+  </div>
+</div>
 
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>

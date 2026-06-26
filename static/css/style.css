@@ -372,6 +372,62 @@ input[type="text"]:focus, select:focus { outline: none; border-color: var(--acce
   text-overflow: ellipsis;
 }
 
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.modal-overlay[hidden] { display: none; }
+.modal-box {
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius);
+  padding: 24px 28px;
+  max-width: 420px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .6);
+}
+.modal-box h3 { margin-bottom: 10px; }
+.modal-box p { margin-bottom: 0; }
+.confirm-modal-typed-wrap { margin-top: 14px; }
+.confirm-modal-typed-wrap input { width: 100%; }
+.modal-box .btn-row { margin-top: 18px; justify-content: flex-end; }
+
+.amap-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 16px; }
+.amap-card {
+  background: rgba(255, 255, 255, .03);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent-border);
+  border-radius: 8px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.amap-card-critical { border-left-color: var(--danger); }
+.amap-card-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.amap-card-title { font-family: var(--font-heading); font-weight: 700; font-size: 16px; }
+.amap-card-desc { font-size: 13px; color: var(--text-muted); margin: 0; flex: 1; }
+.amap-card-fields { display: flex; flex-direction: column; gap: 8px; }
+.amap-card-fields input { width: 100%; }
+.amap-card .btn { width: 100%; justify-content: center; }
+
+.amap-tag {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  white-space: nowrap;
+}
+.amap-tag-critical { background: rgba(255, 77, 77, .15); color: var(--danger); border: 1px solid rgba(255, 77, 77, .4); }
+.amap-tag-noncritical { background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent-border); }
+
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 14px; }
 .stat-row {
   display: flex;
