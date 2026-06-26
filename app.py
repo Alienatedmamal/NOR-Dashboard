@@ -32,6 +32,10 @@ from steam_api import get_player_summary, get_rust_playtime_hours, lookup_player
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
+VERSION_PATH = os.path.join(BASE_DIR, "VERSION")
+
+with open(VERSION_PATH, "r", encoding="utf-8") as f:
+    VERSION = f.read().strip()
 
 app = Flask(__name__)
 # Without this, Flask only reads templates/index.html once per process start
@@ -64,7 +68,7 @@ def reset_rcon_client():
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", version=VERSION)
 
 
 @app.route("/api/status")
