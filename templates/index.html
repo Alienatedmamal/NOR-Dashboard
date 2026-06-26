@@ -33,11 +33,11 @@
 
 <nav class="tabs">
   <button class="tab-btn active" data-tab="console">Console</button>
-  <button class="tab-btn" data-tab="serverinfo">Server Info</button>
   <button class="tab-btn" data-tab="players">Players</button>
-  <button class="tab-btn" data-tab="permissions">Permissions</button>
   <button class="tab-btn" data-tab="lookup">Player Lookup</button>
   <button class="tab-btn" data-tab="map">Live Map</button>
+  <button class="tab-btn" data-tab="permissions">Permissions</button>
+  <button class="tab-btn" data-tab="serverinfo">Server Info</button>
   <button class="tab-btn" data-tab="amap">AMAP</button>
 </nav>
 
@@ -63,49 +63,6 @@
             <p class="muted">Loading...</p>
           </div>
         </div>
-      </div>
-    </div>
-  </section>
-
-  <section id="tab-serverinfo" class="tab-panel">
-    <div class="panel">
-      <h2>Server Settings</h2>
-      <p class="muted">Edit your server's public info - shows up on the in-game server browser too. Fields load with the current value where possible.</p>
-      <div class="settings-grid">
-        <label>Server hostname
-          <div class="inline-form">
-            <input type="text" id="setting-hostname" placeholder="Loading...">
-            <button class="btn btn-primary" data-setting="hostname">Apply</button>
-          </div>
-        </label>
-        <label>Server URL
-          <div class="inline-form">
-            <input type="text" id="setting-url" placeholder="Loading...">
-            <button class="btn btn-primary" data-setting="url">Apply</button>
-          </div>
-        </label>
-        <label>Server description
-          <div class="inline-form">
-            <input type="text" id="setting-description" placeholder="Loading...">
-            <button class="btn btn-primary" data-setting="description">Apply</button>
-          </div>
-        </label>
-        <label>Server image URL
-          <div class="inline-form">
-            <input type="text" id="setting-headerimage" placeholder="Loading...">
-            <button class="btn btn-primary" data-setting="headerimage">Apply</button>
-          </div>
-        </label>
-      </div>
-    </div>
-
-    <div class="panel">
-      <div class="panel-header-row">
-        <h2>Live Server Stats</h2>
-        <button id="refresh-serverinfo" class="btn btn-outline">Refresh</button>
-      </div>
-      <div class="stats-grid" id="serverinfo-stats">
-        <p class="muted">Click Refresh to load.</p>
       </div>
     </div>
   </section>
@@ -181,6 +138,40 @@
     </div>
   </section>
 
+  <section id="tab-lookup" class="tab-panel">
+    <div class="panel">
+      <h2>Player Lookup</h2>
+      <p class="muted">Paste a SteamID64, or click "Look up" next to a player in the Players tab.</p>
+      <form id="lookup-form" class="inline-form">
+        <input type="text" id="lookup-steamid" placeholder="SteamID64, e.g. 76561198000000000" autocomplete="off">
+        <button type="submit" class="btn btn-primary">Look Up</button>
+      </form>
+      <div id="lookup-result" class="lookup-result"></div>
+    </div>
+  </section>
+
+  <section id="tab-map" class="tab-panel">
+    <div class="panel">
+      <div class="panel-header-row">
+        <h2>Live Map</h2>
+        <button id="refresh-map" class="btn btn-outline">Refresh</button>
+      </div>
+      <p id="map-status" class="muted">Loading...</p>
+      <div class="map-legend">
+        <span class="map-legend-item"><span class="map-dot map-dot-player"></span>Player</span>
+        <span class="map-legend-item"><span class="map-dot map-dot-cargoship"></span>Cargo Ship</span>
+        <span class="map-legend-item"><span class="map-dot map-dot-patrolhelicopter"></span>Patrol Heli</span>
+        <span class="map-legend-item"><span class="map-dot map-dot-bradleyapc"></span>Bradley APC</span>
+        <span class="map-legend-item"><span class="map-dot map-dot-ch47"></span>CH47</span>
+        <span class="map-legend-item"><span class="map-dot map-dot-cargoplane"></span>Cargo Plane</span>
+      </div>
+      <div class="map-wrap" id="map-wrap">
+        <img id="map-image" class="map-image" alt="Server map" hidden>
+        <div class="map-overlay" id="map-overlay"></div>
+      </div>
+    </div>
+  </section>
+
   <section id="tab-permissions" class="tab-panel">
     <div class="grid">
       <div class="panel">
@@ -242,36 +233,45 @@
     <datalist id="permission-list"></datalist>
   </section>
 
-  <section id="tab-lookup" class="tab-panel">
+  <section id="tab-serverinfo" class="tab-panel">
     <div class="panel">
-      <h2>Player Lookup</h2>
-      <p class="muted">Paste a SteamID64, or click "Look up" next to a player in the Players tab.</p>
-      <form id="lookup-form" class="inline-form">
-        <input type="text" id="lookup-steamid" placeholder="SteamID64, e.g. 76561198000000000" autocomplete="off">
-        <button type="submit" class="btn btn-primary">Look Up</button>
-      </form>
-      <div id="lookup-result" class="lookup-result"></div>
+      <h2>Server Settings</h2>
+      <p class="muted">Edit your server's public info - shows up on the in-game server browser too. Fields load with the current value where possible.</p>
+      <div class="settings-grid">
+        <label>Server hostname
+          <div class="inline-form">
+            <input type="text" id="setting-hostname" placeholder="Loading...">
+            <button class="btn btn-primary" data-setting="hostname">Apply</button>
+          </div>
+        </label>
+        <label>Server URL
+          <div class="inline-form">
+            <input type="text" id="setting-url" placeholder="Loading...">
+            <button class="btn btn-primary" data-setting="url">Apply</button>
+          </div>
+        </label>
+        <label>Server description
+          <div class="inline-form">
+            <input type="text" id="setting-description" placeholder="Loading...">
+            <button class="btn btn-primary" data-setting="description">Apply</button>
+          </div>
+        </label>
+        <label>Server image URL
+          <div class="inline-form">
+            <input type="text" id="setting-headerimage" placeholder="Loading...">
+            <button class="btn btn-primary" data-setting="headerimage">Apply</button>
+          </div>
+        </label>
+      </div>
     </div>
-  </section>
 
-  <section id="tab-map" class="tab-panel">
     <div class="panel">
       <div class="panel-header-row">
-        <h2>Live Map</h2>
-        <button id="refresh-map" class="btn btn-outline">Refresh</button>
+        <h2>Live Server Stats</h2>
+        <button id="refresh-serverinfo" class="btn btn-outline">Refresh</button>
       </div>
-      <p id="map-status" class="muted">Loading...</p>
-      <div class="map-legend">
-        <span class="map-legend-item"><span class="map-dot map-dot-player"></span>Player</span>
-        <span class="map-legend-item"><span class="map-dot map-dot-cargoship"></span>Cargo Ship</span>
-        <span class="map-legend-item"><span class="map-dot map-dot-patrolhelicopter"></span>Patrol Heli</span>
-        <span class="map-legend-item"><span class="map-dot map-dot-bradleyapc"></span>Bradley APC</span>
-        <span class="map-legend-item"><span class="map-dot map-dot-ch47"></span>CH47</span>
-        <span class="map-legend-item"><span class="map-dot map-dot-cargoplane"></span>Cargo Plane</span>
-      </div>
-      <div class="map-wrap" id="map-wrap">
-        <img id="map-image" class="map-image" alt="Server map" hidden>
-        <div class="map-overlay" id="map-overlay"></div>
+      <div class="stats-grid" id="serverinfo-stats">
+        <p class="muted">Click Refresh to load.</p>
       </div>
     </div>
   </section>
