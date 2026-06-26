@@ -1,9 +1,0 @@
-{
-  "rcon_host": "SERVER_IP",
-  "rcon_port": 28016,
-  "rcon_password": "RCON_PW",
-  "steam_api_key": "STEAM_API_KEY",
-  "rustmaps_api_key": "RUST_MAP_API_KEY",
-  "amap_tab_password": "AMAP_PW"
-}
-

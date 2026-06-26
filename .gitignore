@@ -1,0 +1,7 @@
+config.json
+.pyexe
+__pycache__/
+*.pyc
+map_cache.json
+player_notes.json
+player_stats.json
