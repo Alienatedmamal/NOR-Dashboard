@@ -6,7 +6,17 @@ This is the day-to-day "how do I do X" guide. For first-time setup (installing P
 
 Double-click `run.bat` in the dashboard folder. A console window opens (leave it open - closing it shuts the dashboard down) and your browser opens to the dashboard automatically. If it doesn't, go to `http://127.0.0.1:5050`.
 
-If you're ever told there's an update, double-click `update.bat` instead first, then `run.bat` as usual. It just downloads the newest version and doesn't touch your settings or player data.
+## Updating the dashboard
+
+When you're told a new version is out, double-click **`update.bat`** in the dashboard folder.
+
+1. A console window opens and downloads the latest version from GitHub.
+2. It overwrites the dashboard's files with the new version automatically - no git, no command line, nothing to install.
+3. When it says "Update complete," close that window and double-click `run.bat` as usual.
+
+Nothing you'd lose is touched by this: `config.json` (your settings/passwords), player notes, player stats, and the map cache all stay exactly as they were, since none of those are part of what gets downloaded.
+
+You only need an internet connection for this step - once it's done, the dashboard runs the same as always, fully on your own PC.
 
 ## The header
 
@@ -92,3 +102,4 @@ A few things worth knowing:
 - **"Not connected" badge won't clear**: check that the dashboard's PC can still reach the Rust server's RCON port - nothing else to do on the dashboard side, it retries automatically. If you just used an AMAP Scripts action that stops the server, give it a minute to come back up first.
 - **A tab's data looks stale or empty**: most tabs have their own Refresh button - try that first.
 - **Console window got closed by accident**: just double-click `run.bat` again.
+- **`update.bat` says it failed**: check your internet connection first. If that's fine, let whoever maintains the dashboard know - it can also fail if the GitHub repo itself is temporarily unavailable, which isn't something fixable from your end.

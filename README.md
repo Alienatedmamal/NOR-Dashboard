@@ -24,7 +24,7 @@ Leave the console window open while using the dashboard - closing it shuts the d
 
 ## Checking for updates
 
-Double-click **`update.bat`**. It downloads the latest version straight from GitHub and overwrites the files in this folder - no git, no command line, nothing to install. `config.json` and your local data (notes, player stats, map cache) are never touched, since they're not part of what gets downloaded. Restart `run.bat` afterward to pick up any code changes.
+Double-click **`update.bat`**. It downloads the latest version straight from GitHub and overwrites the files in this folder - no git, no command line, nothing to install. `config.json` and your local data (notes, player stats, map cache) are never touched, since they're not part of what gets downloaded. Restart `run.bat` afterward to pick up any code changes. See `ADMIN-GUIDE.md` for the step-by-step version.
 
 ## What's in here
 
