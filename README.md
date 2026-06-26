@@ -44,13 +44,13 @@ Double-click **`update.bat`**. It downloads the latest version straight from Git
 
 ## AMAP tab setup
 
-This tab needs a small custom Oxide plugin, `plugins/AmapBridge.cs`, installed on the server - it's what lets an RCON command actually run a shell script on the box. It's already deployed to your live server's `oxide/plugins/` folder; `plugins/AmapBridge.cs` in this repo is the source of truth if you ever need to redeploy it (e.g. after a fresh Oxide install) - just copy it back into `oxide/plugins/` and the server will compile and load it automatically within a few seconds.
+This tab needs a small custom Oxide plugin, `AMAP/Plugins/AmapBridge.cs`, installed on the server - it's what lets an RCON command actually run a shell script on the box. It's already deployed to your live server's `oxide/plugins/` folder; `AMAP/Plugins/AmapBridge.cs` in this repo is the source of truth if you ever need to redeploy it (e.g. after a fresh Oxide install) - just copy it back into `oxide/plugins/` and the server will compile and load it automatically within a few seconds.
 
 The plugin only recognizes a fixed, hardcoded list of action keywords (see the `Actions` dictionary at the top of the file) - it never accepts or runs arbitrary shell text from RCON. Adding a new dashboard button means adding a new line to both that dictionary and `amap_commands.py`'s `AMAP_ACTIONS`, not changing what kind of input is accepted.
 
 There's no password on this tab - Critical actions (Updater, Nightly Restart, Map Wipe, Full Wipe) require typing the action's exact name into the confirmation popup before they'll run, which is the actual protection against a stray click. Anyone with the dashboard open can see the tab and its options, same as everything else in the dashboard.
 
-`amap-scripts/` in this repo is a sanitized backup copy of the actual AMAP scripts running on the server, in case the live ones on the server ever need to be restored - see `amap-scripts/README.md` for details.
+The rest of `AMAP/` in this repo is a sanitized backup copy of the actual AMAP scripts running on the server, in case the live ones on the server ever need to be restored - real secrets (Discord webhooks, the RCON password) are replaced with `CHANGE_ME` placeholders.
 
 ## Giving this to other admins
 

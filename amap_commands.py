@@ -1,6 +1,6 @@
 """
 AMAP Scripts tab - runs a fixed whitelist of AMAP server-management scripts
-via RCON, through the AmapBridge Oxide plugin (see plugins/AmapBridge.cs).
+via RCON, through the AmapBridge Oxide plugin (see AMAP/Plugins/AmapBridge.cs).
 
 This dictionary is the dashboard-side half of the whitelist - it only
 decides which cards exist, how they're labeled, and what confirmation to
