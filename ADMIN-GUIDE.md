@@ -6,6 +6,8 @@ This is the day-to-day "how do I do X" guide. For first-time setup (installing P
 
 Double-click `run.bat` in the dashboard folder. A console window opens (leave it open - closing it shuts the dashboard down) and your browser opens to the dashboard automatically. If it doesn't, go to `http://127.0.0.1:5050`.
 
+If you're ever told there's an update, double-click `update.bat` instead first, then `run.bat` as usual. It just downloads the newest version and doesn't touch your settings or player data.
+
 ## The header
 
 - **Top left**: the server logo.

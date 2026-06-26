@@ -22,6 +22,10 @@ Double-click **`run.bat`**. It prints `Running on http://127.0.0.1:5050` and ope
 
 Leave the console window open while using the dashboard - closing it shuts the dashboard down. Next time, just double-click `run.bat` again (no need to re-run `install.bat`).
 
+## Checking for updates
+
+Double-click **`update.bat`**. It downloads the latest version straight from GitHub and overwrites the files in this folder - no git, no command line, nothing to install. `config.json` and your local data (notes, player stats, map cache) are never touched, since they're not part of what gets downloaded. Restart `run.bat` afterward to pick up any code changes.
+
 ## What's in here
 
 - **Console** - a live feed of everything your server logs (plugin loads, warnings, chat, command output...), same idea as RustAdmin's console. Type a command and its response shows up in the same feed within a second or two, interleaved with everything else.
