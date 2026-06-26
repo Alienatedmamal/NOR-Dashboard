@@ -32,10 +32,24 @@ echo Installing/updating dependencies (quick check, only does real work the firs
 
 echo.
 echo Starting NOR Dashboard - leave this window open while you use it.
-echo Once you see "Running on http://127.0.0.1:5050", your browser will open automatically.
+echo Once you see "Running on http://127.0.0.1:5050", the dashboard will open in its own window.
 echo.
 
-start "" cmd /c "timeout /t 2 /nobreak >nul & start http://127.0.0.1:5050"
+set "BROWSER="
+if exist "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" set "BROWSER=%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"
+if not defined BROWSER if exist "%ProgramFiles%\Microsoft\Edge\Application\msedge.exe" set "BROWSER=%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"
+if not defined BROWSER if exist "%ProgramFiles%\Google\Chrome\Application\chrome.exe" set "BROWSER=%ProgramFiles%\Google\Chrome\Application\chrome.exe"
+if not defined BROWSER if exist "%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe" set "BROWSER=%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"
+
+if defined BROWSER (
+    rem "--app=" opens it in its own window - no address bar, tabs, or
+    rem bookmarks bar - instead of a normal browser tab.
+    start "" powershell -NoProfile -WindowStyle Hidden -Command "Start-Sleep -Seconds 2; Start-Process -FilePath '%BROWSER%' -ArgumentList '--app=http://127.0.0.1:5050'"
+) else (
+    rem Neither Edge nor Chrome found at the usual install path - fall
+    rem back to whatever the default browser is, as a normal tab.
+    start "" cmd /c "timeout /t 2 /nobreak >nul & start http://127.0.0.1:5050"
+)
 "%PYEXE%" "%~dp0app.py"
 
 endlocal
