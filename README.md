@@ -1,6 +1,6 @@
 # NOR Dashboard
 
-A simple admin dashboard for your Rust server: a live console feed, server info/settings, online/offline/banned player management with notes, permission management, player ban/Steam history lookups, a live map with player and world-event tracking, a password-protected AMAP tab, and a wipe countdown. Same black-and-neon-green look as AMAP and nor.workisboring.com.
+A simple admin dashboard for your Rust server: a live console feed, server info/settings, online/offline/banned player management with notes, permission management, player ban/Steam history lookups, a live map with player and world-event tracking, an AMAP tab for running server-management scripts, and a wipe countdown. Same black-and-neon-green look as AMAP and nor.workisboring.com.
 
 This doc covers one-time setup. Once it's running, see `ADMIN-GUIDE.md` for how to actually use each tab day-to-day.
 
@@ -14,10 +14,9 @@ This doc covers one-time setup. Once it's running, see `ADMIN-GUIDE.md` for how 
    - `rcon_port` - your RCON port (LGSM's `rcon.port`, default `28016`)
    - `rcon_password` - your RCON password (LGSM's `rcon.password`)
 
-   These three are optional - leave them as `"CHANGE_ME"` for now and the dashboard still runs fine, just with the related tab/feature turned off until you fill them in:
+   These two are optional - leave them as `"CHANGE_ME"` for now and the dashboard still runs fine, just with the related feature turned off until you fill them in:
    - `steam_api_key` - a free key from https://steamcommunity.com/dev/apikey (Player Lookup tab, Rust hours, and player avatars). When it asks for a domain name, you can put anything, e.g. `localhost`.
    - `rustmaps_api_key` - a free key from https://rustmaps.com/dashboard (Live Map tab's background image - the rest of the Live Map tab works without it)
-   - `amap_tab_password` - a password of your choosing, used only to gate the AMAP tab (see below) - without this set, that tab just won't unlock
 3. Make sure this PC can actually reach your Rust server's RCON port (same network, or whatever your firewall/router allows).
 
 ## Running it
@@ -38,7 +37,7 @@ Double-click **`update.bat`**. It downloads the latest version straight from Git
 - **Permissions** - grant/revoke an Oxide permission on a player or group, add/remove a player from a group, and check what permissions/groups a player or group currently has.
 - **Player Lookup** - paste a SteamID64 to see their Steam profile, account age, VAC/game ban counts, and community/economy ban status.
 - **Live Map** - your actual map image (via RustMaps.com) with live-updating markers for online players (avatar + name) and world events - cargo ship, patrol helicopter, Bradley APC, CH47, cargo plane. No plugin required; built entirely on vanilla RCON commands.
-- **AMAP** - password-protected tab that runs a fixed set of your AMAP server-management scripts (backup, log cleaner, server checker, wipe configurator, updater, nightly restart, map/full wipe) over RCON - no SSH needed. Each is shown as a card with a description and a Critical/Noncritical tag. See "AMAP tab setup" below for how this actually works, and `ADMIN-GUIDE.md` for what each one does.
+- **AMAP** - runs a fixed set of your AMAP server-management scripts (backup, log cleaner, server checker, wipe configurator, updater, nightly restart, map/full wipe) over RCON - no SSH needed. Each is shown as a card with a description and a Critical/Noncritical tag; Critical actions require typing the action's name to confirm. See "AMAP tab setup" below for how this actually works, and `ADMIN-GUIDE.md` for what each one does.
 - **Wipe countdown** - in the header, counting down to 2pm Central on the first Thursday of the month, DST-aware.
 
 ## AMAP tab setup
@@ -47,13 +46,15 @@ This tab needs a small custom Oxide plugin, `plugins/AmapBridge.cs`, installed o
 
 The plugin only recognizes a fixed, hardcoded list of action keywords (see the `Actions` dictionary at the top of the file) - it never accepts or runs arbitrary shell text from RCON. Adding a new dashboard button means adding a new line to both that dictionary and `amap_commands.py`'s `AMAP_ACTIONS`, not changing what kind of input is accepted.
 
-The tab's password (`amap_tab_password` in `config.json`) is checked on the server side on every single action request, not just to unlock the tab in the browser - so even if someone bypassed the UI and called the API directly, they'd still need the real password.
+There's no password on this tab - Critical actions (Updater, Nightly Restart, Map Wipe, Full Wipe) require typing the action's exact name into the confirmation popup before they'll run, which is the actual protection against a stray click. Anyone with the dashboard open can see the tab and its options, same as everything else in the dashboard.
+
+`amap-scripts/` in this repo is a sanitized backup copy of the actual AMAP scripts running on the server, in case the live ones on the server ever need to be restored - see `amap-scripts/README.md` for details.
 
 ## Giving this to other admins
 
 Copy the whole `NOR-Dashboard` folder to their PC (or zip it up).
 
-- **`config.json`** holds your RCON password and API keys, including the AMAP tab password. If this admin already has (or should have) full RCON access and AMAP control anyway, it's fine to include as-is so they're up and running immediately. If not, delete it before sharing (or just don't include it) - `config.example.json` is the safe template that ships instead, and `install.bat` will recreate `config.json` from it.
+- **`config.json`** holds your RCON password and API keys. If this admin already has (or should have) full RCON access anyway, it's fine to include as-is so they're up and running immediately. If not, delete it before sharing (or just don't include it) - `config.example.json` is the safe template that ships instead, and `install.bat` will recreate `config.json` from it.
 - **`.pyexe`** and the **`__pycache__`** folder are machine-specific and safe to delete before sharing - both get regenerated automatically (`.pyexe` by `install.bat`, `__pycache__` the first time Python runs).
 - **`player_notes.json`, `player_stats.json`, `map_cache.json`** hold this server's accumulated notes/ban reasons, player history, and cached map data. Leave them in if you want the other admin to see the same history; delete them for a clean slate.
 

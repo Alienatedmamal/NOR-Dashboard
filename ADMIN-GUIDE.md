@@ -70,12 +70,11 @@ Hover any marker to see its name/label. Click Refresh if the map image hasn't lo
 
 ## AMAP tab
 
-Runs your actual AMAP server-management scripts remotely over RCON - no SSH access needed on your PC at all. It's locked behind its own password (separate from anything else in the dashboard) since some of these actions can stop the live server or wipe data.
+Runs your actual AMAP server-management scripts remotely over RCON - no SSH access needed on your PC at all.
 
-1. Enter the AMAP tab password and click Unlock. (Ask whoever set up the dashboard for this password if you don't have it - it's not the same as the RCON password.)
-2. Each action is its own card with a description and a Critical/Noncritical tag. Click Run. You'll get a confirmation popup describing exactly what it does.
-3. For Critical actions (red tag), you'll also be asked to type the action's exact name to confirm - this is intentional friction so a stray click can't take the server down or wipe data.
-4. The result shows up in the small log box at the bottom of the tab.
+1. Each action is its own card with a description and a Critical/Noncritical tag. Click Run. You'll get a confirmation popup describing exactly what it does.
+2. For Critical actions (red tag), you'll also be asked to type the action's exact name to confirm - this is intentional friction so a stray click can't take the server down or wipe data.
+3. The result shows up in the small log box at the bottom of the tab.
 
 What each card actually does:
 
@@ -84,7 +83,7 @@ What each card actually does:
 | Server Backup | Noncritical | Backs up all server data. |
 | Log Cleaner | Noncritical | Clears the logs. |
 | Server Checker | Noncritical | Checks if the server is running. If it fails to restart, posts an alert to Discord. |
-| Wipe Configurator | Noncritical | Writes the config for the next wipe (seed, map size, wipe date, wipe type - you fill in the four fields on the card itself). Doesn't affect the live server; it only prepares what the *next* wipe will use. |
+| Wipe Configurator | Noncritical | Writes the config for the next wipe (seed, map size, wipe date, wipe type - you fill in the four fields on the card itself). Doesn't affect the live server; it only prepares what the *next* wipe will use. Has its own **View Current Config** button to see what's currently saved before you overwrite it - shows just the seed, map size, wipe type, and description, never the RCON password or Discord webhook that also live in that file. |
 | Updater | Critical | Updates the server. May stop the server. |
 | Nightly Restart | Critical | Just stops the server (deprecated, but still works). |
 | Map Wipe | Critical | Wipes the map. Blueprints are kept. |
@@ -94,7 +93,6 @@ A few things worth knowing:
 
 - The Wipe Configurator's four fields are validated before anything runs: Seed and Map Size must be plain numbers, Wipe Date must be MM-DD-YY (or MM-DD-YYYY), and Wipe Type must be exactly "BP" or "Map". It'll tell you exactly which field is wrong rather than silently failing.
 - After a Critical action that stops the server (Updater, Nightly Restart, Map Wipe, Full Wipe), the dashboard's "Connected" badge will briefly flip to "Not connected" - that's expected, since the server you're talking to just went down. It reconnects automatically once the server's back up.
-- The password you type is sent to the server and re-checked on every single click, not just once when you unlock the tab - so there's no persistent "logged in" state to worry about leaving open.
 - These cards run the same underlying scripts as AMAP's own menu - nothing here does anything AMAP itself couldn't already do.
 
 ## Quick troubleshooting

@@ -461,34 +461,34 @@ def api_map_entities():
     return jsonify({"players": player_markers, "events": event_markers})
 
 
-def _check_amap_password(password):
-    cfg = load_config()
-    real = cfg.get("amap_tab_password", "")
-    return bool(real) and real != "CHANGE_ME" and password == real
-
-
-@app.route("/api/amap/unlock", methods=["POST"])
-def api_amap_unlock():
-    body = request.get_json(force=True) or {}
-    password = body.get("password", "")
-    if not _check_amap_password(password):
-        return jsonify({"ok": False}), 401
+@app.route("/api/amap/actions")
+def api_amap_actions():
     actions = [{"key": key, **info} for key, info in AMAP_ACTIONS.items()]
-    return jsonify({"ok": True, "actions": actions})
+    return jsonify({"actions": actions})
 
 
 @app.route("/api/amap/run", methods=["POST"])
 def api_amap_run():
     body = request.get_json(force=True) or {}
-    password = body.get("password", "")
     action = body.get("action", "")
     fields = body.get("fields") or {}
-    if not _check_amap_password(password):
-        return jsonify({"error": "Incorrect password"}), 401
     if action not in AMAP_ACTIONS:
         return jsonify({"error": f"Unknown action: {action}"}), 400
     try:
         response = run_amap_action(get_rcon_client(), action, fields)
+        return jsonify({"response": response})
+    except RconError as exc:
+        reset_rcon_client()
+        return jsonify({"error": str(exc)}), 502
+
+
+@app.route("/api/amap/wipe-config")
+def api_amap_wipe_config():
+    """Read-only peek at the next wipe's configured seed/size/type/date -
+    separate from the regular whitelist since it's tied to one specific
+    card (Wipe Configurator) rather than being its own button."""
+    try:
+        response = get_rcon_client().send_command("amap.run wipe_configure_view")
         return jsonify({"response": response})
     except RconError as exc:
         reset_rcon_client()

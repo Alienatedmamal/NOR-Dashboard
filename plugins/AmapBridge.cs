@@ -16,7 +16,12 @@ namespace Oxide.Plugins
             // whitelist that's interactive (reads seed/map size/wipe
             // date/wipe type via `read -p`). Everything else takes no input.
             public bool NeedsArgs;
+            // wipe_configure_view is read-only - it just greps the current
+            // wipe config and reports back, no script to run.
+            public bool IsView;
         }
+
+        private const string WipeConfigPath = "/home/alienatedmammal/AMAP/Files/Config/config.cfg";
 
         // Fixed whitelist: action keyword -> exact script path. The keyword
         // from RCON is matched against this dictionary's keys only - nothing
@@ -33,6 +38,7 @@ namespace Oxide.Plugins
             ["server_checker"] = new AmapAction { ScriptPath = "/home/alienatedmammal/AMAP/Files/Scripts/./ServerChecker.sh" },
             ["updater"] = new AmapAction { ScriptPath = "/home/alienatedmammal/AMAP/Files/Scripts/./Updater.sh" },
             ["wipe_configure"] = new AmapAction { ScriptPath = "/home/alienatedmammal/AMAP/Files/Scripts/./wipeconfigure.sh", NeedsArgs = true },
+            ["wipe_configure_view"] = new AmapAction { IsView = true },
         };
 
         private static readonly Regex DigitsOnly = new Regex(@"^\d+$");
@@ -55,6 +61,12 @@ namespace Oxide.Plugins
             if (string.IsNullOrEmpty(action) || !Actions.TryGetValue(action, out var info))
             {
                 arg.ReplyWith($"Unknown action '{action}'. Allowed: {string.Join(", ", Actions.Keys)}");
+                return;
+            }
+
+            if (info.IsView)
+            {
+                RunWipeConfigureView(arg);
                 return;
             }
 
@@ -130,6 +142,15 @@ namespace Oxide.Plugins
                 return;
             }
 
+            // Same fire-and-forget shape as the other actions: spawning
+            // bash consistently takes ~200ms+, which is long enough to
+            // cross Oxide's own slow-hook-call threshold - and once that
+            // happens, Oxide's own "Calling 'RunAmapAction' took Nms"
+            // warning beats a synchronous reply back to the dashboard and
+            // gets captured as "the" response instead (confirmed by
+            // testing - this isn't theoretical). Replying immediately and
+            // letting the script run detached avoids the race entirely.
+            // Use View Current Config afterward to confirm it took effect.
             try
             {
                 var psi = new ProcessStartInfo
@@ -138,7 +159,6 @@ namespace Oxide.Plugins
                     Arguments = $"-c \"{scriptPath}\"",
                     UseShellExecute = false,
                     RedirectStandardInput = true,
-                    RedirectStandardOutput = true,
                     WorkingDirectory = "/home/alienatedmammal",
                 };
                 var proc = Process.Start(psi);
@@ -147,38 +167,55 @@ namespace Oxide.Plugins
                 proc.StandardInput.WriteLine(wipeDate);
                 proc.StandardInput.WriteLine(wipeType);
                 proc.StandardInput.Close();
-
-                // Waiting on the script's output is fast in practice (it's
-                // just file copies + sed, no network calls) but still
-                // genuinely blocking I/O - doing that on Oxide's main
-                // thread would freeze the live game server for everyone
-                // for however long it takes. Wait on a background thread
-                // instead and hop back to the main thread via NextTick
-                // just to send the reply.
-                System.Threading.Tasks.Task.Run(() =>
-                {
-                    string output;
-                    try
-                    {
-                        output = proc.StandardOutput.ReadToEnd();
-                        proc.WaitForExit(10000);
-                    }
-                    catch (Exception ex)
-                    {
-                        output = $"Error reading output: {ex.Message}";
-                    }
-                    finally
-                    {
-                        proc.Dispose();
-                    }
-                    var result = string.IsNullOrWhiteSpace(output) ? "wipe_configure finished with no output." : output.Trim();
-                    NextTick(() => arg.ReplyWith(result));
-                });
+                arg.ReplyWith("Started: wipe_configure - use View Current Config in a few seconds to confirm.");
             }
             catch (Exception ex)
             {
                 PrintError($"AmapBridge: failed to run wipe_configure: {ex.Message}");
                 arg.ReplyWith($"Failed to run wipe_configure: {ex.Message}");
+            }
+        }
+
+        // Only reports the fields that actually matter for "what's the next
+        // wipe configured to do" - seed, map size, wipe type, and the
+        // description (which is where the wipe date ends up). Deliberately
+        // does not dump the whole file, since config.cfg also holds the
+        // live RCON password and a Discord webhook URL in plain text.
+        //
+        // Reads the file directly instead of shelling out to grep - even a
+        // "fast" subprocess (bash + grep on a tiny file) reliably took
+        // ~230ms here, which is enough to trip the same Oxide slow-hook
+        // warning described above. A plain File.ReadLines call has none of
+        // that process-spawn overhead, so it stays comfortably fast enough
+        // to reply synchronously without the race.
+        private void RunWipeConfigureView(ConsoleSystem.Arg arg)
+        {
+            try
+            {
+                if (!System.IO.File.Exists(WipeConfigPath))
+                {
+                    arg.ReplyWith("No wipe config file found yet - run the Wipe Configurator first.");
+                    return;
+                }
+                var fields = new[] { "seed=", "worldsize=", "wipetype=", "description=" };
+                var matches = new List<string>();
+                foreach (var line in System.IO.File.ReadLines(WipeConfigPath))
+                {
+                    foreach (var field in fields)
+                    {
+                        if (line.StartsWith(field))
+                        {
+                            matches.Add(line);
+                            break;
+                        }
+                    }
+                }
+                arg.ReplyWith(matches.Count > 0 ? string.Join("\n", matches) : "Wipe config file exists but none of the expected fields were found.");
+            }
+            catch (Exception ex)
+            {
+                PrintError($"AmapBridge: failed to view wipe config: {ex.Message}");
+                arg.ReplyWith($"Failed to view wipe config: {ex.Message}");
             }
         }
     }

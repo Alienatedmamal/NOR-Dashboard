@@ -1040,35 +1040,23 @@ function showConfirmModal({ title, message, requiredText, confirmLabel, confirmC
 }
 
 // ---- AMAP Scripts ----
-// Kept locked behind its own password (separate from anything else in this
-// app) since these buttons can stop the live server or wipe data. The
-// password is only ever held in memory for this page session (never
-// stored) and is sent back to the server on every single action - the
-// lock screen is just UX, the server re-checks the password on every
-// /api/amap/run call regardless.
-let amapPassword = null;
+// No password gate here - Critical actions already require typing the
+// action's exact name into the confirmation modal before they'll run,
+// which is the real protection against a stray click. The backend's own
+// fixed action whitelist is what stops anything other than these specific
+// scripts from ever being reachable at all.
 let amapActions = [];
 
-$("#amap-unlock-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const password = $("#amap-password").value;
-  const errorEl = $("#amap-unlock-error");
-  errorEl.textContent = "";
+async function loadAmapCards() {
   try {
-    const data = await postJson("/api/amap/unlock", { password });
-    if (!data.ok) {
-      errorEl.textContent = "Incorrect password.";
-      return;
-    }
-    amapPassword = password;
+    const data = await fetch("/api/amap/actions").then((res) => res.json());
     amapActions = data.actions || [];
     renderAmapCards();
-    $("#amap-lock").hidden = true;
-    $("#amap-actions").hidden = false;
   } catch (err) {
-    errorEl.textContent = "Error: " + err.message;
+    $("#amap-cards").innerHTML = `<p class="muted">Error loading actions: ${escapeHtml(err.message)}</p>`;
   }
-});
+}
+loadAmapCards();
 
 function renderAmapCards() {
   const box = $("#amap-cards");
@@ -1081,6 +1069,11 @@ function renderAmapCards() {
     const fieldsHtml = (a.fields || [])
       .map((f) => `<input type="text" data-field="${escapeHtml(f.key)}" placeholder="${escapeHtml(f.placeholder || f.label)}">`)
       .join("");
+    // Wipe Configurator only - lets you check what's currently saved for
+    // the next wipe before deciding whether to overwrite it.
+    const viewButtonHtml = a.key === "wipe_configure"
+      ? '<button type="button" class="btn btn-outline btn-small" data-view-wipe-config>View Current Config</button>'
+      : "";
 
     card.innerHTML = `
       <div class="amap-card-header">
@@ -1089,11 +1082,24 @@ function renderAmapCards() {
       </div>
       <p class="amap-card-desc">${escapeHtml(a.description || "")}</p>
       ${fieldsHtml ? `<div class="amap-card-fields">${fieldsHtml}</div>` : ""}
+      ${viewButtonHtml}
       <button type="button" class="btn btn-small ${isCritical ? "btn-danger" : "btn-outline"}">Run</button>
     `;
-    card.querySelector("button").addEventListener("click", () => runAmapAction(a, card));
+    card.querySelector("button:not([data-view-wipe-config])").addEventListener("click", () => runAmapAction(a, card));
+    const viewBtn = card.querySelector("[data-view-wipe-config]");
+    if (viewBtn) viewBtn.addEventListener("click", viewWipeConfig);
     box.appendChild(card);
   });
+}
+
+async function viewWipeConfig() {
+  amapLog("Checking current wipe config...");
+  try {
+    const data = await fetch("/api/amap/wipe-config").then((res) => res.json());
+    amapLog(data.error ? `View Current Config: Error - ${data.error}` : `Current wipe config:\n${data.response}`);
+  } catch (err) {
+    amapLog(`View Current Config: Error - ${err.message}`);
+  }
 }
 
 function amapLog(line) {
@@ -1131,7 +1137,7 @@ async function runAmapAction(a, card) {
   }
   amapLog(`${a.label}: sending...`);
   try {
-    const data = await postJson("/api/amap/run", { password: amapPassword, action: a.key, fields });
+    const data = await postJson("/api/amap/run", { action: a.key, fields });
     amapLog(data.error ? `${a.label}: Error - ${data.error}` : `${a.label}: ${data.response}`);
   } catch (err) {
     amapLog(`${a.label}: Error - ${err.message}`);
