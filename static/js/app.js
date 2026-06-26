@@ -976,3 +976,74 @@ function stopMapPolling() {
 }
 
 $("#refresh-map").addEventListener("click", () => loadMapImage().then(loadMapEntities));
+
+// ---- AMAP Scripts ----
+// Kept locked behind its own password (separate from anything else in this
+// app) since these buttons can stop the live server or wipe data. The
+// password is only ever held in memory for this page session (never
+// stored) and is sent back to the server on every single action - the
+// lock screen is just UX, the server re-checks the password on every
+// /api/amap/run call regardless.
+let amapPassword = null;
+let amapActions = [];
+
+$("#amap-unlock-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const password = $("#amap-password").value;
+  const errorEl = $("#amap-unlock-error");
+  errorEl.textContent = "";
+  try {
+    const data = await postJson("/api/amap/unlock", { password });
+    if (!data.ok) {
+      errorEl.textContent = "Incorrect password.";
+      return;
+    }
+    amapPassword = password;
+    amapActions = data.actions || [];
+    renderAmapButtons();
+    $("#amap-lock").hidden = true;
+    $("#amap-actions").hidden = false;
+  } catch (err) {
+    errorEl.textContent = "Error: " + err.message;
+  }
+});
+
+function renderAmapButtons() {
+  const box = $("#amap-buttons");
+  box.innerHTML = "";
+  amapActions.forEach((a) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn btn-small " + (a.danger ? "btn-danger" : "btn-outline");
+    btn.textContent = a.label;
+    btn.addEventListener("click", () => runAmapAction(a));
+    box.appendChild(btn);
+  });
+}
+
+function amapLog(line) {
+  const box = $("#amap-result-log");
+  const row = document.createElement("div");
+  row.className = "console-line";
+  row.textContent = `[${nowTimestamp()}] ${line}`;
+  box.appendChild(row);
+  box.scrollTop = box.scrollHeight;
+}
+
+async function runAmapAction(a) {
+  if (!confirm(a.confirm || `Run ${a.label}?`)) return;
+  if (a.danger) {
+    const typed = prompt(`This is a high-risk action. Type "${a.label}" exactly to confirm.`);
+    if (typed !== a.label) {
+      amapLog(`${a.label}: cancelled - confirmation text didn't match.`);
+      return;
+    }
+  }
+  amapLog(`${a.label}: sending...`);
+  try {
+    const data = await postJson("/api/amap/run", { password: amapPassword, action: a.key });
+    amapLog(data.error ? `${a.label}: Error - ${data.error}` : `${a.label}: ${data.response}`);
+  } catch (err) {
+    amapLog(`${a.label}: Error - ${err.message}`);
+  }
+}

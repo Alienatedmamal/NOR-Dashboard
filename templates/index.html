@@ -38,6 +38,7 @@
   <button class="tab-btn" data-tab="permissions">Permissions</button>
   <button class="tab-btn" data-tab="lookup">Player Lookup</button>
   <button class="tab-btn" data-tab="map">Live Map</button>
+  <button class="tab-btn" data-tab="amap">AMAP Scripts</button>
 </nav>
 
 <main class="page-wrap">
@@ -271,6 +272,26 @@
       <div class="map-wrap" id="map-wrap">
         <img id="map-image" class="map-image" alt="Server map" hidden>
         <div class="map-overlay" id="map-overlay"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-amap" class="tab-panel">
+    <div class="panel">
+      <h2>AMAP Scripts</h2>
+      <p class="muted">Runs your AMAP server-management scripts via RCON - no SSH needed. Password-protected since these can stop the server or wipe data.</p>
+
+      <div id="amap-lock">
+        <form id="amap-unlock-form" class="inline-form">
+          <input type="password" id="amap-password" placeholder="AMAP tab password" autocomplete="off">
+          <button type="submit" class="btn btn-primary">Unlock</button>
+        </form>
+        <p id="amap-unlock-error" class="muted"></p>
+      </div>
+
+      <div id="amap-actions" hidden>
+        <div class="btn-row" id="amap-buttons"></div>
+        <div id="amap-result-log" class="console-output small"></div>
       </div>
     </div>
   </section>

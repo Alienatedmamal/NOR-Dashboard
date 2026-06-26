@@ -9,13 +9,18 @@ echo.
 set "PYEXE=%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
 if exist "%PYEXE%" goto :found_python
 
-where python >nul 2>nul
-if %errorlevel%==0 (
-    python -c "1" >nul 2>nul
-    if %errorlevel%==0 (
-        set "PYEXE=python"
-        goto :found_python
-    )
+rem Windows ships a fake python.exe "App Execution Alias" at
+rem %LOCALAPPDATA%\Microsoft\WindowsApps\python.exe on PCs with no real
+rem Python installed - "where python" finds it and exits 0 just like a real
+rem install would, so that alone can't tell them apart. Skip any match that
+rem comes from that WindowsApps folder and only trust a real install.
+for /f "delims=" %%P in ('where python 2^>nul') do (
+    echo %%P | findstr /i "WindowsApps" >nul
+    if errorlevel 1 if not defined PYEXE_CANDIDATE set "PYEXE_CANDIDATE=%%P"
+)
+if defined PYEXE_CANDIDATE (
+    set "PYEXE=%PYEXE_CANDIDATE%"
+    goto :found_python
 )
 
 echo Python wasn't found on this PC.

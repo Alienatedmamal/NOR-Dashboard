@@ -5,7 +5,21 @@ set "PYEXE=%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
 if exist "%~dp0.pyexe" (
     for /f "usebackq delims=" %%P in ("%~dp0.pyexe") do set "PYEXE=%%P"
 )
-if not exist "%PYEXE%" set "PYEXE=python"
+if not exist "%PYEXE%" (
+    rem Don't blindly fall back to a bare "python" - that can resolve to
+    rem Windows' fake "App Execution Alias" stub instead of a real install
+    rem and fail confusingly later. Search PATH ourselves, skipping that stub.
+    set "PYEXE="
+    for /f "delims=" %%P in ('where python 2^>nul') do (
+        echo %%P | findstr /i "WindowsApps" >nul
+        if errorlevel 1 if not defined PYEXE set "PYEXE=%%P"
+    )
+)
+if not defined PYEXE (
+    echo Python wasn't found on this PC - run install.bat first.
+    pause
+    exit /b 1
+)
 
 if not exist "%~dp0config.json" (
     echo config.json not found - run install.bat first.
