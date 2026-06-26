@@ -3,5 +3,6 @@
   "rcon_port": 28016,
   "rcon_password": "CHANGE_ME",
   "steam_api_key": "CHANGE_ME",
-  "rustmaps_api_key": "CHANGE_ME"
+  "rustmaps_api_key": "CHANGE_ME",
+  "battlemetrics_id": "CHANGE_ME"
 }

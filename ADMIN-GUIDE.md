@@ -24,16 +24,21 @@ You only need an internet connection for this step - once it's done, the dashboa
 - **Center**: a countdown to the next wipe (first Thursday of the month, 2pm Central).
 - **Top right**: current player count, a Connected/Not Connected badge, and when it was last checked. If it says "Not connected," the dashboard can't reach the server's RCON right now - it'll reconnect automatically once it can, no action needed from you.
 
+## Overview tab
+
+The first thing you see when you open the dashboard - a quick-glance summary of everything an admin would want to check first, with your site's background image behind it.
+
+- **Hostname and description** at the top.
+- **Stat cards**: Players (current/max), Queued, BattleMetrics Rank, Framerate, Game Time, Uptime, Map, and Entity Count.
+- **Connected Players** at the bottom - the same live list shown in the Console tab's sidebar.
+
+Most of this comes straight from RCON and updates every 15-20 seconds. BattleMetrics Rank comes from the public BattleMetrics API instead (no API key needed) and updates roughly every 30 seconds, since BattleMetrics' own crawler doesn't refresh a server's data much faster than that anyway. If Rank shows "-", check that `battlemetrics_id` is set in `config.json` (see `README.md`).
+
 ## Console tab
 
 A live feed of everything the server logs - plugin messages, warnings, chat, and the response to any command you run - same idea as RustAdmin's console. Type a command in the box at the bottom and hit Send; its response shows up in the feed within a second or two, mixed in with everything else happening on the server.
 
 The sidebar next to it lists who's currently online, with how long they've been connected this session.
-
-## Server Info tab
-
-- **Server Settings**: edit your hostname, server URL, description, or header image. Each field loads with the current value - change it and click Apply next to that field, then confirm in the popup that appears.
-- **Live Server Stats**: framerate, uptime, player count, entity count, etc. Click Refresh to update.
 
 ## Players tab
 
@@ -44,16 +49,6 @@ The sidebar next to it lists who's currently online, with how long they've been 
 - **Offline Players**: recently-seen players who aren't online right now, with the same Look up / Notes shortcuts.
 - **Banned Players**: everyone currently banned, with a one-click Unban.
 - **Player Notes**: paste a SteamID (or use one of the Notes buttons above) and click Load Notes to see their history - ban reasons show up here automatically, and you can add your own free-text notes too. Each note has a Delete button.
-
-## Permissions tab
-
-Three independent panels:
-
-- **Grant / Revoke Permission**: pick Player or Group, type their name/SteamID (or group name), type or pick a permission from the suggestions, then Grant or Revoke.
-- **Add / Remove From Group**: add or remove a player from an Oxide group (e.g. `vip`, `admin`).
-- **Check Current Permissions**: pick Player or Group and a name, click Show, and it prints exactly what that player or group currently has.
-
-All three name/SteamID fields let you click in and pick from currently-online players, or just type a SteamID/group name directly.
 
 ## Player Lookup tab
 
@@ -67,6 +62,21 @@ Your actual server map, with live markers refreshed every few seconds:
 - **Colored dots** (see the legend above the map) = world events currently active: Cargo Ship, Patrol Helicopter, Bradley APC, CH47, Cargo Plane. If a dot isn't showing, that event simply isn't happening right now - it'll appear when one spawns.
 
 Hover any marker to see its name/label. Click Refresh if the map image hasn't loaded yet (the very first time the server's seed is looked up, generating the image can take a couple of minutes - it'll show a "generating" message until it's ready).
+
+## Permissions tab
+
+Three independent panels:
+
+- **Grant / Revoke Permission**: pick Player or Group, type their name/SteamID (or group name), type or pick a permission from the suggestions, then Grant or Revoke.
+- **Add / Remove From Group**: add or remove a player from an Oxide group (e.g. `vip`, `admin`).
+- **Check Current Permissions**: pick Player or Group and a name, click Show, and it prints exactly what that player or group currently has.
+
+All three name/SteamID fields let you click in and pick from currently-online players, or just type a SteamID/group name directly.
+
+## Server Info tab
+
+- **Server Settings**: edit your hostname, server URL, description, or header image. Each field loads with the current value - change it and click Apply next to that field, then confirm in the popup that appears.
+- **Live Server Stats**: framerate, uptime, player count, entity count, etc. Click Refresh to update.
 
 ## AMAP tab
 

@@ -144,6 +144,15 @@ async function refreshStatus() {
       const players = data.Players !== undefined ? data.Players : "-";
       const max = data.MaxPlayers !== undefined ? data.MaxPlayers : "-";
       $("#player-count").textContent = `Players: ${players}/${max}`;
+
+      $("#overview-players").textContent = `${players}/${max}`;
+      $("#overview-queued").textContent = data.Queued !== undefined ? data.Queued : "-";
+      $("#overview-fps").textContent = data.Framerate !== undefined ? data.Framerate : "-";
+      $("#overview-gametime").textContent = data.GameTime !== undefined ? data.GameTime : "-";
+      $("#overview-uptime").textContent = data.Uptime !== undefined ? formatSeconds(data.Uptime) : "-";
+      $("#overview-map").textContent = data.Map !== undefined ? data.Map : "-";
+      $("#overview-entities").textContent = data.EntityCount !== undefined ? data.EntityCount : "-";
+      $("#overview-hostname").textContent = data.Hostname || "NOR Dashboard";
     }
   } catch (err) {
     // leave the last known count showing rather than blank it on a hiccup
@@ -338,48 +347,87 @@ function initCustomSelect(select) {
 
 $all(".custom-select").forEach(initCustomSelect);
 
+// Shared renderer for the two places that show the same "who's online"
+// list (avatar, name, session time) - the Console tab's sidebar and the
+// Overview tab. Takes a container element directly rather than a
+// selector, so the same player data can be rendered into both at once.
+function renderPlayerList(box, players, errorMessage) {
+  if (errorMessage) {
+    box.innerHTML = `<p class="muted">Error: ${escapeHtml(errorMessage)}</p>`;
+    return;
+  }
+  if (players.length === 0) {
+    box.innerHTML = '<p class="muted">No players online.</p>';
+    return;
+  }
+  box.innerHTML = "";
+  players.forEach((p) => {
+    const row = document.createElement("div");
+    row.className = "console-player-row";
+    const avatarHtml = p.avatar
+      ? `<img class="console-player-avatar" src="${escapeHtml(p.avatar)}" alt="">`
+      : '<div class="console-player-avatar console-player-avatar-blank"></div>';
+    const timeText = p.connected_seconds != null ? formatSeconds(p.connected_seconds) + " this session" : "-";
+    row.innerHTML = `
+      ${avatarHtml}
+      <div class="console-player-meta">
+        <div class="console-player-name">${escapeHtml(p.name)}</div>
+        <div class="console-player-time muted">${escapeHtml(timeText)}</div>
+      </div>
+    `;
+    box.appendChild(row);
+  });
+}
+
 // Compact player list next to the console - name, avatar, session time.
 // Also doubles as the data source for the Permissions tab's player
-// dropdown suggestions, since it's already fetching this every 20s.
+// dropdown suggestions and the Overview tab's connected-players panel,
+// since it's already fetching this every 20s.
 async function refreshConsolePlayerList() {
-  const box = $("#console-player-list");
+  const consoleBox = $("#console-player-list");
+  const overviewBox = $("#overview-player-list");
   try {
     const res = await fetch("/api/players/online");
     const data = await res.json();
     if (data.error) {
-      box.innerHTML = `<p class="muted">Error: ${escapeHtml(data.error)}</p>`;
+      renderPlayerList(consoleBox, [], data.error);
+      renderPlayerList(overviewBox, [], data.error);
       updateOnlinePlayersDatalist([]);
       return;
     }
     const players = data.players || [];
     updateOnlinePlayersDatalist(players);
-    if (players.length === 0) {
-      box.innerHTML = '<p class="muted">No players online.</p>';
-      return;
-    }
-    box.innerHTML = "";
-    players.forEach((p) => {
-      const row = document.createElement("div");
-      row.className = "console-player-row";
-      const avatarHtml = p.avatar
-        ? `<img class="console-player-avatar" src="${escapeHtml(p.avatar)}" alt="">`
-        : '<div class="console-player-avatar console-player-avatar-blank"></div>';
-      const timeText = p.connected_seconds != null ? formatSeconds(p.connected_seconds) + " this session" : "-";
-      row.innerHTML = `
-        ${avatarHtml}
-        <div class="console-player-meta">
-          <div class="console-player-name">${escapeHtml(p.name)}</div>
-          <div class="console-player-time muted">${escapeHtml(timeText)}</div>
-        </div>
-      `;
-      box.appendChild(row);
-    });
+    renderPlayerList(consoleBox, players);
+    renderPlayerList(overviewBox, players);
   } catch (err) {
-    box.innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
+    renderPlayerList(consoleBox, [], err.message);
+    renderPlayerList(overviewBox, [], err.message);
   }
 }
 refreshConsolePlayerList();
 setInterval(refreshConsolePlayerList, 20000);
+
+// ---- Overview tab extras: description + BattleMetrics rank ----
+// Polled separately from the RCON-backed stats above since this comes
+// from an external API and doesn't need to refresh as often -
+// BattleMetrics' own crawler only updates a server's data every minute
+// or so regardless of how often this asks. Description comes from here
+// too rather than /api/server/settings - the RCON convar echo for
+// description has literal "\n" text instead of real line breaks, while
+// BattleMetrics' copy of the same text is already cleanly formatted.
+async function loadOverviewExtras() {
+  try {
+    const bm = await fetch("/api/battlemetrics/stats").then((res) => res.json());
+    $("#overview-rank").textContent = !bm.error && bm.rank != null ? `#${bm.rank}` : "-";
+    if (!bm.error && bm.description) {
+      $("#overview-description").textContent = bm.description;
+    }
+  } catch (err) {
+    $("#overview-rank").textContent = "-";
+  }
+}
+loadOverviewExtras();
+setInterval(loadOverviewExtras, 30000);
 
 // Permission dropdown suggestions - static for the life of the page load,
 // built from the plugins actually installed on the server (see

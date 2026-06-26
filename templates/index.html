@@ -32,7 +32,8 @@
 </header>
 
 <nav class="tabs">
-  <button class="tab-btn active" data-tab="console">Console</button>
+  <button class="tab-btn active" data-tab="overview">Overview</button>
+  <button class="tab-btn" data-tab="console">Console</button>
   <button class="tab-btn" data-tab="players">Players</button>
   <button class="tab-btn" data-tab="lookup">Player Lookup</button>
   <button class="tab-btn" data-tab="map">Live Map</button>
@@ -43,7 +44,56 @@
 
 <main class="page-wrap">
 
-  <section id="tab-console" class="tab-panel active">
+  <section id="tab-overview" class="tab-panel active">
+    <div class="overview-hero">
+      <h1 id="overview-hostname">Loading...</h1>
+      <p id="overview-description" class="overview-description"></p>
+    </div>
+
+    <div class="overview-stats-grid">
+      <div class="overview-stat-card">
+        <span class="overview-stat-label">Players</span>
+        <span class="overview-stat-value" id="overview-players">-</span>
+      </div>
+      <div class="overview-stat-card">
+        <span class="overview-stat-label">Queued</span>
+        <span class="overview-stat-value" id="overview-queued">-</span>
+      </div>
+      <div class="overview-stat-card">
+        <span class="overview-stat-label">BattleMetrics Rank</span>
+        <span class="overview-stat-value" id="overview-rank">-</span>
+      </div>
+      <div class="overview-stat-card">
+        <span class="overview-stat-label">Framerate</span>
+        <span class="overview-stat-value" id="overview-fps">-</span>
+      </div>
+      <div class="overview-stat-card">
+        <span class="overview-stat-label">Game Time</span>
+        <span class="overview-stat-value" id="overview-gametime">-</span>
+      </div>
+      <div class="overview-stat-card">
+        <span class="overview-stat-label">Uptime</span>
+        <span class="overview-stat-value" id="overview-uptime">-</span>
+      </div>
+      <div class="overview-stat-card">
+        <span class="overview-stat-label">Map</span>
+        <span class="overview-stat-value" id="overview-map">-</span>
+      </div>
+      <div class="overview-stat-card">
+        <span class="overview-stat-label">Entities</span>
+        <span class="overview-stat-value" id="overview-entities">-</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Connected Players</h2>
+      <div id="overview-player-list" class="console-player-list overview-player-list">
+        <p class="muted">Loading...</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-console" class="tab-panel">
     <div class="console-layout">
       <div class="panel">
         <h2>RCON Console</h2>

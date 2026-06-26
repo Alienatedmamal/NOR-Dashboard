@@ -12,6 +12,7 @@ from flask import Flask, jsonify, render_template, request
 
 from amap_commands import AMAP_ACTIONS, run_amap_action
 from ban_commands import ban_player, get_banned_steamids, unban_player
+from battlemetrics import get_server_stats
 from map_data import get_map_image
 from map_entities import get_world_events
 from oxide_commands import (
@@ -497,6 +498,12 @@ def api_amap_wipe_config():
     except RconError as exc:
         reset_rcon_client()
         return jsonify({"error": str(exc)}), 502
+
+
+@app.route("/api/battlemetrics/stats")
+def api_battlemetrics_stats():
+    cfg = load_config()
+    return jsonify(get_server_stats(cfg.get("battlemetrics_id", "")))
 
 
 @app.route("/api/steam/lookup/<steamid>")
