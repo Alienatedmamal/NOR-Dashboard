@@ -2,6 +2,8 @@
 
 A simple admin dashboard for your Rust server: a live console feed, server info/settings, online/offline/banned player management with notes, permission management, player ban/Steam history lookups, a live map with player and world-event tracking, and a wipe countdown. Same black-and-neon-green look as AMAP and nor.workisboring.com.
 
+This doc covers one-time setup. Once it's running, see `ADMIN-GUIDE.md` for how to actually use each tab day-to-day.
+
 ## One-time setup
 
 1. **Double-click `install.bat`.** It checks for Python and installs it automatically (via `winget`) if it's missing, then installs the three small packages this needs (Flask, websocket-client, requests), and creates `config.json` from the template if it doesn't already exist.
