@@ -2,6 +2,6 @@
   "rcon_host": "RCON_IP",
   "rcon_port": 28016,
   "rcon_password": "RCON_PW",
-  "steam_api_key": "E5BCFCA816672452C39BDA016E76414B",
-  "rustmaps_api_key": "25d7491789874b3a94470069828a625e"
+  "steam_api_key": "STEAM_API_KEY",
+  "rustmaps_api_key": "RUST_MAPS_API_KEY"
 }
