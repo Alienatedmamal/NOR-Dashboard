@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NOR Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <img src="{{ url_for('static', filename='img/banner.png') }}" alt="Noobs On The Run" class="brand-logo">
+    <span class="brand-name">Dashboard</span>
+  </div>
+  <div class="wipe-countdown" id="wipe-countdown">
+    <span class="wipe-countdown-label">Next Wipe</span>
+    <span class="wipe-countdown-time" id="wipe-countdown-time">--d --h --m --s</span>
+  </div>
+  <div class="topbar-right">
+    <div id="player-count" class="player-count">Players: -</div>
+    <div class="status-wrap">
+      <div id="connection-status" class="status-badge status-unknown">
+        <span class="status-dot"></span>
+        <span id="connection-text">Checking...</span>
+      </div>
+      <div id="last-checked" class="last-checked">Last checked: -</div>
+    </div>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="console">Console</button>
+  <button class="tab-btn" data-tab="serverinfo">Server Info</button>
+  <button class="tab-btn" data-tab="players">Players</button>
+  <button class="tab-btn" data-tab="permissions">Permissions</button>
+  <button class="tab-btn" data-tab="lookup">Player Lookup</button>
+  <button class="tab-btn" data-tab="map">Live Map</button>
+</nav>
+
+<main class="page-wrap">
+
+  <section id="tab-console" class="tab-panel active">
+    <div class="console-layout">
+      <div class="panel">
+        <h2>RCON Console</h2>
+        <p class="muted">Send any command to server.</p>
+        <div id="console-output" class="console-output"></div>
+        <form id="console-form" class="inline-form">
+          <input type="text" id="console-input" placeholder="Type a command, e.g. status" autocomplete="off">
+          <button type="submit" class="btn btn-primary">Send</button>
+        </form>
+      </div>
+
+      <div class="player-sidebar">
+        <div class="panel">
+          <h3>Online Players</h3>
+          <p class="muted">Time shown is this session, not lifetime total.</p>
+          <div id="console-player-list" class="console-player-list">
+            <p class="muted">Loading...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-serverinfo" class="tab-panel">
+    <div class="panel">
+      <h2>Server Settings</h2>
+      <p class="muted">Edit your server's public info - shows up on the in-game server browser too. Fields load with the current value where possible.</p>
+      <div class="settings-grid">
+        <label>Server hostname
+          <div class="inline-form">
+            <input type="text" id="setting-hostname" placeholder="Loading...">
+            <button class="btn btn-primary" data-setting="hostname">Apply</button>
+          </div>
+        </label>
+        <label>Server URL
+          <div class="inline-form">
+            <input type="text" id="setting-url" placeholder="Loading...">
+            <button class="btn btn-primary" data-setting="url">Apply</button>
+          </div>
+        </label>
+        <label>Server description
+          <div class="inline-form">
+            <input type="text" id="setting-description" placeholder="Loading...">
+            <button class="btn btn-primary" data-setting="description">Apply</button>
+          </div>
+        </label>
+        <label>Server image URL
+          <div class="inline-form">
+            <input type="text" id="setting-headerimage" placeholder="Loading...">
+            <button class="btn btn-primary" data-setting="headerimage">Apply</button>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header-row">
+        <h2>Live Server Stats</h2>
+        <button id="refresh-serverinfo" class="btn btn-outline">Refresh</button>
+      </div>
+      <div class="stats-grid" id="serverinfo-stats">
+        <p class="muted">Click Refresh to load.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-players" class="tab-panel">
+    <div class="panel">
+      <div class="panel-header-row">
+        <h2>Online Players</h2>
+        <button id="refresh-players" class="btn btn-outline">Refresh</button>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table" id="players-table">
+          <thead>
+            <tr>
+              <th>Name</th><th>SteamID</th><th>IP</th><th>Ping</th><th>Session</th>
+              <th>Total Time</th><th>Last Connected</th><th>Rust Hours</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="players-body">
+            <tr><td colspan="9" class="muted">Click Refresh to load players.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header-row">
+        <h2>Offline Players</h2>
+        <button id="refresh-offline" class="btn btn-outline">Refresh</button>
+      </div>
+      <p class="muted">Recently seen, not currently connected.</p>
+      <div class="table-scroll">
+        <table class="data-table" id="offline-table">
+          <thead>
+            <tr><th>Name</th><th>SteamID</th><th>Total Time</th><th>Last Connected</th><th></th></tr>
+          </thead>
+          <tbody id="offline-body">
+            <tr><td colspan="5" class="muted">Click Refresh to load.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header-row">
+        <h2>Banned Players</h2>
+        <button id="refresh-banned" class="btn btn-outline">Refresh</button>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table" id="banned-table">
+          <thead>
+            <tr><th>Name</th><th>SteamID</th><th></th></tr>
+          </thead>
+          <tbody id="banned-body">
+            <tr><td colspan="3" class="muted">Click Refresh to load.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Player Notes</h2>
+      <p class="muted">Ban reasons show up here automatically. You can also add your own notes for any player.</p>
+      <div class="inline-form">
+        <input type="text" id="notes-steamid" class="player-combo" placeholder="SteamID" autocomplete="off">
+        <button type="button" id="notes-load" class="btn btn-outline">Load Notes</button>
+      </div>
+      <div id="notes-list" class="console-output small"></div>
+      <form id="notes-add-form" class="inline-form">
+        <input type="text" id="notes-text" placeholder="Add a note...">
+        <button type="submit" class="btn btn-primary">Add Note</button>
+      </form>
+    </div>
+  </section>
+
+  <section id="tab-permissions" class="tab-panel">
+    <div class="grid">
+      <div class="panel">
+        <h2>Grant / Revoke Permission</h2>
+        <form class="stacked-form" onsubmit="return false;">
+          <label>Target type
+            <select id="perm-target-type" class="custom-select">
+              <option value="user">Player</option>
+              <option value="group">Group</option>
+            </select>
+          </label>
+          <label>Player name / SteamID or group name
+            <input type="text" id="perm-target" class="player-combo" placeholder="e.g. 76561198000000000 or admin" autocomplete="off">
+          </label>
+          <label>Permission
+            <input type="text" id="perm-permission" list="permission-list" placeholder="e.g. kits.use">
+          </label>
+          <div class="btn-row">
+            <button type="button" id="perm-grant" class="btn btn-primary">Grant</button>
+            <button type="button" id="perm-revoke" class="btn btn-outline">Revoke</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="panel">
+        <h2>Add / Remove From Group</h2>
+        <form class="stacked-form" onsubmit="return false;">
+          <label>Player name / SteamID
+            <input type="text" id="group-user" class="player-combo" placeholder="e.g. 76561198000000000" autocomplete="off">
+          </label>
+          <label>Group
+            <input type="text" id="group-name" placeholder="e.g. vip">
+          </label>
+          <div class="btn-row">
+            <button type="button" id="group-add" class="btn btn-primary">Add to Group</button>
+            <button type="button" id="group-remove" class="btn btn-outline">Remove from Group</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="panel">
+        <h2>Check Current Permissions</h2>
+        <form class="stacked-form" onsubmit="return false;">
+          <label>Type
+            <select id="show-target-type" class="custom-select">
+              <option value="user">Player</option>
+              <option value="group">Group</option>
+            </select>
+          </label>
+          <label>Name / SteamID
+            <input type="text" id="show-target" class="player-combo" placeholder="e.g. 76561198000000000 or admin" autocomplete="off">
+          </label>
+          <button type="button" id="show-submit" class="btn btn-primary">Show</button>
+        </form>
+        <pre id="show-output" class="console-output small"></pre>
+      </div>
+    </div>
+
+    <datalist id="permission-list"></datalist>
+  </section>
+
+  <section id="tab-lookup" class="tab-panel">
+    <div class="panel">
+      <h2>Player Lookup</h2>
+      <p class="muted">Paste a SteamID64, or click "Look up" next to a player in the Players tab.</p>
+      <form id="lookup-form" class="inline-form">
+        <input type="text" id="lookup-steamid" placeholder="SteamID64, e.g. 76561198000000000" autocomplete="off">
+        <button type="submit" class="btn btn-primary">Look Up</button>
+      </form>
+      <div id="lookup-result" class="lookup-result"></div>
+    </div>
+  </section>
+
+  <section id="tab-map" class="tab-panel">
+    <div class="panel">
+      <div class="panel-header-row">
+        <h2>Live Map</h2>
+        <button id="refresh-map" class="btn btn-outline">Refresh</button>
+      </div>
+      <p id="map-status" class="muted">Loading...</p>
+      <div class="map-legend">
+        <span class="map-legend-item"><span class="map-dot map-dot-player"></span>Player</span>
+        <span class="map-legend-item"><span class="map-dot map-dot-cargoship"></span>Cargo Ship</span>
+        <span class="map-legend-item"><span class="map-dot map-dot-patrolhelicopter"></span>Patrol Heli</span>
+        <span class="map-legend-item"><span class="map-dot map-dot-bradleyapc"></span>Bradley APC</span>
+        <span class="map-legend-item"><span class="map-dot map-dot-ch47"></span>CH47</span>
+        <span class="map-legend-item"><span class="map-dot map-dot-cargoplane"></span>Cargo Plane</span>
+      </div>
+      <div class="map-wrap" id="map-wrap">
+        <img id="map-image" class="map-image" alt="Server map" hidden>
+        <div class="map-overlay" id="map-overlay"></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
