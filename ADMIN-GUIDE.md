@@ -32,7 +32,7 @@ The sidebar next to it lists who's currently online, with how long they've been 
 
 ## Server Info tab
 
-- **Server Settings**: edit your hostname, server URL, description, or header image. Each field loads with the current value - change it and click Apply next to that field.
+- **Server Settings**: edit your hostname, server URL, description, or header image. Each field loads with the current value - change it and click Apply next to that field, then confirm in the popup that appears.
 - **Live Server Stats**: framerate, uptime, player count, entity count, etc. Click Refresh to update.
 
 ## Players tab
@@ -68,7 +68,7 @@ Your actual server map, with live markers refreshed every few seconds:
 
 Hover any marker to see its name/label. Click Refresh if the map image hasn't loaded yet (the very first time the server's seed is looked up, generating the image can take a couple of minutes - it'll show a "generating" message until it's ready).
 
-## AMAP Scripts tab
+## AMAP tab
 
 Runs your actual AMAP server-management scripts remotely over RCON - no SSH access needed on your PC at all. It's locked behind its own password (separate from anything else in the dashboard) since some of these actions can stop the live server or wipe data.
 
@@ -99,7 +99,8 @@ A few things worth knowing:
 
 ## Quick troubleshooting
 
-- **"Not connected" badge won't clear**: check that the dashboard's PC can still reach the Rust server's RCON port - nothing else to do on the dashboard side, it retries automatically. If you just used an AMAP Scripts action that stops the server, give it a minute to come back up first.
+- **"Not connected" badge won't clear**: check that the dashboard's PC can still reach the Rust server's RCON port - nothing else to do on the dashboard side, it retries automatically. If you just used an AMAP tab action that stops the server, give it a minute to come back up first.
 - **A tab's data looks stale or empty**: most tabs have their own Refresh button - try that first.
 - **Console window got closed by accident**: just double-click `run.bat` again.
 - **`update.bat` says it failed**: check your internet connection first. If that's fine, let whoever maintains the dashboard know - it can also fail if the GitHub repo itself is temporarily unavailable, which isn't something fixable from your end.
+- **Windows shows a blue "Windows protected your PC" warning** when double-clicking `run.bat`, `install.bat`, or `update.bat`: that just means the file came from the internet - click **More info**, then **Run anyway**. Nothing's wrong with the file.
