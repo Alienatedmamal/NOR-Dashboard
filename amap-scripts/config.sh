@@ -4,9 +4,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ###############################################################
 ################## Replace with your information ##############
 #########This Should Auto-Fill if not replace USER NAME########
-                     USERNAME="alienatedmammal"
+                     USERNAME="USERNAME_HERE"
 
-               HOSTNAME="NoobsOnTheRun"
+               HOSTNAME="HOSTNAME_HERE"
                DISCORDURL="CHANGE_ME"
 
 ###############################################################
