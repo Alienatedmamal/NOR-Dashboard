@@ -1,7 +1,7 @@
 {
-  "rcon_host": "10.0.35.2",
+  "rcon_host": "RCON_IP",
   "rcon_port": 28016,
-  "rcon_password": "WeAreThePyroKings1",
+  "rcon_password": "RCON_PW",
   "steam_api_key": "E5BCFCA816672452C39BDA016E76414B",
   "rustmaps_api_key": "25d7491789874b3a94470069828a625e"
 }
