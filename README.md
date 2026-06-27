@@ -98,6 +98,7 @@ Each admin then:
 
 - This only binds to `127.0.0.1` (your own PC) - it's deliberately not reachable over your network, since `config.json` holds your RCON password.
 - If the RCON connection drops or the server restarts, the dashboard reconnects automatically next time it needs to talk to it.
+- It's normal to see `NOR Dashboard connected` show up periodically (every 15 seconds) in the server's own console/logs - that's just the dashboard's connection health-check, confirming RCON is reachable and everything (including the AMAP tab) is working. It's hidden from the dashboard's own Console tab feed on purpose, but still visible to anyone watching the raw server console directly.
 - The Players list parses your server's `playerlist` RCON response into a table; the Server Info tab uses the built-in `serverinfo` command; the Live Map's event markers use the built-in `find_entity` command - all tested against your actual server and working.
 - Without a `rustmaps_api_key`, the Live Map tab still shows live player/event markers - just without the background map image. The very first time RustMaps sees a given seed/world size, generating the image can take a couple minutes; the tab shows a "generating" message and a Refresh button until it's ready.
 - Without a `battlemetrics_id`, the Overview tab still shows everything else - Rank just stays blank.
