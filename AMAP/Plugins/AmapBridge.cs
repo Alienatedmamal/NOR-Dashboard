@@ -21,7 +21,14 @@ namespace Oxide.Plugins
             public bool IsView;
         }
 
-        private const string WipeConfigPath = "/home/alienatedmammal/AMAP/Files/Config/config.cfg";
+        // Resolved once at plugin load from the OS account this Rust server
+        // process actually runs under - the same idea as the bash scripts'
+        // $USERNAME in config.sh, just read straight from the OS instead of
+        // a config file. Lets this same plugin file run unmodified on any
+        // server, instead of needing this username hardcoded per-install.
+        private static readonly string HomeDir = $"/home/{Environment.UserName}";
+
+        private static readonly string WipeConfigPath = $"{HomeDir}/AMAP/Files/Config/config.cfg";
 
         // Fixed whitelist: action keyword -> exact script path. The keyword
         // from RCON is matched against this dictionary's keys only - nothing
@@ -30,14 +37,14 @@ namespace Oxide.Plugins
         // line here, not accepting new shell text from outside.
         private static readonly Dictionary<string, AmapAction> Actions = new Dictionary<string, AmapAction>
         {
-            ["full_wipe"] = new AmapAction { ScriptPath = "/home/alienatedmammal/AMAP/Files/Scripts/./Fullwipe.sh" },
-            ["log_cleaner"] = new AmapAction { ScriptPath = "/home/alienatedmammal/AMAP/Files/Scripts/./LogCleaner.sh" },
-            ["map_wipe"] = new AmapAction { ScriptPath = "/home/alienatedmammal/AMAP/Files/Scripts/./Mapwipe.sh" },
-            ["nightly_restart"] = new AmapAction { ScriptPath = "/home/alienatedmammal/AMAP/Files/Scripts/./Nightly.sh" },
-            ["backup"] = new AmapAction { ScriptPath = "/home/alienatedmammal/AMAP/Files/Scripts/./ServerBackups.sh" },
-            ["server_checker"] = new AmapAction { ScriptPath = "/home/alienatedmammal/AMAP/Files/Scripts/./ServerChecker.sh" },
-            ["updater"] = new AmapAction { ScriptPath = "/home/alienatedmammal/AMAP/Files/Scripts/./Updater.sh" },
-            ["wipe_configure"] = new AmapAction { ScriptPath = "/home/alienatedmammal/AMAP/Files/Scripts/./wipeconfigure.sh", NeedsArgs = true },
+            ["full_wipe"] = new AmapAction { ScriptPath = $"{HomeDir}/AMAP/Files/Scripts/./Fullwipe.sh" },
+            ["log_cleaner"] = new AmapAction { ScriptPath = $"{HomeDir}/AMAP/Files/Scripts/./LogCleaner.sh" },
+            ["map_wipe"] = new AmapAction { ScriptPath = $"{HomeDir}/AMAP/Files/Scripts/./Mapwipe.sh" },
+            ["nightly_restart"] = new AmapAction { ScriptPath = $"{HomeDir}/AMAP/Files/Scripts/./Nightly.sh" },
+            ["backup"] = new AmapAction { ScriptPath = $"{HomeDir}/AMAP/Files/Scripts/./ServerBackups.sh" },
+            ["server_checker"] = new AmapAction { ScriptPath = $"{HomeDir}/AMAP/Files/Scripts/./ServerChecker.sh" },
+            ["updater"] = new AmapAction { ScriptPath = $"{HomeDir}/AMAP/Files/Scripts/./Updater.sh" },
+            ["wipe_configure"] = new AmapAction { ScriptPath = $"{HomeDir}/AMAP/Files/Scripts/./wipeconfigure.sh", NeedsArgs = true },
             ["wipe_configure_view"] = new AmapAction { IsView = true },
         };
 
@@ -90,7 +97,7 @@ namespace Oxide.Plugins
                     FileName = "/bin/bash",
                     Arguments = $"-c \"{info.ScriptPath}\"",
                     UseShellExecute = false,
-                    WorkingDirectory = "/home/alienatedmammal",
+                    WorkingDirectory = HomeDir,
                 });
                 // No Puts() here on purpose - ReplyWith's text is buffered
                 // until this method returns, while Puts() hits the wire
@@ -159,7 +166,7 @@ namespace Oxide.Plugins
                     Arguments = $"-c \"{scriptPath}\"",
                     UseShellExecute = false,
                     RedirectStandardInput = true,
-                    WorkingDirectory = "/home/alienatedmammal",
+                    WorkingDirectory = HomeDir,
                 };
                 var proc = Process.Start(psi);
                 proc.StandardInput.WriteLine(seed);
