@@ -33,7 +33,9 @@ from steam_api import get_player_summary, get_rust_playtime_hours, lookup_player
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
-VERSION_PATH = os.path.join(BASE_DIR, "VERSION")
+# VERSION lives one level up, at the repo root, alongside run.bat/install.bat
+# - everything else app.py needs is colocated here in app/.
+VERSION_PATH = os.path.join(BASE_DIR, "..", "VERSION")
 
 with open(VERSION_PATH, "r", encoding="utf-8") as f:
     VERSION = f.read().strip()

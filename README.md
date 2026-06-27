@@ -6,10 +6,10 @@ This doc covers one-time setup. Once it's running, see `ADMIN-GUIDE.md` for how 
 
 ## One-time setup
 
-1. **Double-click `install.bat`.** It checks for Python and installs it automatically (via `winget`) if it's missing, then installs the three small packages this needs (Flask, websocket-client, requests), and creates `config.json` from the template if it doesn't already exist.
+1. **Double-click `install.bat`.** It checks for Python and installs it automatically (via `winget`) if it's missing, then installs the three small packages this needs (Flask, websocket-client, requests), and creates `app/config.json` from the template if it doesn't already exist.
    - If Windows shows a blue "Windows protected your PC" warning when you double-click it, that's just because the file came from the internet, not because anything's wrong - click **More info**, then **Run anyway**.
    - If it can't install Python automatically (no `winget`), it'll print a link to download Python yourself - check **"Add python.exe to PATH"** during that install, then run `install.bat` again.
-2. **Edit `config.json`**: right-click it → **Open with** → **Notepad**, fill in the values below, then save (Ctrl+S) and close. These three are required - the dashboard won't start without them:
+2. **Edit `app/config.json`**: right-click it → **Open with** → **Notepad**, fill in the values below, then save (Ctrl+S) and close. These three are required - the dashboard won't start without them:
    - `rcon_host` - your Rust server's IP address
    - `rcon_port` - your RCON port (LGSM's `rcon.port`, default `28016`)
    - `rcon_password` - your RCON password (LGSM's `rcon.password`)
@@ -53,9 +53,11 @@ Double-click **`run.bat`**. (Same Windows warning as before if it shows up - Mor
 
 Leave the console window open while using the dashboard - closing it shuts the dashboard down. Next time, just double-click `run.bat` again (no need to re-run `install.bat`).
 
+`install.bat` also creates a **"Launch NOR Dashboard.lnk"** shortcut in this folder, with its own icon - copy it to your Desktop or pin it to the taskbar if you want a nicer-looking launcher than the plain `run.bat` file.
+
 ## Checking for updates
 
-Double-click **`update.bat`**. It downloads the latest version straight from GitHub and overwrites the files in this folder - no git, no command line, nothing to install. `config.json` and your local data (notes, player stats, map cache) are never touched, since they're not part of what gets downloaded. Restart `run.bat` afterward to pick up any code changes. See `ADMIN-GUIDE.md` for the step-by-step version.
+Double-click **`update.bat`**. It downloads the latest version straight from GitHub and overwrites the files in this folder - no git, no command line, nothing to install. `app/config.json` and your local data (notes, player stats, map cache) are never touched, since they're not part of what gets downloaded. Restart `run.bat` afterward to pick up any code changes. See `ADMIN-GUIDE.md` for the step-by-step version.
 
 ## What's in here
 
@@ -73,7 +75,7 @@ Double-click **`update.bat`**. It downloads the latest version straight from Git
 
 This tab needs a small custom Oxide plugin, `AMAP/Plugins/AmapBridge.cs`, installed on the server - it's what lets an RCON command actually run a shell script on the box. See "Setting up AMAP on your Rust server" above for the first-time install; `AMAP/Plugins/AmapBridge.cs` in this repo is the source of truth if you ever need to redeploy it later (e.g. after a fresh Oxide install) - just copy it back into `oxide/plugins/` and the server will compile and load it automatically within a few seconds.
 
-The plugin only recognizes a fixed, hardcoded list of action keywords (see the `Actions` dictionary at the top of the file) - it never accepts or runs arbitrary shell text from RCON. Adding a new dashboard button means adding a new line to both that dictionary and `amap_commands.py`'s `AMAP_ACTIONS`, not changing what kind of input is accepted.
+The plugin only recognizes a fixed, hardcoded list of action keywords (see the `Actions` dictionary at the top of the file) - it never accepts or runs arbitrary shell text from RCON. Adding a new dashboard button means adding a new line to both that dictionary and `app/amap_commands.py`'s `AMAP_ACTIONS`, not changing what kind of input is accepted.
 
 There's no password on this tab - Critical actions (Updater, Nightly Restart, Map Wipe, Full Wipe) require typing the action's exact name into the confirmation popup before they'll run, which is the actual protection against a stray click. Anyone with the dashboard open can see the tab and its options, same as everything else in the dashboard.
 
@@ -83,24 +85,24 @@ The rest of `AMAP/` in this repo is a sanitized backup copy of the actual AMAP s
 
 Copy the whole `NOR-Dashboard` folder to their PC (or zip it up).
 
-- **`config.json`** holds your RCON password and API keys. If this admin already has (or should have) full RCON access anyway, it's fine to include as-is so they're up and running immediately. If not, delete it before sharing (or just don't include it) - `config.example.json` is the safe template that ships instead, and `install.bat` will recreate `config.json` from it.
-- **`.pyexe`** and the **`__pycache__`** folder are machine-specific and safe to delete before sharing - both get regenerated automatically (`.pyexe` by `install.bat`, `__pycache__` the first time Python runs).
-- **`player_notes.json`, `player_stats.json`, `map_cache.json`** hold this server's accumulated notes/ban reasons, player history, and cached map data. Leave them in if you want the other admin to see the same history; delete them for a clean slate.
+- **`app/config.json`** holds your RCON password and API keys. If this admin already has (or should have) full RCON access anyway, it's fine to include as-is so they're up and running immediately. If not, delete it before sharing (or just don't include it) - `app/config.example.json` is the safe template that ships instead, and `install.bat` will recreate `app/config.json` from it.
+- **`.pyexe`** and the **`app/__pycache__`** folder are machine-specific and safe to delete before sharing - both get regenerated automatically (`.pyexe` by `install.bat`, `app/__pycache__` the first time Python runs).
+- **`app/player_notes.json`, `app/player_stats.json`, `app/map_cache.json`** hold this server's accumulated notes/ban reasons, player history, and cached map data. Leave them in if you want the other admin to see the same history; delete them for a clean slate.
 
 Each admin then:
 
-1. Double-clicks `install.bat` (sets up Python/packages and creates a fresh `config.json` for them if one isn't already there).
-2. Fills in `config.json` with the same server details you use, if it wasn't already filled in.
+1. Double-clicks `install.bat` (sets up Python/packages and creates a fresh `app/config.json` for them if one isn't already there).
+2. Fills in `app/config.json` with the same server details you use, if it wasn't already filled in.
 3. Double-clicks `run.bat`.
 4. From then on, double-clicks `update.bat` whenever you tell them a new version is out.
 
 ## Notes
 
-- This only binds to `127.0.0.1` (your own PC) - it's deliberately not reachable over your network, since `config.json` holds your RCON password.
+- This only binds to `127.0.0.1` (your own PC) - it's deliberately not reachable over your network, since `app/config.json` holds your RCON password.
 - If the RCON connection drops or the server restarts, the dashboard reconnects automatically next time it needs to talk to it.
 - It's normal to see `NOR Dashboard connected` show up periodically (every 15 seconds) in the server's own console/logs - that's just the dashboard's connection health-check, confirming RCON is reachable and everything (including the AMAP tab) is working. It's hidden from the dashboard's own Console tab feed on purpose, but still visible to anyone watching the raw server console directly.
 - The Players list parses your server's `playerlist` RCON response into a table; the Server Info tab uses the built-in `serverinfo` command; the Live Map's event markers use the built-in `find_entity` command - all tested against your actual server and working.
 - Without a `rustmaps_api_key`, the Live Map tab still shows live player/event markers - just without the background map image. The very first time RustMaps sees a given seed/world size, generating the image can take a couple minutes; the tab shows a "generating" message and a Refresh button until it's ready.
 - Without a `battlemetrics_id`, the Overview tab still shows everything else - Rank just stays blank.
-- The Overview tab's background image is `static/img/bg.jpg` - swap that file for your own image (same filename) if you want something different than nor.workisboring.com's background.
+- The Overview tab's background image is `app/static/img/bg.jpg` - swap that file for your own image (same filename) if you want something different than nor.workisboring.com's background.
 - Several AMAP tab actions (Updater, Map Wipe, Full Wipe, Nightly Restart) stop the live Rust server, which is the very process the AmapBridge plugin runs inside - expect the RCON connection to drop right after using one of those, same as it would if you stopped the server any other way. The dashboard reconnects automatically once the server's back up.

@@ -1,6 +1,6 @@
 # NOR Dashboard - Admin Guide
 
-This is the day-to-day "how do I do X" guide. For first-time setup (installing Python, filling in `config.json`), see `README.md` instead - this guide assumes that's already done and you've got the dashboard open in your browser.
+This is the day-to-day "how do I do X" guide. For first-time setup (installing Python, filling in `app/config.json`), see `README.md` instead - this guide assumes that's already done and you've got the dashboard open in your browser.
 
 ## Getting in
 
@@ -14,7 +14,7 @@ When you're told a new version is out, double-click **`update.bat`** in the dash
 2. It overwrites the dashboard's files with the new version automatically - no git, no command line, nothing to install.
 3. When it says "Update complete," close that window and double-click `run.bat` as usual.
 
-Nothing you'd lose is touched by this: `config.json` (your settings/passwords), player notes, player stats, and the map cache all stay exactly as they were, since none of those are part of what gets downloaded.
+Nothing you'd lose is touched by this: `app/config.json` (your settings/passwords), player notes, player stats, and the map cache all stay exactly as they were, since none of those are part of what gets downloaded.
 
 You only need an internet connection for this step - once it's done, the dashboard runs the same as always, fully on your own PC.
 
@@ -32,7 +32,7 @@ The first thing you see when you open the dashboard - a quick-glance summary of 
 - **Stat cards**: Players (current/max), Queued, BattleMetrics Rank, Framerate, Game Time, Uptime, Map, and Entity Count.
 - **Connected Players** at the bottom - the same live list shown in the Console tab's sidebar.
 
-Most of this comes straight from RCON and updates every 15-20 seconds. BattleMetrics Rank comes from the public BattleMetrics API instead (no API key needed) and updates roughly every 30 seconds, since BattleMetrics' own crawler doesn't refresh a server's data much faster than that anyway. If Rank shows "-", check that `battlemetrics_id` is set in `config.json` (see `README.md`).
+Most of this comes straight from RCON and updates every 15-20 seconds. BattleMetrics Rank comes from the public BattleMetrics API instead (no API key needed) and updates roughly every 30 seconds, since BattleMetrics' own crawler doesn't refresh a server's data much faster than that anyway. If Rank shows "-", check that `battlemetrics_id` is set in `app/config.json` (see `README.md`).
 
 ## Console tab
 

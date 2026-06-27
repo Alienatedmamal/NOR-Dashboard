@@ -5,3 +5,4 @@ __pycache__/
 map_cache.json
 player_notes.json
 player_stats.json
+*.lnk

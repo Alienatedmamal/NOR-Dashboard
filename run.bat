@@ -21,14 +21,14 @@ if not defined PYEXE (
     exit /b 1
 )
 
-if not exist "%~dp0config.json" (
-    echo config.json not found - run install.bat first.
+if not exist "%~dp0app\config.json" (
+    echo app\config.json not found - run install.bat first.
     pause
     exit /b 1
 )
 
 echo Installing/updating dependencies (quick check, only does real work the first time)...
-"%PYEXE%" -m pip install --quiet -r "%~dp0requirements.txt"
+"%PYEXE%" -m pip install --quiet -r "%~dp0app\requirements.txt"
 
 echo.
 echo Starting NOR Dashboard - leave this window open while you use it.
@@ -50,6 +50,6 @@ if defined BROWSER (
     rem back to whatever the default browser is, as a normal tab.
     start "" cmd /c "timeout /t 2 /nobreak >nul & start http://127.0.0.1:5050"
 )
-"%PYEXE%" "%~dp0app.py"
+"%PYEXE%" "%~dp0app\app.py"
 
 endlocal

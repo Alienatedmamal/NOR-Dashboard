@@ -54,7 +54,7 @@ echo %PYEXE%> "%~dp0.pyexe"
 echo.
 
 echo Installing required packages (Flask, websocket-client, requests)...
-"%PYEXE%" -m pip install --quiet -r "%~dp0requirements.txt"
+"%PYEXE%" -m pip install --quiet -r "%~dp0app\requirements.txt"
 if %errorlevel% neq 0 (
     echo.
     echo Something went wrong installing packages - check the message above.
@@ -62,14 +62,21 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-if not exist "%~dp0config.json" (
-    copy "%~dp0config.example.json" "%~dp0config.json" >nul
+if not exist "%~dp0app\config.json" (
+    copy "%~dp0app\config.example.json" "%~dp0app\config.json" >nul
     echo.
-    echo Created config.json - open it and fill in your RCON host/port/password,
+    echo Created app\config.json - open it and fill in your RCON host/port/password,
     echo Steam API key, and RustMaps API key before running run.bat.
 ) else (
     echo.
-    echo config.json already exists - leaving it as-is.
+    echo app\config.json already exists - leaving it as-is.
+)
+
+if exist "%~dp0icon.ico" (
+    powershell -NoProfile -Command "$s = (New-Object -ComObject WScript.Shell).CreateShortcut('%~dp0Launch NOR Dashboard.lnk'); $s.TargetPath = '%~dp0run.bat'; $s.WorkingDirectory = '%~dp0'; $s.IconLocation = '%~dp0icon.ico'; $s.Save()"
+    echo.
+    echo Created "Launch NOR Dashboard.lnk" - copy it to your Desktop or pin it
+    echo to the taskbar for a one-click launcher with its own icon.
 )
 
 echo.
