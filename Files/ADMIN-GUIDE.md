@@ -116,9 +116,10 @@ Below the cards, the **Upload Plugin** panel sends a `.cs` file straight to your
 
 ## Settings (gear icon)
 
-Four sub-pages along the top:
+Five sub-pages along the top:
 
 - **RCON**: edit the host/port/password the dashboard uses to talk to your Rust server. Click **Save & Reconnect** and it takes effect immediately - no need to restart the dashboard or touch `config.json` by hand.
+- **API Keys**: the same Steam Web/RustMaps/BattleMetrics fields from one-time setup in `README.md`, editable here instead of by hand in `config.json`. All three are optional - leave any of them blank and the feature it powers (Player Lookup/Rust hours/avatars, the Live Map background image, or the Overview tab's Rank stat) just turns itself off until you fill it in. Saving applies immediately, no restart needed.
 - **Theme**: pick a preset from the dropdown to switch the whole dashboard's colors instantly, or use the four color pickers (Accent, Background, Text, Danger/Alerts) to build your own - the layout never changes, only colors. Both are just a live preview until you click **Save** - close the dashboard without saving and it'll go back to whatever was last saved (or the default green theme, if nothing ever was). **Reset to Default** previews the original green theme; click **Save** afterward to actually keep it. Saved for the server, like Wipe Schedule below - everyone who opens this dashboard sees the same theme.
 - **Wipe Schedule**: controls the countdown shown in the header. Pick Daily, Bi-weekly (every 14 days from a date you set once), or Monthly (first Thursday), plus the time and timezone. This one's saved for the server, not just your browser - everyone who opens this dashboard sees the same countdown.
 - **Plugin Deploy**: the host/username/folder path the AMAP tab's Upload Plugin panel sends files to - see the AMAP section above and `README.md`'s SSH key setup steps.

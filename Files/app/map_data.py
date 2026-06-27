@@ -80,7 +80,7 @@ def get_map_image(client, api_key):
         return cached
 
     if not api_key or api_key == "CHANGE_ME":
-        return {"status": "error", "error": "Add your RustMaps API key to config.json first", "seed": seed, "size": size}
+        return {"status": "error", "error": "Add your RustMaps API key in Settings > API Keys first", "seed": seed, "size": size}
 
     status, payload = _api_request("GET", f"/maps/{size}/{seed}?staging=false", api_key)
 

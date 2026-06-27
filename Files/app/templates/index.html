@@ -416,6 +416,7 @@
   <section id="tab-settings" class="tab-panel">
     <nav class="settings-subnav">
       <button class="settings-subnav-btn active" data-settings-section="rcon">RCON</button>
+      <button class="settings-subnav-btn" data-settings-section="api-keys">API Keys</button>
       <button class="settings-subnav-btn" data-settings-section="theme">Theme</button>
       <button class="settings-subnav-btn" data-settings-section="wipe">Wipe Schedule</button>
       <button class="settings-subnav-btn" data-settings-section="plugin-deploy">Plugin Deploy</button>
@@ -437,6 +438,27 @@
           </label>
           <div class="btn-row">
             <button type="submit" class="btn btn-primary" id="rcon-settings-save">Save &amp; Reconnect</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="settings-section-api-keys" class="settings-section">
+      <div class="panel settings-panel">
+        <h2>API Keys</h2>
+        <p class="muted">All optional - each feature below just turns itself off if its key is left blank. Saving applies immediately, no restart needed.</p>
+        <form class="stacked-form" id="api-keys-settings-form" onsubmit="return false;">
+          <label>Steam Web API key <span class="muted">(Player Lookup, Rust hours, avatars)</span>
+            <input type="text" id="api-keys-setting-steam" placeholder="Loading..." autocomplete="off">
+          </label>
+          <label>RustMaps API key <span class="muted">(Live Map background image)</span>
+            <input type="text" id="api-keys-setting-rustmaps" placeholder="Loading..." autocomplete="off">
+          </label>
+          <label>BattleMetrics server ID <span class="muted">(Overview tab's Rank stat)</span>
+            <input type="text" id="api-keys-setting-battlemetrics" placeholder="Loading..." autocomplete="off">
+          </label>
+          <div class="btn-row">
+            <button type="submit" class="btn btn-primary" id="api-keys-settings-save">Save</button>
           </div>
         </form>
       </div>

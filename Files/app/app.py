@@ -201,6 +201,35 @@ def api_settings_rcon_set():
     return jsonify({"ok": True})
 
 
+@app.route("/api/settings/api-keys")
+def api_settings_api_keys_get():
+    cfg = load_config()
+    return jsonify({
+        "steam_api_key": cfg.get("steam_api_key", ""),
+        "rustmaps_api_key": cfg.get("rustmaps_api_key", ""),
+        "battlemetrics_id": cfg.get("battlemetrics_id", ""),
+    })
+
+
+@app.route("/api/settings/api-keys", methods=["POST"])
+def api_settings_api_keys_set():
+    # All three are optional - the features they power just turn themselves
+    # off (already handled by their own "not configured" checks) when one
+    # is blank, so unlike RCON, there's nothing here to require non-empty.
+    body = request.get_json(force=True) or {}
+    steam_api_key = (body.get("steam_api_key") or "").strip()
+    rustmaps_api_key = (body.get("rustmaps_api_key") or "").strip()
+    battlemetrics_id = (body.get("battlemetrics_id") or "").strip()
+
+    save_config_fields({
+        "steam_api_key": steam_api_key,
+        "rustmaps_api_key": rustmaps_api_key,
+        "battlemetrics_id": battlemetrics_id,
+    })
+    logger.info("Settings: API keys updated")  # never log the actual key values
+    return jsonify({"ok": True})
+
+
 WIPE_FREQUENCIES = {"daily", "biweekly", "monthly"}
 
 
@@ -756,7 +785,7 @@ def api_steam_lookup(steamid):
     cfg = load_config()
     api_key = cfg.get("steam_api_key", "")
     if not api_key or api_key == "CHANGE_ME":
-        return jsonify({"error": "Add your Steam Web API key to config.json first (see README.md)"}), 400
+        return jsonify({"error": "Add your Steam Web API key in Settings > API Keys first"}), 400
     try:
         return jsonify(lookup_player(api_key, steamid))
     except Exception as exc:  # network errors, bad API key, rate limits, etc.

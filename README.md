@@ -1,4 +1,4 @@
-# NOR Dashboard v1.2.7
+# NOR Dashboard v1.2.8
 
 A simple admin dashboard for your Rust server: an at-a-glance overview (player count, queue, BattleMetrics rank, and more), a live console feed, server info/settings, online/offline/banned player management with notes, permission management, player ban/Steam history lookups, a live map with player and world-event tracking, an AMAP tab for running server-management scripts, and a wipe countdown. Same black-and-neon-green look as AMAP and nor.workisboring.com.
 
@@ -14,7 +14,7 @@ This doc covers one-time setup. Once it's running, see `ADMIN-GUIDE.md` for how 
    - `rcon_port` - your RCON port (LGSM's `rcon.port`, default `28016`)
    - `rcon_password` - your RCON password (LGSM's `rcon.password`)
 
-   These are optional - leave them as `"CHANGE_ME"` for now and the dashboard still runs fine, just with the related feature turned off until you fill them in:
+   These are optional - leave them as `"CHANGE_ME"` for now and the dashboard still runs fine, just with the related feature turned off until you fill them in (or skip editing the file at all and fill them in later from **Settings > API Keys** inside the dashboard itself - same effect, no restart needed either way):
    - `steam_api_key` - a free key from https://steamcommunity.com/dev/apikey (Player Lookup tab, Rust hours, and player avatars). When it asks for a domain name, you can put anything, e.g. `localhost`.
    - `rustmaps_api_key` - a free key from https://rustmaps.com/dashboard (Live Map tab's background image - the rest of the Live Map tab works without it)
    - `battlemetrics_id` - your server's ID from its BattleMetrics page (the number in the URL, e.g. `battlemetrics.com/servers/rust/39370730` → `39370730`). No account or API key needed - just the ID. Powers the Overview tab's Rank stat.
@@ -82,13 +82,21 @@ Double-click **`run.bat`**. (Same Windows warning as before if it shows up - Mor
 
 **Closing the dashboard's browser window is what shuts it down now** - there's no console window to manage. Refreshing the page, switching tabs, or just leaving the window in the background while you do something else doesn't close it; only actually closing that browser window does (it can take up to about a minute and a half to notice and shut down after you close it - deliberately generous, since browsers slow down a backgrounded tab's timers and a shorter timeout would risk shutting down while you're just alt-tabbed away, not actually closed). Next time, just double-click `run.bat` again (no need to re-run `install.bat`).
 
-If something goes wrong, errors show up as a pop-up notification in the bottom-right corner of the dashboard itself, with a suggested fix. If the dashboard fails to start at all, you'll get a one-time pop-up telling you to check `dashboard.log` in this folder.
+If something goes wrong, errors show up as a pop-up notification in the bottom-right corner of the dashboard itself, with a suggested fix. If the dashboard fails to start at all, you'll get a one-time pop-up telling you to check `dashboard.log` - see "Log files" below for what that and the other two are.
 
 `install.bat` also puts a **"Launch NOR Dashboard"** shortcut on your Desktop automatically (with its own icon), plus a copy in this folder - pin either one to the taskbar if you want.
 
 ## Checking for updates
 
 Double-click **`update.bat`**. It downloads the latest version straight from GitHub and overwrites the files in this folder - no git, no command line, nothing to install. `app/config.json` and your local data (notes, player stats, map cache) are never touched, since they're not part of what gets downloaded. Restart `run.bat` afterward to pick up any code changes. See `ADMIN-GUIDE.md` for the step-by-step version.
+
+## Log files
+
+Three show up in this same folder once you've run the dashboard, each for a different purpose:
+
+- **`dashboard-events.log`** - check this one first. A small, plain-English running history: RCON connects/drops, AMAP actions run, settings changes, and anything unexpected, each with a timestamp. Persists across restarts (it rotates instead of growing forever once it gets large), so it's still there to check even if the dashboard's been restarted since whatever you're investigating happened.
+- **`dashboard.log`** - the Flask server's raw output: every request it handles, plus a full Python traceback for anything that crashes. More detailed than `dashboard-events.log`, but only holds the *latest* run - it's overwritten fresh every time `run.bat` starts the dashboard, so it's only useful to check right after something goes wrong, not after a restart.
+- **`dashboard-startup.log`** - just two boilerplate lines. Rarely useful; only worth a look if the other two are empty too.
 
 ## What's in here
 
@@ -101,7 +109,7 @@ Double-click **`update.bat`**. It downloads the latest version straight from Git
 - **Server Info** - live stats (players, map, framerate, uptime, entity count, etc.) and editable server settings (hostname, URL, description, header image), pre-filled with the current values.
 - **AMAP** - runs a fixed set of your AMAP server-management scripts (backup, log cleaner, server checker, wipe configurator, updater, map/full wipe) over RCON - no SSH needed. Each is shown as a card with a description and a Critical/Noncritical tag; Critical actions require typing the action's name to confirm. Also has an **Upload Plugin** panel that sends a `.cs` file straight to your server's `oxide/plugins` folder over SFTP (set the destination once in Settings > Plugin Deploy) and picks up any permissions it declares automatically. See "AMAP tab setup" below for how this actually works, and `ADMIN-GUIDE.md` for what each one does.
 - **Terminal** - a real interactive SSH terminal embedded in the page (via `xterm.js`), for when you need an actual shell instead of AMAP's fixed action list. Type a host/port/username/password and connect - nothing typed there is ever saved to disk.
-- **Settings** (gear icon, top right of the tab bar) - four sub-pages: **RCON** (edit host/port/password without touching `config.json` by hand, reconnects immediately); **Theme** (a dropdown of five presets, or your own accent/background/text/alert colors - changes preview instantly, but click **Save** to keep it for next time, shared by anyone using this dashboard, same as Wipe Schedule below); **Wipe Schedule** (Daily, Bi-weekly, or Monthly, plus time/timezone - saved for the server, shared by anyone using this dashboard); **Plugin Deploy** (the SSH target the AMAP tab's plugin upload uses).
+- **Settings** (gear icon, top right of the tab bar) - five sub-pages: **RCON** (edit host/port/password without touching `config.json` by hand, reconnects immediately); **API Keys** (Steam Web, RustMaps, and BattleMetrics ID - the same three optional fields from one-time setup above, editable here instead of by hand in `config.json`); **Theme** (a dropdown of five presets, or your own accent/background/text/alert colors - changes preview instantly, but click **Save** to keep it for next time, shared by anyone using this dashboard, same as Wipe Schedule below); **Wipe Schedule** (Daily, Bi-weekly, or Monthly, plus time/timezone - saved for the server, shared by anyone using this dashboard); **Plugin Deploy** (the SSH target the AMAP tab's plugin upload uses).
 - **Wipe countdown** - in the header, counting down based on whatever's set in Settings > Wipe Schedule (defaults to 2pm Central on the first Thursday of the month), DST-aware, auto-advancing to the next occurrence once it passes.
 
 The window opens maximized and the whole layout scales to fill it - it's no longer capped to a narrow centered column.
@@ -134,8 +142,7 @@ Each admin then:
 ## Notes
 
 - This only binds to `127.0.0.1` (your own PC) - it's deliberately not reachable over your network, since `app/config.json` holds your RCON password.
-- The dashboard now runs windowless - no console, just the browser window. It shuts itself down automatically within about a minute and a half of you closing that window (not while it's merely in the background - see "Running it" above), and `dashboard.log` in this folder holds the most recent run's output if you ever need to check it.
-- `dashboard-events.log` (also in this folder) is a smaller, plain-English running history - RCON connects/drops, AMAP actions, settings changes, and anything unexpected, each with a timestamp - that persists across restarts (it rotates instead of growing forever), unlike `dashboard.log` which only holds the latest run.
+- The dashboard now runs windowless - no console, just the browser window. It shuts itself down automatically within about a minute and a half of you closing that window (not while it's merely in the background - see "Running it" above). See "Log files" above if you ever need to check what it's been doing.
 - If the RCON connection drops or the server restarts, the dashboard reconnects automatically next time it needs to talk to it.
 - It's normal to see `NOR Dashboard connected` show up periodically (every 15 seconds) in the server's own console/logs - that's just the dashboard's connection health-check, confirming RCON is reachable and everything (including the AMAP tab) is working. It's hidden from the dashboard's own Console tab feed on purpose, but still visible to anyone watching the raw server console directly.
 - The Players list parses your server's `playerlist` RCON response into a table; the Server Info tab uses the built-in `serverinfo` command; the Live Map's event markers use the built-in `find_entity` command - all tested against your actual server and working.

@@ -1244,6 +1244,31 @@ $("#plugin-deploy-settings-form").addEventListener("submit", async (e) => {
   alert(data.error ? "Error: " + data.error : "Saved.");
 });
 
+// ---- Settings tab: API Keys ----
+// All three are optional, unlike the forms above - no required-field check
+// before saving, since leaving one blank is the normal way to turn its
+// feature off rather than a mistake to warn about.
+async function loadApiKeysSettings() {
+  try {
+    const data = await fetch("/api/settings/api-keys").then((res) => res.json());
+    $("#api-keys-setting-steam").value = data.steam_api_key || "";
+    $("#api-keys-setting-rustmaps").value = data.rustmaps_api_key || "";
+    $("#api-keys-setting-battlemetrics").value = data.battlemetrics_id || "";
+  } catch (err) {
+    // fields stay blank - Save will surface any real problem
+  }
+}
+loadApiKeysSettings();
+
+$("#api-keys-settings-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const steam_api_key = $("#api-keys-setting-steam").value.trim();
+  const rustmaps_api_key = $("#api-keys-setting-rustmaps").value.trim();
+  const battlemetrics_id = $("#api-keys-setting-battlemetrics").value.trim();
+  const data = await postJson("/api/settings/api-keys", { steam_api_key, rustmaps_api_key, battlemetrics_id });
+  alert(data.error ? "Error: " + data.error : "Saved.");
+});
+
 // ---- Settings tab: Theme ----
 // Themes only ever touch color custom properties (never --radius or the
 // font variables), so picking one never changes the layout - only colors.
