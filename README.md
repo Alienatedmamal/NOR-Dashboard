@@ -1,4 +1,4 @@
-# NOR Dashboard v1.2.8
+# NOR Dashboard v1.2.9
 
 A simple admin dashboard for your Rust server: an at-a-glance overview (player count, queue, BattleMetrics rank, and more), a live console feed, server info/settings, online/offline/banned player management with notes, permission management, player ban/Steam history lookups, a live map with player and world-event tracking, an AMAP tab for running server-management scripts, and a wipe countdown. Same black-and-neon-green look as AMAP and nor.workisboring.com.
 
@@ -88,7 +88,9 @@ If something goes wrong, errors show up as a pop-up notification in the bottom-r
 
 ## Checking for updates
 
-Double-click **`update.bat`**. It downloads the latest version straight from GitHub and overwrites the files in this folder - no git, no command line, nothing to install. `app/config.json` and your local data (notes, player stats, map cache) are never touched, since they're not part of what gets downloaded. Restart `run.bat` afterward to pick up any code changes. See `ADMIN-GUIDE.md` for the step-by-step version.
+Easiest way: **Settings > Update** inside the dashboard itself - click **Check for Updates**, and if one's available, click **Update Now**. Same effect as `update.bat` below, just without leaving the browser; you'll get a pop-up reminding you to restart `run.bat` once it's done (the page itself doesn't reload, since the running dashboard's already-loaded code can't update itself out from under itself - only a fresh restart picks up the new code).
+
+Or double-click **`update.bat`**. It downloads the latest version straight from GitHub and overwrites the files in this folder - no git, no command line, nothing to install. Either way, `app/config.json` and your local data (notes, player stats, map cache) are never touched, since they're not part of what gets downloaded. See `ADMIN-GUIDE.md` for the step-by-step version.
 
 ## Log files
 
@@ -109,7 +111,7 @@ Three show up in this same folder once you've run the dashboard, each for a diff
 - **Server Info** - live stats (players, map, framerate, uptime, entity count, etc.) and editable server settings (hostname, URL, description, header image), pre-filled with the current values.
 - **AMAP** - runs a fixed set of your AMAP server-management scripts (backup, log cleaner, server checker, wipe configurator, updater, map/full wipe) over RCON - no SSH needed. Each is shown as a card with a description and a Critical/Noncritical tag; Critical actions require typing the action's name to confirm. Also has an **Upload Plugin** panel that sends a `.cs` file straight to your server's `oxide/plugins` folder over SFTP (set the destination once in Settings > Plugin Deploy) and picks up any permissions it declares automatically. See "AMAP tab setup" below for how this actually works, and `ADMIN-GUIDE.md` for what each one does.
 - **Terminal** - a real interactive SSH terminal embedded in the page (via `xterm.js`), for when you need an actual shell instead of AMAP's fixed action list. Type a host/port/username/password and connect - nothing typed there is ever saved to disk.
-- **Settings** (gear icon, top right of the tab bar) - five sub-pages: **RCON** (edit host/port/password without touching `config.json` by hand, reconnects immediately); **API Keys** (Steam Web, RustMaps, and BattleMetrics ID - the same three optional fields from one-time setup above, editable here instead of by hand in `config.json`); **Theme** (a dropdown of five presets, or your own accent/background/text/alert colors - changes preview instantly, but click **Save** to keep it for next time, shared by anyone using this dashboard, same as Wipe Schedule below); **Wipe Schedule** (Daily, Bi-weekly, or Monthly, plus time/timezone - saved for the server, shared by anyone using this dashboard); **Plugin Deploy** (the SSH target the AMAP tab's plugin upload uses).
+- **Settings** (gear icon, top right of the tab bar) - six sub-pages: **RCON** (edit host/port/password without touching `config.json` by hand, reconnects immediately); **API Keys** (Steam Web, RustMaps, and BattleMetrics ID - the same three optional fields from one-time setup above, editable here instead of by hand in `config.json`); **Theme** (a dropdown of five presets, or your own accent/background/text/alert colors - changes preview instantly, but click **Save** to keep it for next time, shared by anyone using this dashboard, same as Wipe Schedule below); **Wipe Schedule** (Daily, Bi-weekly, or Monthly, plus time/timezone - saved for the server, shared by anyone using this dashboard); **Plugin Deploy** (the SSH target the AMAP tab's plugin upload uses); **Update** (check for and install the latest version without leaving the browser - see "Checking for updates" below).
 - **Wipe countdown** - in the header, counting down based on whatever's set in Settings > Wipe Schedule (defaults to 2pm Central on the first Thursday of the month), DST-aware, auto-advancing to the next occurrence once it passes.
 
 The window opens maximized and the whole layout scales to fill it - it's no longer capped to a narrow centered column.

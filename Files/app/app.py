@@ -37,6 +37,7 @@ from plugin_deploy import list_known_plugin_names, upload_plugin
 from rcon_client import RconClient, RconError, get_log_since, get_log_tail, get_players
 from server_info import SETTING_CONVARS, get_server_info, get_server_settings, set_convar
 from steam_api import get_player_summary, get_rust_playtime_hours, lookup_player
+from updater import apply_update, check_for_update
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
@@ -227,6 +228,27 @@ def api_settings_api_keys_set():
         "battlemetrics_id": battlemetrics_id,
     })
     logger.info("Settings: API keys updated")  # never log the actual key values
+    return jsonify({"ok": True})
+
+
+@app.route("/api/settings/update-check")
+def api_settings_update_check():
+    try:
+        return jsonify(check_for_update(VERSION))
+    except Exception as exc:
+        logger.warning("Update check failed: %s", exc)
+        return jsonify({"error": f"Couldn't check for updates: {exc}"}), 502
+
+
+@app.route("/api/settings/update-apply", methods=["POST"])
+def api_settings_update_apply():
+    project_dir = os.path.join(BASE_DIR, "..")
+    try:
+        apply_update(project_dir)
+    except Exception as exc:
+        logger.exception("Update apply failed")
+        return jsonify({"error": f"Update failed: {exc}"}), 502
+    logger.info("Update applied - restart needed to pick it up")
     return jsonify({"ok": True})
 
 

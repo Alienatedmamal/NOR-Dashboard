@@ -420,6 +420,7 @@
       <button class="settings-subnav-btn" data-settings-section="theme">Theme</button>
       <button class="settings-subnav-btn" data-settings-section="wipe">Wipe Schedule</button>
       <button class="settings-subnav-btn" data-settings-section="plugin-deploy">Plugin Deploy</button>
+      <button class="settings-subnav-btn" data-settings-section="update">Update</button>
     </nav>
 
     <div id="settings-section-rcon" class="settings-section active">
@@ -551,6 +552,18 @@
             <button type="submit" class="btn btn-primary" id="plugin-deploy-settings-save">Save</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <div id="settings-section-update" class="settings-section">
+      <div class="panel settings-panel">
+        <h2>Update</h2>
+        <p class="muted">Currently running <strong id="update-current-version">v{{ version }}</strong>.</p>
+        <div class="btn-row">
+          <button type="button" id="update-check-btn" class="btn btn-outline">Check for Updates</button>
+          <button type="button" id="update-apply-btn" class="btn btn-primary" hidden>Update Now</button>
+        </div>
+        <p id="update-status" class="muted"></p>
       </div>
     </div>
   </section>

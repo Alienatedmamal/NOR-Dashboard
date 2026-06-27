@@ -1269,6 +1269,45 @@ $("#api-keys-settings-form").addEventListener("submit", async (e) => {
   alert(data.error ? "Error: " + data.error : "Saved.");
 });
 
+// ---- Settings tab: Update ----
+// Checking is an explicit button click, not auto-run on page load like the
+// forms above - this is the one Settings page that reaches out to GitHub
+// instead of just this PC, so it shouldn't fire every time someone opens
+// the Settings tab without asking.
+let updateLatestVersion = null;
+
+$("#update-check-btn").addEventListener("click", async () => {
+  $("#update-apply-btn").hidden = true;
+  updateLatestVersion = null;
+  $("#update-status").textContent = "Checking...";
+  const data = await fetch("/api/settings/update-check").then((res) => res.json());
+  if (data.error) {
+    $("#update-status").textContent = "Error: " + data.error;
+    return;
+  }
+  if (data.update_available) {
+    updateLatestVersion = data.latest_version;
+    $("#update-status").textContent = `A new version is available: v${data.latest_version}`;
+    $("#update-apply-btn").hidden = false;
+  } else {
+    $("#update-status").textContent = "You're up to date.";
+  }
+});
+
+$("#update-apply-btn").addEventListener("click", async () => {
+  $("#update-apply-btn").disabled = true;
+  $("#update-status").textContent = "Downloading and installing the update - this can take a moment...";
+  const data = await postJson("/api/settings/update-apply", {});
+  $("#update-apply-btn").disabled = false;
+  if (data.error) {
+    $("#update-status").textContent = "Error: " + data.error;
+    return;
+  }
+  $("#update-apply-btn").hidden = true;
+  $("#update-status").textContent = `Updated to v${updateLatestVersion}.`;
+  alert('Update installed. Close this window and relaunch the dashboard (e.g. the "Launch NOR Dashboard" shortcut) to start using the new version.');
+});
+
 // ---- Settings tab: Theme ----
 // Themes only ever touch color custom properties (never --radius or the
 // font variables), so picking one never changes the layout - only colors.
