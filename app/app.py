@@ -9,7 +9,9 @@ import threading
 import time
 
 from flask import Flask, jsonify, render_template, request
+from flask_sock import Sock
 
+import ssh_ws
 from amap_commands import AMAP_ACTIONS, run_amap_action
 from ban_commands import ban_player, get_banned_steamids, unban_player
 from battlemetrics import get_server_stats
@@ -45,6 +47,9 @@ app = Flask(__name__)
 # and caches it in memory - any wording/HTML edit needs a full restart to
 # show up otherwise. This makes it check the file's timestamp every render.
 app.config["TEMPLATES_AUTO_RELOAD"] = True
+
+sock = Sock(app)
+ssh_ws.register(sock)
 
 _rcon_client = None
 

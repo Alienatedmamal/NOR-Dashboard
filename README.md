@@ -69,6 +69,7 @@ Double-click **`update.bat`**. It downloads the latest version straight from Git
 - **Permissions** - grant/revoke an Oxide permission on a player or group, add/remove a player from a group, and check what permissions/groups a player or group currently has.
 - **Server Info** - live stats (players, map, framerate, uptime, entity count, etc.) and editable server settings (hostname, URL, description, header image), pre-filled with the current values.
 - **AMAP** - runs a fixed set of your AMAP server-management scripts (backup, log cleaner, server checker, wipe configurator, updater, nightly restart, map/full wipe) over RCON - no SSH needed. Each is shown as a card with a description and a Critical/Noncritical tag; Critical actions require typing the action's name to confirm. See "AMAP tab setup" below for how this actually works, and `ADMIN-GUIDE.md` for what each one does.
+- **Terminal** - a real interactive SSH terminal embedded in the page (via `xterm.js`), for when you need an actual shell instead of AMAP's fixed action list. Type a host/port/username/password and connect - nothing typed there is ever saved to disk.
 - **Wipe countdown** - in the header, counting down to 2pm Central on the first Thursday of the month, DST-aware.
 
 ## AMAP tab setup

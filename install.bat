@@ -53,7 +53,7 @@ echo Using Python: %PYEXE%
 echo %PYEXE%> "%~dp0.pyexe"
 echo.
 
-echo Installing required packages (Flask, websocket-client, requests)...
+echo Installing required packages (Flask, flask-sock, websocket-client, requests, paramiko)...
 "%PYEXE%" -m pip install --quiet -r "%~dp0app\requirements.txt"
 if %errorlevel% neq 0 (
     echo.

@@ -313,7 +313,7 @@ a { color: var(--accent); }
 .stacked-form { display: flex; flex-direction: column; gap: 14px; margin-top: 10px; }
 .stacked-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-muted); }
 
-input[type="text"], select {
+input[type="text"], input[type="number"], input[type="password"], select {
   background: rgba(255, 255, 255, .04);
   border: 1px solid var(--border);
   color: var(--text);
@@ -322,7 +322,10 @@ input[type="text"], select {
   font-size: 14px;
   font-family: var(--font-body);
 }
-input[type="text"]:focus, select:focus { outline: none; border-color: var(--accent-border); }
+input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:focus, select:focus {
+  outline: none;
+  border-color: var(--accent-border);
+}
 
 .console-output {
   background: #000;
@@ -507,3 +510,13 @@ input[type="text"]:focus, select:focus { outline: none; border-color: var(--acce
 }
 .stat-label { color: var(--text-muted); font-size: 13px; }
 .stat-value { font-family: var(--font-heading); font-weight: 700; color: var(--accent); text-align: right; }
+
+.terminal-connect-form { max-width: 360px; }
+.terminal-wrap { margin-top: 14px; }
+.terminal-container {
+  height: 65vh;
+  background: #000;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
