@@ -59,15 +59,34 @@ _rcon_client = None
 # dashboard itself now that it runs windowless (see run.bat). Set at import
 # time rather than inside __main__ so it also doubles as "process start" for
 # the grace period below.
+#
+# HEARTBEAT_TIMEOUT_SECONDS has some margin built in (not e.g. 15s) since
+# Chromium-based browsers can throttle a backgrounded tab's timers down to
+# roughly once a minute - too tight a timeout would risk shutting the
+# dashboard down just from switching windows for a bit, not from actually
+# closing it. 90s tolerates that throttling while still shutting down
+# within about a minute and a half of a real close.
 _last_heartbeat = time.time()
-HEARTBEAT_TIMEOUT_SECONDS = 15
+HEARTBEAT_TIMEOUT_SECONDS = 90
 HEARTBEAT_GRACE_SECONDS = 30
-WATCHDOG_CHECK_INTERVAL_SECONDS = 5
+WATCHDOG_CHECK_INTERVAL_SECONDS = 10
 
 
 def load_config():
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def save_config_fields(updates):
+    """Merges `updates` into config.json, leaving every other field (API
+    keys, etc.) untouched. Same atomic tmp-file + os.replace pattern as
+    player_notes.py's _save, to avoid ever leaving config.json half-written."""
+    cfg = load_config()
+    cfg.update(updates)
+    tmp_path = CONFIG_PATH + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2)
+    os.replace(tmp_path, CONFIG_PATH)
 
 
 def get_rcon_client():
@@ -88,6 +107,34 @@ def reset_rcon_client():
 @app.route("/")
 def index():
     return render_template("index.html", version=VERSION)
+
+
+@app.route("/api/settings/rcon")
+def api_settings_rcon_get():
+    cfg = load_config()
+    return jsonify({
+        "rcon_host": cfg.get("rcon_host", ""),
+        "rcon_port": cfg.get("rcon_port", ""),
+        "rcon_password": cfg.get("rcon_password", ""),
+    })
+
+
+@app.route("/api/settings/rcon", methods=["POST"])
+def api_settings_rcon_set():
+    body = request.get_json(force=True) or {}
+    host = (body.get("rcon_host") or "").strip()
+    port = body.get("rcon_port")
+    password = body.get("rcon_password") or ""
+    if not host or not password:
+        return jsonify({"error": "Host and password are required"}), 400
+    try:
+        port = int(port)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Port must be a number"}), 400
+
+    save_config_fields({"rcon_host": host, "rcon_port": port, "rcon_password": password})
+    reset_rcon_client()
+    return jsonify({"ok": True})
 
 
 @app.route("/api/status")

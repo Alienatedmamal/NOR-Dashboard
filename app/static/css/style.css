@@ -120,7 +120,7 @@ a { color: var(--accent); }
 .tab-btn:hover { color: var(--text); }
 .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
 
-.page-wrap { max-width: 1100px; margin: 0 auto; padding: 28px 24px 60px; }
+.page-wrap { max-width: 1700px; margin: 0 auto; padding: 28px 24px 60px; }
 
 .overview-hero {
   position: relative;
@@ -143,7 +143,7 @@ a { color: var(--accent); }
 .overview-description {
   color: var(--text-muted);
   white-space: pre-wrap;
-  max-width: 640px;
+  max-width: 760px;
   margin: 10px auto 0;
   font-size: 14px;
   line-height: 1.6;
@@ -568,4 +568,57 @@ input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:foc
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
+}
+
+/* ---- Settings: gear icon + theme UI ---- */
+.settings-gear-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 20px;
+  padding: 14px 18px;
+  margin-left: auto;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  line-height: 1;
+}
+.settings-gear-btn:hover { color: var(--text); }
+.settings-gear-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.theme-swatch-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 14px; }
+.theme-swatch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, .03);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  cursor: pointer;
+}
+.theme-swatch:hover { border-color: var(--accent-border); }
+.theme-swatch.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.theme-swatch-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--swatch-color);
+  box-shadow: 0 0 6px var(--swatch-color);
+}
+
+.theme-custom-heading { margin-top: 22px; font-size: 16px; }
+.theme-color-row { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; }
+.theme-color-row label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-muted); }
+input[type="color"] {
+  width: 48px;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, .04);
+  cursor: pointer;
 }

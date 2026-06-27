@@ -49,9 +49,11 @@ window.addEventListener("unhandledrejection", (event) => {
 $all(".tab-btn").forEach((btn) => {
   btn.addEventListener("click", () => activateTab(btn.dataset.tab));
 });
+$("#settings-gear-btn").addEventListener("click", () => activateTab("settings"));
 
 function activateTab(tab) {
   $all(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
+  $("#settings-gear-btn").classList.toggle("active", tab === "settings");
   $all(".tab-panel").forEach((p) => p.classList.toggle("active", p.id === "tab-" + tab));
   if (tab === "map") startMapPolling(); else stopMapPolling();
   if (tab === "terminal") fitTerminal();
@@ -173,8 +175,9 @@ function showToast({ title, message, fix, variant }) {
 // ---- Heartbeat ----
 // Tells app.py's watchdog the browser is still open - see /api/heartbeat
 // and _heartbeat_watchdog_loop in app.py. Must stay well under that
-// function's HEARTBEAT_TIMEOUT_SECONDS (15s) so a couple of missed/slow
-// pings don't trigger a false shutdown.
+// function's HEARTBEAT_TIMEOUT_SECONDS (90s - deliberately generous to
+// tolerate background-tab timer throttling, see app.py's comment) so a
+// couple of missed/slow pings don't trigger a false shutdown.
 const HEARTBEAT_INTERVAL_MS = 5000;
 let heartbeatFailing = false;
 async function sendHeartbeat() {
@@ -498,27 +501,46 @@ async function refreshConsolePlayerList() {
 refreshConsolePlayerList();
 setInterval(refreshConsolePlayerList, 20000);
 
-// ---- Overview tab extras: description + BattleMetrics rank ----
-// Polled separately from the RCON-backed stats above since this comes
-// from an external API and doesn't need to refresh as often -
-// BattleMetrics' own crawler only updates a server's data every minute
-// or so regardless of how often this asks. Description comes from here
-// too rather than /api/server/settings - the RCON convar echo for
-// description has literal "\n" text instead of real line breaks, while
-// BattleMetrics' copy of the same text is already cleanly formatted.
+// ---- Overview tab extras: BattleMetrics rank ----
+// Polled separately from the RCON-backed stats above since this comes from
+// an external API and doesn't need to refresh as often - BattleMetrics'
+// own crawler only updates a server's data every minute or so regardless
+// of how often this asks.
 async function loadOverviewExtras() {
   try {
     const bm = await fetch("/api/battlemetrics/stats").then((res) => res.json());
     $("#overview-rank").textContent = !bm.error && bm.rank != null ? `#${bm.rank}` : "-";
-    if (!bm.error && bm.description) {
-      $("#overview-description").textContent = bm.description;
-    }
   } catch (err) {
     $("#overview-rank").textContent = "-";
   }
 }
 loadOverviewExtras();
 setInterval(loadOverviewExtras, 30000);
+
+// ---- Overview tab extras: description + header image, straight from RCON ----
+// Reuses /api/server/settings (same endpoint the Server Info tab edits
+// through) rather than a separate call - description and headerimage are
+// the same server.* convars either way. The description convar's RCON
+// echo has literal "\n" text instead of real line breaks, hence the
+// replace below; CSS already has white-space: pre-wrap to render the real
+// ones once they're there.
+const OVERVIEW_HERO_GRADIENT = "linear-gradient(180deg, rgba(10, 13, 10, .72) 0%, rgba(10, 13, 10, .9) 70%, rgba(10, 13, 10, 1) 100%)";
+async function loadOverviewServerSettings() {
+  try {
+    const data = await fetch("/api/server/settings").then((res) => res.json());
+    if (data.error) return;
+    if (data.description) {
+      $("#overview-description").textContent = data.description.replace(/\\n/g, "\n");
+    }
+    if (data.headerimage && data.headerimage !== "CHANGE_ME") {
+      $("#overview-hero").style.backgroundImage = `${OVERVIEW_HERO_GRADIENT}, url(${data.headerimage})`;
+    }
+  } catch (err) {
+    // next poll will catch up
+  }
+}
+loadOverviewServerSettings();
+setInterval(loadOverviewServerSettings, 30000);
 
 // Permission dropdown suggestions - static for the life of the page load,
 // built from the plugins actually installed on the server (see
@@ -969,6 +991,175 @@ $all("[data-setting]").forEach((btn) => {
 
 $("#refresh-serverinfo").addEventListener("click", loadServerInfo);
 loadServerInfo();
+
+// ---- Settings tab: RCON credentials ----
+async function loadRconSettings() {
+  try {
+    const data = await fetch("/api/settings/rcon").then((res) => res.json());
+    $("#rcon-setting-host").value = data.rcon_host || "";
+    $("#rcon-setting-port").value = data.rcon_port || "";
+    $("#rcon-setting-password").value = data.rcon_password || "";
+  } catch (err) {
+    // fields just stay blank - the form's own Save will surface any real problem
+  }
+}
+loadRconSettings();
+
+$("#rcon-settings-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const rcon_host = $("#rcon-setting-host").value.trim();
+  const rcon_port = $("#rcon-setting-port").value.trim();
+  const rcon_password = $("#rcon-setting-password").value;
+  if (!rcon_host || !rcon_port || !rcon_password) {
+    alert("Host, port, and password are all required.");
+    return;
+  }
+  const confirmed = await showConfirmModal({
+    title: "Save RCON settings?",
+    message: `Reconnect to ${rcon_host}:${rcon_port} with the new credentials? This takes effect immediately.`,
+    confirmLabel: "Save & Reconnect",
+  });
+  if (!confirmed) return;
+  const data = await postJson("/api/settings/rcon", { rcon_host, rcon_port, rcon_password });
+  alert(data.error ? "Error: " + data.error : "Saved - reconnecting now.");
+  if (!data.error) refreshStatus();
+});
+
+// ---- Settings tab: Theme ----
+// Themes only ever touch color custom properties (never --radius or the
+// font variables), so picking one never changes the layout - only colors.
+// The actual saved theme is applied immediately in a small inline script
+// in index.html's <head>, before this file even loads, to avoid a flash
+// of the default green theme on page load - everything here is just the
+// Settings page's UI (swatch grid, color pickers) plus saving choices.
+const THEME_STORAGE_KEY = "nor-dashboard-theme";
+const THEME_VARS = ["--bg", "--bg-elevated", "--accent", "--accent-soft", "--accent-border", "--text", "--text-muted", "--danger"];
+
+function hexToRgbParts(hex) {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || "");
+  return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : [0, 0, 0];
+}
+function rgbaFromHex(hex, alpha) {
+  const [r, g, b] = hexToRgbParts(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+function shiftHexLightness(hex, amount, alpha) {
+  const [r, g, b] = hexToRgbParts(hex);
+  const clamp = (v) => Math.max(0, Math.min(255, v + amount));
+  return `rgba(${clamp(r)}, ${clamp(g)}, ${clamp(b)}, ${alpha})`;
+}
+
+const THEME_PRESETS = {
+  "neon-green": {
+    name: "Neon Green", swatch: "#39ff14",
+    "--bg": "#0a0d0a", "--bg-elevated": "rgba(18, 22, 16, .85)",
+    "--accent": "#39ff14", "--accent-soft": "rgba(57, 255, 20, .14)", "--accent-border": "rgba(57, 255, 20, .35)",
+    "--text": "#eef1ec", "--text-muted": "#a6b0a3", "--danger": "#ff4d4d",
+  },
+  "cyber-blue": {
+    name: "Cyber Blue", swatch: "#00d9ff",
+    "--bg": "#070d12", "--bg-elevated": "rgba(15, 26, 33, .85)",
+    "--accent": "#00d9ff", "--accent-soft": "rgba(0, 217, 255, .14)", "--accent-border": "rgba(0, 217, 255, .35)",
+    "--text": "#eaf6fb", "--text-muted": "#9bb2bb", "--danger": "#ff5d5d",
+  },
+  "crimson-red": {
+    name: "Crimson Red", swatch: "#ff2d4d",
+    "--bg": "#120808", "--bg-elevated": "rgba(33, 16, 16, .85)",
+    "--accent": "#ff2d4d", "--accent-soft": "rgba(255, 45, 77, .14)", "--accent-border": "rgba(255, 45, 77, .35)",
+    "--text": "#f8eaea", "--text-muted": "#bb9b9b", "--danger": "#ff8a3d",
+  },
+  "amber-gold": {
+    name: "Amber Gold", swatch: "#ffb000",
+    "--bg": "#120e06", "--bg-elevated": "rgba(33, 26, 14, .85)",
+    "--accent": "#ffb000", "--accent-soft": "rgba(255, 176, 0, .14)", "--accent-border": "rgba(255, 176, 0, .35)",
+    "--text": "#f8f1e6", "--text-muted": "#bbab8a", "--danger": "#ff4d4d",
+  },
+  "purple-haze": {
+    name: "Purple Haze", swatch: "#b14eff",
+    "--bg": "#0d0814", "--bg-elevated": "rgba(24, 16, 33, .85)",
+    "--accent": "#b14eff", "--accent-soft": "rgba(177, 78, 255, .14)", "--accent-border": "rgba(177, 78, 255, .35)",
+    "--text": "#f1eaf8", "--text-muted": "#a999bb", "--danger": "#ff4d6d",
+  },
+};
+
+function extractThemeVars(source) {
+  const vars = {};
+  THEME_VARS.forEach((v) => { if (source[v]) vars[v] = source[v]; });
+  return vars;
+}
+function applyThemeVars(vars) {
+  const root = document.documentElement.style;
+  THEME_VARS.forEach((v) => { if (vars[v]) root.setProperty(v, vars[v]); });
+}
+function saveTheme(vars, presetKey) {
+  localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify({ vars: extractThemeVars(vars), presetKey: presetKey || null }));
+}
+function deriveThemeFromCustom({ accent, bg, text, danger }) {
+  return {
+    "--bg": bg,
+    "--bg-elevated": shiftHexLightness(bg, 10, .85),
+    "--accent": accent,
+    "--accent-soft": rgbaFromHex(accent, .14),
+    "--accent-border": rgbaFromHex(accent, .35),
+    "--text": text,
+    "--text-muted": shiftHexLightness(text, -65, 1),
+    "--danger": danger,
+  };
+}
+function syncCustomColorInputs(vars) {
+  if (vars["--accent"]) $("#theme-color-accent").value = vars["--accent"];
+  if (vars["--bg"]) $("#theme-color-bg").value = vars["--bg"];
+  if (vars["--text"]) $("#theme-color-text").value = vars["--text"];
+  if (vars["--danger"]) $("#theme-color-danger").value = vars["--danger"];
+}
+
+function renderThemeSwatches(activePresetKey) {
+  const container = $("#theme-presets");
+  container.innerHTML = "";
+  Object.entries(THEME_PRESETS).forEach(([key, preset]) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "theme-swatch" + (key === activePresetKey ? " active" : "");
+    btn.style.setProperty("--swatch-color", preset.swatch);
+    btn.innerHTML = `<span class="theme-swatch-dot"></span>${escapeHtml(preset.name)}`;
+    btn.addEventListener("click", () => {
+      applyThemeVars(preset);
+      syncCustomColorInputs(preset);
+      saveTheme(preset, key);
+      renderThemeSwatches(key);
+    });
+    container.appendChild(btn);
+  });
+}
+
+["accent", "bg", "text", "danger"].forEach((field) => {
+  $("#theme-color-" + field).addEventListener("input", () => {
+    const custom = deriveThemeFromCustom({
+      accent: $("#theme-color-accent").value,
+      bg: $("#theme-color-bg").value,
+      text: $("#theme-color-text").value,
+      danger: $("#theme-color-danger").value,
+    });
+    applyThemeVars(custom);
+    saveTheme(custom, null);
+    renderThemeSwatches(null);
+  });
+});
+
+$("#theme-reset").addEventListener("click", () => {
+  localStorage.removeItem(THEME_STORAGE_KEY);
+  THEME_VARS.forEach((v) => document.documentElement.style.removeProperty(v));
+  syncCustomColorInputs(THEME_PRESETS["neon-green"]);
+  renderThemeSwatches("neon-green");
+});
+
+(function initThemeSettingsUi() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(THEME_STORAGE_KEY) || "null"); } catch (err) { saved = null; }
+  const activeVars = (saved && saved.vars) || THEME_PRESETS["neon-green"];
+  syncCustomColorInputs(activeVars);
+  renderThemeSwatches(saved ? saved.presetKey : "neon-green");
+})();
 
 const STAT_LABELS = {
   Hostname: "Hostname",

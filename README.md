@@ -1,4 +1,4 @@
-# NOR Dashboard v1.1.5
+# NOR Dashboard v1.2.1
 
 A simple admin dashboard for your Rust server: an at-a-glance overview (player count, queue, BattleMetrics rank, and more), a live console feed, server info/settings, online/offline/banned player management with notes, permission management, player ban/Steam history lookups, a live map with player and world-event tracking, an AMAP tab for running server-management scripts, and a wipe countdown. Same black-and-neon-green look as AMAP and nor.workisboring.com.
 
@@ -51,7 +51,7 @@ That's it - the AMAP tab will now work against this server. The plugin figures o
 
 Double-click **`run.bat`**. (Same Windows warning as before if it shows up - More info → Run anyway.) It runs in the background with no console window - after a couple seconds your browser opens to the dashboard automatically.
 
-**Closing the dashboard's browser window is what shuts it down now** - there's no console window to manage. Refreshing the page or switching tabs doesn't close it; only closing that actual browser window does (it takes a few seconds to notice and shut down after you close it). Next time, just double-click `run.bat` again (no need to re-run `install.bat`).
+**Closing the dashboard's browser window is what shuts it down now** - there's no console window to manage. Refreshing the page, switching tabs, or just leaving the window in the background while you do something else doesn't close it; only actually closing that browser window does (it can take up to about a minute and a half to notice and shut down after you close it - deliberately generous, since browsers slow down a backgrounded tab's timers and a shorter timeout would risk shutting down while you're just alt-tabbed away, not actually closed). Next time, just double-click `run.bat` again (no need to re-run `install.bat`).
 
 If something goes wrong, errors show up as a pop-up notification in the bottom-right corner of the dashboard itself, with a suggested fix. If the dashboard fails to start at all, you'll get a one-time pop-up telling you to check `dashboard.log` in this folder.
 
@@ -63,7 +63,7 @@ Double-click **`update.bat`**. It downloads the latest version straight from Git
 
 ## What's in here
 
-- **Overview** - the landing page: hostname/description over your site's background image, stat cards (players, queued, BattleMetrics rank, framerate, game time, uptime, map, entity count), and the live connected-players list.
+- **Overview** - the landing page: hostname/description straight from RCON over your server's own header image (`server.headerimage`, set in the Server Info tab - falls back to a default background if it's not set), stat cards (players, queued, BattleMetrics rank, framerate, game time, uptime, map, entity count), and the live connected-players list.
 - **Console** - a live feed of everything your server logs (plugin loads, warnings, chat, command output...), same idea as RustAdmin's console. Type a command and its response shows up in the same feed within a second or two, interleaved with everything else.
 - **Players** - online players (name, SteamID, IP, ping, session/total time, last connected, Rust hours) with one-click ban/unban (reason required and logged) and Look up; plus recently-seen offline players, currently-banned players, and a per-player notes log (ban reasons are added automatically).
 - **Player Lookup** - paste a SteamID64 to see their Steam profile, account age, VAC/game ban counts, and community/economy ban status.
@@ -72,7 +72,10 @@ Double-click **`update.bat`**. It downloads the latest version straight from Git
 - **Server Info** - live stats (players, map, framerate, uptime, entity count, etc.) and editable server settings (hostname, URL, description, header image), pre-filled with the current values.
 - **AMAP** - runs a fixed set of your AMAP server-management scripts (backup, log cleaner, server checker, wipe configurator, updater, nightly restart, map/full wipe) over RCON - no SSH needed. Each is shown as a card with a description and a Critical/Noncritical tag; Critical actions require typing the action's name to confirm. See "AMAP tab setup" below for how this actually works, and `ADMIN-GUIDE.md` for what each one does.
 - **Terminal** - a real interactive SSH terminal embedded in the page (via `xterm.js`), for when you need an actual shell instead of AMAP's fixed action list. Type a host/port/username/password and connect - nothing typed there is ever saved to disk.
+- **Settings** (gear icon, top right of the tab bar) - edit your RCON host/port/password without touching `config.json` by hand (reconnects immediately, no restart needed), and pick a color theme - five presets, or pick your own accent/background/text/alert colors. Saved to this browser only, so it's per-PC/per-browser, not shared.
 - **Wipe countdown** - in the header, counting down to 2pm Central on the first Thursday of the month, DST-aware.
+
+The window opens maximized and the whole layout scales to fill it - it's no longer capped to a narrow centered column.
 
 ## AMAP tab setup
 
@@ -102,7 +105,7 @@ Each admin then:
 ## Notes
 
 - This only binds to `127.0.0.1` (your own PC) - it's deliberately not reachable over your network, since `app/config.json` holds your RCON password.
-- The dashboard now runs windowless - no console, just the browser window. It shuts itself down automatically a few seconds after you close that window, and `dashboard.log` in this folder holds the most recent run's output if you ever need to check it.
+- The dashboard now runs windowless - no console, just the browser window. It shuts itself down automatically within about a minute and a half of you closing that window (not while it's merely in the background - see "Running it" above), and `dashboard.log` in this folder holds the most recent run's output if you ever need to check it.
 - If the RCON connection drops or the server restarts, the dashboard reconnects automatically next time it needs to talk to it.
 - It's normal to see `NOR Dashboard connected` show up periodically (every 15 seconds) in the server's own console/logs - that's just the dashboard's connection health-check, confirming RCON is reachable and everything (including the AMAP tab) is working. It's hidden from the dashboard's own Console tab feed on purpose, but still visible to anyone watching the raw server console directly.
 - The Players list parses your server's `playerlist` RCON response into a table; the Server Info tab uses the built-in `serverinfo` command; the Live Map's event markers use the built-in `find_entity` command - all tested against your actual server and working.

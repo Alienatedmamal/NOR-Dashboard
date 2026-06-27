@@ -52,8 +52,9 @@ if not defined BROWSER if exist "%ProgramFiles(x86)%\Google\Chrome\Application\c
 
 if defined BROWSER (
     rem "--app=" opens it in its own window - no address bar, tabs, or
-    rem bookmarks bar - instead of a normal browser tab.
-    start "" powershell -NoProfile -WindowStyle Hidden -Command "Start-Sleep -Seconds 2; Start-Process -FilePath '%BROWSER%' -ArgumentList '--app=http://127.0.0.1:5050'"
+    rem bookmarks bar - instead of a normal browser tab. "--start-maximized"
+    rem opens that window already maximized rather than at its default size.
+    start "" powershell -NoProfile -WindowStyle Hidden -Command "Start-Sleep -Seconds 2; Start-Process -FilePath '%BROWSER%' -ArgumentList '--app=http://127.0.0.1:5050','--start-maximized'"
 ) else (
     rem Neither Edge nor Chrome found at the usual install path - fall
     rem back to whatever the default browser is, as a normal tab.

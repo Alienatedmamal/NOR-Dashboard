@@ -4,7 +4,7 @@ This is the day-to-day "how do I do X" guide. For first-time setup (installing P
 
 ## Getting in
 
-Double-click `run.bat` in the dashboard folder. It runs in the background with no console window, and your browser opens to the dashboard automatically after a couple seconds. If it doesn't, go to `http://127.0.0.1:5050`. Closing that browser window is what shuts the dashboard down now - refreshing the page or switching tabs doesn't.
+Double-click `run.bat` in the dashboard folder. It runs in the background with no console window, and your browser opens to the dashboard automatically after a couple seconds. If it doesn't, go to `http://127.0.0.1:5050`. Closing that browser window is what shuts the dashboard down now (within about a minute and a half) - refreshing the page, switching tabs, or just leaving it in the background doesn't.
 
 ## Updating the dashboard
 
@@ -112,6 +112,11 @@ A few things worth knowing:
 - The Wipe Configurator's four fields are validated before anything runs: Seed and Map Size must be plain numbers, Wipe Date must be MM-DD-YY (or MM-DD-YYYY), and Wipe Type must be exactly "BP" or "Map". It'll tell you exactly which field is wrong rather than silently failing.
 - After a Critical action that stops the server (Updater, Nightly Restart, Map Wipe, Full Wipe), the dashboard's "Connected" badge will briefly flip to "Not connected" - that's expected, since the server you're talking to just went down. It reconnects automatically once the server's back up.
 - These cards run the same underlying scripts as AMAP's own menu - nothing here does anything AMAP itself couldn't already do.
+
+## Settings (gear icon)
+
+- **RCON Settings**: edit the host/port/password the dashboard uses to talk to your Rust server. Click **Save & Reconnect** and it takes effect immediately - no need to restart the dashboard or touch `config.json` by hand.
+- **Theme**: click any preset swatch to switch the whole dashboard's colors instantly, or use the four color pickers (Accent, Background, Text, Danger/Alerts) to build your own - the layout never changes, only colors. **Reset to Default** goes back to the original green theme. Your choice is saved to this browser only - it won't follow you to a different browser or PC.
 
 ## Quick troubleshooting
 
