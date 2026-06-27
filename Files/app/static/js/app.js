@@ -1336,7 +1336,14 @@ $("#update-apply-btn").addEventListener("click", async () => {
     return;
   }
   $("#update-apply-btn").hidden = true;
-  $("#update-status").textContent = `Updated to v${updateLatestVersion}.`;
+  const newVersion = data.new_version || updateLatestVersion;
+  $("#update-status").textContent = `Updated to v${newVersion}.`;
+  // The files on disk (and this label) are current immediately, but the
+  // page you're looking at is still running the old code from before the
+  // update - it can't swap itself out mid-request. Reflect the new
+  // version here anyway so it doesn't look like the update did nothing.
+  const versionLabel = $("#update-current-version");
+  if (versionLabel) versionLabel.textContent = "v" + newVersion;
   alert('Update installed. Close this window and relaunch the dashboard (e.g. the "Launch NOR Dashboard" shortcut) to start using the new version.');
 });
 

@@ -242,14 +242,28 @@ def api_settings_update_check():
 
 @app.route("/api/settings/update-apply", methods=["POST"])
 def api_settings_update_apply():
+    global VERSION
     project_dir = os.path.join(BASE_DIR, "..")
     try:
         apply_update(project_dir)
     except Exception as exc:
         logger.exception("Update apply failed")
         return jsonify({"error": f"Update failed: {exc}"}), 502
-    logger.info("Update applied - restart needed to pick it up")
-    return jsonify({"ok": True})
+
+    # VERSION was only ever read once, at process startup - without this,
+    # the Update tab (and the footer) would keep showing the old version
+    # after a successful apply, even though the files on disk are already
+    # current, which looked exactly like the update hadn't done anything.
+    # The actual running code is still the old version in memory either
+    # way - only this display string can refresh without a real restart.
+    try:
+        with open(VERSION_PATH, "r", encoding="utf-8") as f:
+            VERSION = f.read().strip()
+    except OSError:
+        pass
+
+    logger.info("Update applied (now v%s on disk) - restart needed to run it", VERSION)
+    return jsonify({"ok": True, "new_version": VERSION})
 
 
 WIPE_FREQUENCIES = {"daily", "biweekly", "monthly"}
