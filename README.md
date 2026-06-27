@@ -20,6 +20,33 @@ This doc covers one-time setup. Once it's running, see `ADMIN-GUIDE.md` for how 
    - `battlemetrics_id` - your server's ID from its BattleMetrics page (the number in the URL, e.g. `battlemetrics.com/servers/rust/39370730` → `39370730`). No account or API key needed - just the ID. Powers the Overview tab's Rank stat.
 3. Make sure this PC can actually reach your Rust server's RCON port (same network, or whatever your firewall/router allows).
 
+## Setting up AMAP on your Rust server
+
+The AMAP tab needs two things installed directly on the **Rust server itself** (not this PC) - the AMAP scripts, and the AmapBridge plugin that lets RCON commands actually run them. Do this once per Rust server you want the AMAP tab to control.
+
+On the Rust server (SSH in, or open a terminal on the box):
+
+1. Clone this repo:
+   ```bash
+   git clone https://github.com/Alienatedmamal/NOR-RCON-Dashboard.git
+   ```
+2. Move the `AMAP` folder into your home directory - replace `USERNAME` with the Linux user your Rust server actually runs as:
+   ```bash
+   mv NOR-RCON-Dashboard/AMAP /home/USERNAME/
+   ```
+3. The rest of the cloned repo isn't needed on the Rust server - clean it up:
+   ```bash
+   rm -rf NOR-RCON-Dashboard/
+   ```
+4. Deploy the plugin into Oxide's plugins folder - adjust the `serverfiles` path if yours differs:
+   ```bash
+   cd /home/USERNAME/AMAP/Plugins
+   mv AmapBridge.cs /home/USERNAME/serverfiles/oxide/plugins/AmapBridge.cs
+   ```
+   Oxide compiles and loads it automatically within a few seconds - check the server console for `Loaded plugin AmapBridge` to confirm.
+
+That's it - the AMAP tab will now work against this server. The plugin figures out file paths from whatever Linux account it's actually running under, so there's nothing to edit inside `AmapBridge.cs` itself, even across different servers with different usernames.
+
 ## Running it
 
 Double-click **`run.bat`**. (Same Windows warning as before if it shows up - More info → Run anyway.) It prints `Running on http://127.0.0.1:5050` and opens that page in your browser for you.
@@ -44,7 +71,7 @@ Double-click **`update.bat`**. It downloads the latest version straight from Git
 
 ## AMAP tab setup
 
-This tab needs a small custom Oxide plugin, `AMAP/Plugins/AmapBridge.cs`, installed on the server - it's what lets an RCON command actually run a shell script on the box. It's already deployed to your live server's `oxide/plugins/` folder; `AMAP/Plugins/AmapBridge.cs` in this repo is the source of truth if you ever need to redeploy it (e.g. after a fresh Oxide install) - just copy it back into `oxide/plugins/` and the server will compile and load it automatically within a few seconds.
+This tab needs a small custom Oxide plugin, `AMAP/Plugins/AmapBridge.cs`, installed on the server - it's what lets an RCON command actually run a shell script on the box. See "Setting up AMAP on your Rust server" above for the first-time install; `AMAP/Plugins/AmapBridge.cs` in this repo is the source of truth if you ever need to redeploy it later (e.g. after a fresh Oxide install) - just copy it back into `oxide/plugins/` and the server will compile and load it automatically within a few seconds.
 
 The plugin only recognizes a fixed, hardcoded list of action keywords (see the `Actions` dictionary at the top of the file) - it never accepts or runs arbitrary shell text from RCON. Adding a new dashboard button means adding a new line to both that dictionary and `amap_commands.py`'s `AMAP_ACTIONS`, not changing what kind of input is accepted.
 
