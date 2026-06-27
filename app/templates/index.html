@@ -241,7 +241,6 @@
         <span class="map-legend-item"><span class="map-dot map-dot-ch47"></span>CH47</span>
         <span class="map-legend-item"><span class="map-dot map-dot-cargoplane"></span>Cargo Plane</span>
       </div>
-      <p class="muted">Click and drag to pan around.</p>
       <div class="map-wrap" id="map-wrap">
         <div class="map-canvas" id="map-canvas">
           <img id="map-image" class="map-image" alt="Server map" hidden>
@@ -360,20 +359,21 @@
       <h2>AMAP Scripts</h2>
       <p class="muted">Runs your AMAP server-management scripts via RCON - no SSH needed. Critical actions require typing the action's name to confirm, since these can stop the server or wipe data.</p>
 
-      <div id="amap-cards" class="amap-cards"></div>
-      <div id="amap-result-log" class="console-output small"></div>
-    </div>
-
-    <div class="panel">
-      <h2>Upload Plugin <span class="amap-tag amap-tag-noncritical">Noncritical</span></h2>
-      <p class="muted">Sends a .cs file to the oxide/plugins folder configured in Settings &gt; Plugin Deploy. Any permissions it declares are added to the Permissions tab's suggestions automatically.</p>
-      <label>Currently installed
-        <select class="custom-select" id="amap-installed-plugins"></select>
-      </label>
-      <div class="inline-form">
-        <input type="file" id="amap-plugin-file" accept=".cs">
-        <button type="button" id="amap-plugin-upload" class="btn btn-primary">Upload</button>
+      <div id="amap-cards" class="amap-cards">
+        <div class="amap-card" id="amap-upload-card">
+          <div class="amap-card-header">
+            <span class="amap-card-title">Upload Plugin</span>
+            <span class="amap-tag amap-tag-noncritical">Noncritical</span>
+          </div>
+          <p class="amap-card-desc">Sends a .cs file to the oxide/plugins folder configured in Settings &gt; Plugin Deploy. Any permissions it declares are added to the Permissions tab's suggestions automatically.</p>
+          <div class="amap-card-fields">
+            <select class="custom-select" id="amap-installed-plugins"></select>
+            <input type="file" id="amap-plugin-file" accept=".cs">
+          </div>
+          <button type="button" id="amap-plugin-upload" class="btn btn-small btn-outline">Upload</button>
+        </div>
       </div>
+      <div id="amap-result-log" class="console-output small"></div>
     </div>
   </section>
 

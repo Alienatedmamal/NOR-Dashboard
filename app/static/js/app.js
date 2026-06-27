@@ -560,6 +560,13 @@ function initCustomSelect(select) {
   });
 
   syncTrigger();
+  // Exposed so code that sets select.value/options directly (loading saved
+  // settings, repopulating options from a fetch, etc.) can refresh the
+  // visible trigger label without firing a real "change" event - several
+  // .custom-select elements already have their own "change" listener tied
+  // to real user-driven side effects (applying a theme, saving settings),
+  // and dispatching one here would wrongly re-trigger those.
+  select._syncCustomSelectTrigger = syncTrigger;
 }
 // Auto-init for every .custom-select happens at the very end of this file,
 // not here - the Theme preset dropdown's <option>s are populated
@@ -1178,6 +1185,8 @@ async function loadWipeSettingsForm() {
     }
     $("#wipe-setting-anchor").value = data.wipe_anchor_date || "";
     syncWipeFormVisibility();
+    $("#wipe-setting-frequency")._syncCustomSelectTrigger && $("#wipe-setting-frequency")._syncCustomSelectTrigger();
+    $("#wipe-setting-timezone")._syncCustomSelectTrigger && $("#wipe-setting-timezone")._syncCustomSelectTrigger();
   } catch (err) {
     // form just keeps its defaults - Save will surface any real problem
   }
@@ -1329,6 +1338,7 @@ function populateThemePresetSelect(activePresetKey) {
     .map(([key, preset]) => `<option value="${escapeHtml(key)}" data-color="${escapeHtml(preset.swatch)}">${escapeHtml(preset.name)}</option>`)
     .join("") + `<option value="" data-color="">Custom</option>`;
   select.value = activePresetKey || "";
+  select._syncCustomSelectTrigger && select._syncCustomSelectTrigger();
 }
 
 $("#theme-preset-select").addEventListener("change", () => {
@@ -1527,30 +1537,6 @@ $("#refresh-map").addEventListener("click", () => loadMapImage().then(loadMapEnt
 // The viewport (.map-wrap) is a plain scrollable box around the oversized
 // .map-canvas - dragging just converts mouse movement into scrollLeft/Top
 // changes, the same trick as any "click-and-drag to pan" widget.
-(function initMapDrag() {
-  const viewport = $("#map-wrap");
-  let dragging = false;
-  let startX, startY, startScrollLeft, startScrollTop;
-
-  viewport.addEventListener("mousedown", (e) => {
-    dragging = true;
-    viewport.classList.add("dragging");
-    startX = e.clientX;
-    startY = e.clientY;
-    startScrollLeft = viewport.scrollLeft;
-    startScrollTop = viewport.scrollTop;
-  });
-  window.addEventListener("mousemove", (e) => {
-    if (!dragging) return;
-    viewport.scrollLeft = startScrollLeft - (e.clientX - startX);
-    viewport.scrollTop = startScrollTop - (e.clientY - startY);
-  });
-  window.addEventListener("mouseup", () => {
-    dragging = false;
-    viewport.classList.remove("dragging");
-  });
-})();
-
 // ---- Reusable styled confirmation modal ----
 // Replaces native confirm()/prompt() so destructive actions match the
 // dashboard's theme instead of a jarring OS-native popup. Resolves true if
@@ -1626,6 +1612,11 @@ loadAmapCards();
 
 function renderAmapCards() {
   const box = $("#amap-cards");
+  // Upload Plugin is a static card (its own upload logic, not a generic
+  // RCON action) living in this same grid - detach it before wiping the
+  // dynamic ones, then re-append the *same* node so its already-bound
+  // event listeners and custom-select wrapper survive the rebuild.
+  const uploadCard = $("#amap-upload-card");
   box.innerHTML = "";
   amapActions.forEach((a) => {
     const isCritical = a.category === "critical";
@@ -1656,6 +1647,7 @@ function renderAmapCards() {
     if (viewBtn) viewBtn.addEventListener("click", viewWipeConfig);
     box.appendChild(card);
   });
+  if (uploadCard) box.appendChild(uploadCard);
 }
 
 async function viewWipeConfig() {
@@ -1685,6 +1677,7 @@ async function loadInstalledPlugins() {
     select.innerHTML = (data.plugins || [])
       .map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`)
       .join("") || '<option value="">(none found)</option>';
+    select._syncCustomSelectTrigger && select._syncCustomSelectTrigger();
   } catch (err) {
     // dropdown just stays empty - it's informational only
   }
@@ -1880,3 +1873,7 @@ async function runAmapAction(a, card) {
     amapLog(`${a.label}: Error - ${err.message}`);
   }
 }
+
+// Runs last so every .custom-select's <option>s (including the Theme
+// preset dropdown, populated synchronously above) already exist.
+$all(".custom-select").forEach(initCustomSelect);

@@ -391,24 +391,24 @@ input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:foc
 .map-dot-ch47 { background: #ffe066; box-shadow: 0 0 5px #ffe066; }
 .map-dot-cargoplane { background: #b388ff; box-shadow: 0 0 5px #b388ff; }
 
-/* .map-wrap is the visible viewport - capped well below the full map size
-   so it doesn't dominate the page - and .map-canvas inside it is the actual
-   map at a fixed, larger size. Dragging the viewport (see app.js) just
-   scrolls it around the oversized canvas; marker positions are already
-   percentages of the canvas, so they land correctly regardless of either
-   element's size. */
+/* .map-wrap is the visible viewport, capped at .map-canvas's own native
+   size so the full map is always visible at once - centered on the page.
+   overflow: hidden (not auto) since border-box sizing otherwise leaves the
+   900px canvas a hair taller/wider than the wrap's content box (the border
+   eats into the declared width), which was enough to spawn a scrollbar;
+   the page itself scrolls instead, never this widget. Marker positions are
+   percentages of the canvas, so they land correctly regardless of size. */
 .map-wrap {
   position: relative;
   width: 100%;
-  max-width: 480px;
+  max-width: 900px;
   aspect-ratio: 1 / 1;
   background: #000;
   border: 1px solid var(--border);
   border-radius: 8px;
-  overflow: auto;
-  cursor: grab;
+  overflow: hidden;
+  margin: 0 auto;
 }
-.map-wrap.dragging { cursor: grabbing; user-select: none; }
 .map-canvas { position: relative; width: 900px; height: 900px; }
 .map-image { display: block; width: 100%; height: 100%; }
 .map-image[hidden] { display: none; }
@@ -645,6 +645,9 @@ input[type="color"] {
   align-items: center;
   justify-content: center;
   gap: 20px;
+}
+.loading-screen[hidden] {
+  display: none;
 }
 .loading-screen-logo { height: 56px; filter: drop-shadow(0 0 12px var(--accent-soft)); }
 .loading-progress-track {
