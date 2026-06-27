@@ -22,25 +22,18 @@ async function postJson(url, body) {
 }
 
 // ---- Loading screen ----
-// Shown until the Overview tab's own first-paint data is in (RCON status/
-// player count, description+header image, BattleMetrics rank), so the page
-// never flashes empty placeholder content. Hooks into those three calls'
-// own first invocation further down rather than firing duplicate fetches -
-// each of them already swallows its own errors internally, so "resolved"
-// just means "this attempt finished," success or not, which is exactly
-// what's needed here (a dead endpoint shouldn't strand the user on the
-// loading screen forever). A timeout is the real backstop for that.
-const LOADING_STEPS_TOTAL = 3;
+// Shown until the dashboard actually confirms it can reach the Rust
+// server's RCON - retries /api/status for up to 15 seconds rather than
+// failing on the very first attempt, since a slow-to-respond server (see
+// rcon_client.py's own bounded-but-not-instant timeout handling) shouldn't
+// look identical to a genuinely unreachable or misconfigured one. Only
+// shows the error state once it's truly tried for the whole window with
+// no success - without this, a bad rcon_host/port/password (or the Rust
+// server just being down) would otherwise leave the page sitting there
+// with blank/dash placeholder values and no explanation of why.
 const LOADING_TIMEOUT_MS = 15000;
-let loadingStepsDone = 0;
+const LOADING_RETRY_INTERVAL_MS = 1500;
 let loadingRevealed = false;
-
-function loadingStepComplete() {
-  loadingStepsDone = Math.min(loadingStepsDone + 1, LOADING_STEPS_TOTAL);
-  const bar = $("#loading-progress-bar");
-  if (bar) bar.style.width = Math.round((loadingStepsDone / LOADING_STEPS_TOTAL) * 100) + "%";
-  if (loadingStepsDone >= LOADING_STEPS_TOTAL) revealPage();
-}
 
 function revealPage() {
   if (loadingRevealed) return;
@@ -49,21 +42,51 @@ function revealPage() {
   if (overlay) overlay.hidden = true;
 }
 
-setTimeout(() => {
-  if (!loadingRevealed) {
-    $("#loading-screen-status").textContent = "This is taking longer than expected.";
-    $("#loading-screen-error").hidden = false;
+async function checkServerReachable() {
+  try {
+    const data = await fetch("/api/status").then((res) => res.json());
+    return !!data.connected;
+  } catch (err) {
+    return false;
   }
-}, LOADING_TIMEOUT_MS);
+}
+
+async function runLoadingGate() {
+  const startedAt = Date.now();
+  const deadline = startedAt + LOADING_TIMEOUT_MS;
+  const progressTimer = setInterval(() => {
+    const bar = $("#loading-progress-bar");
+    if (bar) bar.style.width = Math.min(100, Math.round(((Date.now() - startedAt) / LOADING_TIMEOUT_MS) * 100)) + "%";
+  }, 200);
+
+  while (Date.now() < deadline) {
+    if (await checkServerReachable()) {
+      clearInterval(progressTimer);
+      revealPage();
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, LOADING_RETRY_INTERVAL_MS));
+  }
+
+  // One last try right at the deadline, in case it came back just as time ran out.
+  if (await checkServerReachable()) {
+    clearInterval(progressTimer);
+    revealPage();
+    return;
+  }
+
+  clearInterval(progressTimer);
+  $("#loading-progress-bar").style.width = "100%";
+  $("#loading-screen-status").textContent = "Couldn't reach your Rust server's RCON.";
+  $("#loading-screen-error").hidden = false;
+}
+runLoadingGate();
 
 $("#loading-screen-retry").addEventListener("click", () => {
   $("#loading-screen-error").hidden = true;
   $("#loading-screen-status").textContent = "Loading...";
-  loadingStepsDone = 0;
   $("#loading-progress-bar").style.width = "0%";
-  refreshStatus().then(loadingStepComplete);
-  loadOverviewExtras().then(loadingStepComplete);
-  loadOverviewServerSettings().then(loadingStepComplete);
+  runLoadingGate();
 });
 
 // ---- Unexpected-error safety net ----
@@ -348,7 +371,7 @@ async function refreshStatus() {
     // leave the last known count showing rather than blank it on a hiccup
   }
 }
-refreshStatus().then(loadingStepComplete);
+refreshStatus();
 setInterval(refreshStatus, 15000);
 
 // ---- Console ----
@@ -615,7 +638,7 @@ async function loadOverviewExtras() {
     $("#overview-rank").textContent = "-";
   }
 }
-loadOverviewExtras().then(loadingStepComplete);
+loadOverviewExtras();
 setInterval(loadOverviewExtras, 30000);
 
 // ---- Overview tab extras: description + header image, straight from RCON ----
@@ -640,7 +663,7 @@ async function loadOverviewServerSettings() {
     // next poll will catch up
   }
 }
-loadOverviewServerSettings().then(loadingStepComplete);
+loadOverviewServerSettings();
 setInterval(loadOverviewServerSettings, 30000);
 
 // Permission dropdown suggestions - built from the plugins actually
