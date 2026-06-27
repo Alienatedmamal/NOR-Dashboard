@@ -53,8 +53,15 @@ if not defined BROWSER if exist "%ProgramFiles(x86)%\Google\Chrome\Application\c
 if defined BROWSER (
     rem "--app=" opens it in its own window - no address bar, tabs, or
     rem bookmarks bar - instead of a normal browser tab. "--start-maximized"
-    rem opens that window already maximized rather than at its default size.
+    rem alone isn't reliable for this kind of app-mode window - Chromium
+    rem remembers its last size/position per site and can just ignore the
+    rem flag - so maximize_window.ps1 forces it via the Win32 API directly
+    rem (found by window title, not process/PID, since "--app=" can hand the
+    rem new window to an already-running browser process instead of the one
+    rem just started) - kept as its own .ps1 file rather than inline here to
+    rem avoid nesting batch/PowerShell/C# quoting three levels deep.
     start "" powershell -NoProfile -WindowStyle Hidden -Command "Start-Sleep -Seconds 2; Start-Process -FilePath '%BROWSER%' -ArgumentList '--app=http://127.0.0.1:5050','--start-maximized'"
+    start "" powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "%~dp0maximize_window.ps1"
 ) else (
     rem Neither Edge nor Chrome found at the usual install path - fall
     rem back to whatever the default browser is, as a normal tab.

@@ -663,4 +663,3 @@ input[type="color"] {
   transition: width .3s ease;
 }
 .loading-screen-status { color: var(--text-muted); font-family: var(--font-heading); letter-spacing: .5px; }
-.loading-screen-error { display: flex; flex-direction: column; align-items: center; gap: 12px; max-width: 320px; text-align: center; }

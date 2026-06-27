@@ -22,22 +22,26 @@ async function postJson(url, body) {
 }
 
 // ---- Loading screen ----
-// Shown until the dashboard actually confirms it can reach the Rust
+// Shown while the dashboard tries to confirm it can reach the Rust
 // server's RCON - retries /api/status for up to 15 seconds rather than
-// failing on the very first attempt, since a slow-to-respond server (see
+// giving up on the very first attempt, since a slow-to-respond server (see
 // rcon_client.py's own bounded-but-not-instant timeout handling) shouldn't
-// look identical to a genuinely unreachable or misconfigured one. Only
-// shows the error state once it's truly tried for the whole window with
-// no success - without this, a bad rcon_host/port/password (or the Rust
-// server just being down) would otherwise leave the page sitting there
-// with blank/dash placeholder values and no explanation of why.
+// look identical to a genuinely unreachable or misconfigured one. Either
+// way - success or timeout - the page is revealed once the bar hits 100%;
+// a failure surfaces as a toast (with a suggested fix) on the real page
+// instead of trapping the user behind a blocking screen, since every tab
+// already has its own "Not connected" badge and auto-retrying polling -
+// there's nothing a dedicated Refresh button here would do that the rest
+// of the page doesn't already do on its own.
 const LOADING_TIMEOUT_MS = 15000;
 const LOADING_RETRY_INTERVAL_MS = 1500;
-let loadingRevealed = false;
+
+function setLoadingProgress(pct) {
+  const bar = $("#loading-progress-bar");
+  if (bar) bar.style.width = Math.min(100, Math.max(0, pct)) + "%";
+}
 
 function revealPage() {
-  if (loadingRevealed) return;
-  loadingRevealed = true;
   const overlay = $("#loading-screen");
   if (overlay) overlay.hidden = true;
 }
@@ -55,39 +59,35 @@ async function runLoadingGate() {
   const startedAt = Date.now();
   const deadline = startedAt + LOADING_TIMEOUT_MS;
   const progressTimer = setInterval(() => {
-    const bar = $("#loading-progress-bar");
-    if (bar) bar.style.width = Math.min(100, Math.round(((Date.now() - startedAt) / LOADING_TIMEOUT_MS) * 100)) + "%";
+    setLoadingProgress(Math.round(((Date.now() - startedAt) / LOADING_TIMEOUT_MS) * 100));
   }, 200);
 
+  let reachable = false;
   while (Date.now() < deadline) {
     if (await checkServerReachable()) {
-      clearInterval(progressTimer);
-      revealPage();
-      return;
+      reachable = true;
+      break;
     }
     await new Promise((resolve) => setTimeout(resolve, LOADING_RETRY_INTERVAL_MS));
   }
-
-  // One last try right at the deadline, in case it came back just as time ran out.
-  if (await checkServerReachable()) {
-    clearInterval(progressTimer);
-    revealPage();
-    return;
+  if (!reachable) {
+    reachable = await checkServerReachable(); // one last try right at the deadline
   }
 
   clearInterval(progressTimer);
-  $("#loading-progress-bar").style.width = "100%";
-  $("#loading-screen-status").textContent = "Couldn't reach your Rust server's RCON.";
-  $("#loading-screen-error").hidden = false;
+  setLoadingProgress(100);
+  revealPage();
+
+  if (!reachable) {
+    showToast({
+      title: "Couldn't reach your Rust server",
+      message: "RCON didn't respond within 15 seconds.",
+      fix: "Check rcon_host/rcon_port/rcon_password in Settings > RCON, and that your Rust server is actually running.",
+      variant: "error",
+    });
+  }
 }
 runLoadingGate();
-
-$("#loading-screen-retry").addEventListener("click", () => {
-  $("#loading-screen-error").hidden = true;
-  $("#loading-screen-status").textContent = "Loading...";
-  $("#loading-progress-bar").style.width = "0%";
-  runLoadingGate();
-});
 
 // ---- Unexpected-error safety net ----
 // Now that the dashboard runs windowless (see run.bat), there's no console

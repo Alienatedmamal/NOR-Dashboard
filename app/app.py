@@ -49,6 +49,11 @@ app = Flask(__name__)
 # and caches it in memory - any wording/HTML edit needs a full restart to
 # show up otherwise. This makes it check the file's timestamp every render.
 app.config["TEMPLATES_AUTO_RELOAD"] = True
+# Static files (app.js, style.css) default to a 12-hour browser cache
+# otherwise - completely separate from the template setting above, and easy
+# to miss, since the symptom is "I edited the JS but the browser's still
+# running the old version" rather than an outright error.
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 
 sock = Sock(app)
 ssh_ws.register(sock)
