@@ -46,12 +46,26 @@ function revealPage() {
   if (overlay) overlay.hidden = true;
 }
 
+// /api/status's own RCON call can legitimately take much longer than this
+// gate's whole 15s budget against a genuinely bad host (rcon_client.py's
+// retry loop: up to ~8s connect + 8s send + 8s response-wait, x2 attempts).
+// Without its own timeout, a single slow fetch() here would block the loop
+// below from ever rechecking its deadline - this is what makes a bad RCON
+// IP look like an indefinite hang instead of a 15s timeout. Aborting
+// client-side after a few seconds doesn't cancel the backend's own RCON
+// attempt, but it does let THIS loop keep its promise to move on regardless.
+const STATUS_POLL_TIMEOUT_MS = 4000;
+
 async function checkServerReachable() {
+  const controller = new AbortController();
+  const abortTimer = setTimeout(() => controller.abort(), STATUS_POLL_TIMEOUT_MS);
   try {
-    const data = await fetch("/api/status").then((res) => res.json());
+    const data = await fetch("/api/status", { signal: controller.signal }).then((res) => res.json());
     return !!data.connected;
   } catch (err) {
     return false;
+  } finally {
+    clearTimeout(abortTimer);
   }
 }
 
