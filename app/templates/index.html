@@ -6,6 +6,7 @@
 <title>NOR Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/xterm.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
@@ -40,6 +41,7 @@
   <button class="tab-btn" data-tab="permissions">Permissions</button>
   <button class="tab-btn" data-tab="serverinfo">Server Info</button>
   <button class="tab-btn" data-tab="amap">AMAP</button>
+  <button class="tab-btn" data-tab="terminal">Terminal</button>
 </nav>
 
 <main class="page-wrap">
@@ -336,6 +338,41 @@
     </div>
   </section>
 
+  <section id="tab-terminal" class="tab-panel">
+    <div class="panel">
+      <div class="panel-header-row">
+        <h2>Terminal</h2>
+        <span id="terminal-status" class="muted">Not connected</span>
+      </div>
+      <p class="muted">SSH into any host - nothing typed here is ever saved to disk.</p>
+
+      <form id="terminal-connect-form" class="stacked-form terminal-connect-form">
+        <label>Host
+          <input type="text" id="terminal-host" placeholder="e.g. 10.0.35.2" autocomplete="off" required>
+        </label>
+        <label>Port
+          <input type="number" id="terminal-port" placeholder="22" value="22" autocomplete="off">
+        </label>
+        <label>Username
+          <input type="text" id="terminal-username" autocomplete="off" required>
+        </label>
+        <label>Password
+          <input type="password" id="terminal-password" autocomplete="off" required>
+        </label>
+        <div class="btn-row">
+          <button type="submit" class="btn btn-primary">Connect</button>
+        </div>
+      </form>
+
+      <div id="terminal-wrap" class="terminal-wrap" hidden>
+        <div id="terminal-container" class="terminal-container"></div>
+        <div class="btn-row">
+          <button type="button" id="terminal-disconnect" class="btn btn-outline">Disconnect</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
 </main>
 
 <footer class="dashboard-footer">NOR Dashboard v{{ version }}</footer>
@@ -354,6 +391,8 @@
   </div>
 </div>
 
+<script src="{{ url_for('static', filename='js/vendor/xterm.js') }}"></script>
+<script src="{{ url_for('static', filename='js/vendor/xterm-addon-fit.js') }}"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>

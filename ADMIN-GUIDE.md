@@ -78,6 +78,14 @@ All three name/SteamID fields let you click in and pick from currently-online pl
 - **Server Settings**: edit your hostname, server URL, description, or header image. Each field loads with the current value - change it and click Apply next to that field, then confirm in the popup that appears.
 - **Live Server Stats**: framerate, uptime, player count, entity count, etc. Click Refresh to update.
 
+## Terminal tab
+
+A real SSH terminal embedded in the page - for anything AMAP's fixed action list doesn't cover.
+
+Fill in Host, Port (defaults to 22), Username, and Password, then click Connect. Once connected you get a genuine interactive shell - run any command, use arrow keys/tab-completion/Ctrl-C like a normal terminal, and the connection stays open as long as you're on the tab. Click Disconnect when you're done.
+
+Nothing typed into this tab - host, username, or password - is ever written to `config.json` or any other file. It only exists in memory for the life of that one connection, same as typing a password into a normal terminal program.
+
 ## AMAP tab
 
 Runs your actual AMAP server-management scripts remotely over RCON - no SSH access needed on your PC at all.

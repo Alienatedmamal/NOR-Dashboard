@@ -30,6 +30,7 @@ function activateTab(tab) {
   $all(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
   $all(".tab-panel").forEach((p) => p.classList.toggle("active", p.id === "tab-" + tab));
   if (tab === "map") startMapPolling(); else stopMapPolling();
+  if (tab === "terminal") fitTerminal();
 }
 
 // ---- Wipe countdown: first Thursday of the month, 2pm Central ----
@@ -1158,6 +1159,121 @@ function amapLog(line) {
   box.appendChild(row);
   box.scrollTop = box.scrollHeight;
 }
+
+// ---- Terminal ----
+// The dashboard's only WebSocket feature - everything else above is plain
+// HTTP polling. One xterm.js instance is created lazily on first Connect and
+// reused across reconnects; ws_terminal on the backend (app/ssh_ws.py) backs
+// it with a real paramiko SSH session, one per WebSocket connection.
+let terminalWs = null;
+let terminalTerm = null;
+let terminalFit = null;
+let terminalConnected = false;
+
+function terminalWsUrl() {
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  return `${proto}//${location.host}/ws/terminal`;
+}
+
+function ensureTerminal() {
+  if (terminalTerm) return;
+  terminalTerm = new Terminal({
+    cursorBlink: true,
+    fontFamily: "'Consolas', 'Courier New', monospace",
+    fontSize: 14,
+    theme: {
+      background: "#000000",
+      foreground: "#39ff14",
+      cursor: "#39ff14",
+      selectionBackground: "rgba(57, 255, 20, .3)",
+    },
+  });
+  terminalFit = new FitAddon.FitAddon();
+  terminalTerm.loadAddon(terminalFit);
+  terminalTerm.open($("#terminal-container"));
+  terminalTerm.onData((data) => {
+    if (terminalWs && terminalConnected) {
+      terminalWs.send(JSON.stringify({ type: "data", data }));
+    }
+  });
+}
+
+function fitTerminal() {
+  if (!terminalTerm || !terminalFit) return;
+  terminalFit.fit();
+  if (terminalWs && terminalConnected) {
+    terminalWs.send(JSON.stringify({ type: "resize", cols: terminalTerm.cols, rows: terminalTerm.rows }));
+  }
+}
+
+function setTerminalStatus(text) {
+  $("#terminal-status").textContent = text;
+}
+
+function showTerminalConnectedUi(connected) {
+  $("#terminal-connect-form").hidden = connected;
+  $("#terminal-wrap").hidden = !connected;
+}
+
+$("#terminal-connect-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const host = $("#terminal-host").value.trim();
+  const port = parseInt($("#terminal-port").value, 10) || 22;
+  const username = $("#terminal-username").value.trim();
+  const password = $("#terminal-password").value;
+  if (!host || !username) return;
+
+  showTerminalConnectedUi(true);
+  ensureTerminal();
+  terminalTerm.reset();
+  setTerminalStatus("Connecting...");
+  terminalConnected = false;
+
+  terminalWs = new WebSocket(terminalWsUrl());
+  terminalWs.onopen = () => {
+    terminalFit.fit();
+    terminalWs.send(JSON.stringify({
+      type: "connect", host, port, username, password,
+      cols: terminalTerm.cols, rows: terminalTerm.rows,
+    }));
+  };
+  terminalWs.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    if (msg.type === "data") {
+      terminalTerm.write(msg.data);
+    } else if (msg.type === "status" && msg.state === "connected") {
+      terminalConnected = true;
+      setTerminalStatus("Connected");
+    } else if (msg.type === "status" && (msg.state === "error" || msg.state === "closed")) {
+      terminalConnected = false;
+      setTerminalStatus(msg.state === "error" ? `Error: ${msg.message}` : "Not connected");
+      const color = msg.state === "error" ? "31" : "33";
+      terminalTerm.writeln(`\r\n\x1b[${color}m[${msg.message || "Connection closed."}]\x1b[0m`);
+      terminalWs.close();
+      showTerminalConnectedUi(false);
+    }
+  };
+  terminalWs.onclose = () => {
+    if (terminalConnected) {
+      terminalConnected = false;
+      setTerminalStatus("Not connected");
+      showTerminalConnectedUi(false);
+    }
+  };
+
+  $("#terminal-password").value = "";
+});
+
+$("#terminal-disconnect").addEventListener("click", () => {
+  if (terminalWs) terminalWs.close();
+  terminalConnected = false;
+  setTerminalStatus("Not connected");
+  showTerminalConnectedUi(false);
+});
+
+window.addEventListener("resize", () => {
+  if ($("#tab-terminal").classList.contains("active")) fitTerminal();
+});
 
 async function runAmapAction(a, card) {
   const fields = {};
