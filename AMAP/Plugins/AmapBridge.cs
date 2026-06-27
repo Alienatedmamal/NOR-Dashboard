@@ -40,7 +40,6 @@ namespace Oxide.Plugins
             ["full_wipe"] = new AmapAction { ScriptPath = $"{HomeDir}/AMAP/Files/Scripts/./Fullwipe.sh" },
             ["log_cleaner"] = new AmapAction { ScriptPath = $"{HomeDir}/AMAP/Files/Scripts/./LogCleaner.sh" },
             ["map_wipe"] = new AmapAction { ScriptPath = $"{HomeDir}/AMAP/Files/Scripts/./Mapwipe.sh" },
-            ["nightly_restart"] = new AmapAction { ScriptPath = $"{HomeDir}/AMAP/Files/Scripts/./Nightly.sh" },
             ["backup"] = new AmapAction { ScriptPath = $"{HomeDir}/AMAP/Files/Scripts/./ServerBackups.sh" },
             ["server_checker"] = new AmapAction { ScriptPath = $"{HomeDir}/AMAP/Files/Scripts/./ServerChecker.sh" },
             ["updater"] = new AmapAction { ScriptPath = $"{HomeDir}/AMAP/Files/Scripts/./Updater.sh" },

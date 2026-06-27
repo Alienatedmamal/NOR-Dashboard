@@ -5,6 +5,7 @@ Runs locally only (127.0.0.1) since config.json holds the RCON password.
 """
 import json
 import os
+import re
 import threading
 import time
 
@@ -29,6 +30,7 @@ from oxide_commands import (
 from permissions_catalog import KNOWN_PERMISSIONS
 from player_notes import add_note, delete_note, get_notes
 from player_stats import get_all_stats, get_stats, record_snapshot
+from plugin_deploy import list_known_plugin_names, upload_plugin
 from rcon_client import RconClient, RconError, get_log_since, get_log_tail, get_players
 from server_info import SETTING_CONVARS, get_server_info, get_server_settings, set_convar
 from steam_api import get_player_summary, get_rust_playtime_hours, lookup_player
@@ -134,6 +136,73 @@ def api_settings_rcon_set():
 
     save_config_fields({"rcon_host": host, "rcon_port": port, "rcon_password": password})
     reset_rcon_client()
+    return jsonify({"ok": True})
+
+
+WIPE_FREQUENCIES = {"daily", "biweekly", "monthly"}
+
+
+@app.route("/api/settings/wipe")
+def api_settings_wipe_get():
+    cfg = load_config()
+    return jsonify({
+        "wipe_frequency": cfg.get("wipe_frequency", "monthly"),
+        "wipe_time": cfg.get("wipe_time", "14:00"),
+        "wipe_timezone": cfg.get("wipe_timezone", "America/Chicago"),
+        "wipe_anchor_date": cfg.get("wipe_anchor_date", ""),
+    })
+
+
+@app.route("/api/settings/wipe", methods=["POST"])
+def api_settings_wipe_set():
+    body = request.get_json(force=True) or {}
+    frequency = (body.get("wipe_frequency") or "").strip()
+    time_str = (body.get("wipe_time") or "").strip()
+    timezone = (body.get("wipe_timezone") or "").strip()
+    anchor_date = (body.get("wipe_anchor_date") or "").strip()
+
+    if frequency not in WIPE_FREQUENCIES:
+        return jsonify({"error": "Unknown wipe frequency"}), 400
+    if not re.match(r"^\d{2}:\d{2}$", time_str):
+        return jsonify({"error": "Time must be in HH:MM format"}), 400
+    if not timezone:
+        return jsonify({"error": "Timezone is required"}), 400
+    if frequency == "biweekly" and not re.match(r"^\d{4}-\d{2}-\d{2}$", anchor_date):
+        return jsonify({"error": "Bi-weekly needs an anchor date (YYYY-MM-DD)"}), 400
+
+    save_config_fields({
+        "wipe_frequency": frequency,
+        "wipe_time": time_str,
+        "wipe_timezone": timezone,
+        "wipe_anchor_date": anchor_date,
+    })
+    return jsonify({"ok": True})
+
+
+@app.route("/api/settings/plugin-deploy")
+def api_settings_plugin_deploy_get():
+    cfg = load_config()
+    return jsonify({
+        "plugin_deploy_host": cfg.get("plugin_deploy_host", ""),
+        "plugin_deploy_username": cfg.get("plugin_deploy_username", ""),
+        "plugin_deploy_path": cfg.get("plugin_deploy_path", ""),
+    })
+
+
+@app.route("/api/settings/plugin-deploy", methods=["POST"])
+def api_settings_plugin_deploy_set():
+    body = request.get_json(force=True) or {}
+    host = (body.get("plugin_deploy_host") or "").strip()
+    username = (body.get("plugin_deploy_username") or "").strip()
+    path = (body.get("plugin_deploy_path") or "").strip()
+    if not host or not username or not path:
+        return jsonify({"error": "Host, username, and path are all required"}), 400
+
+    save_config_fields({
+        "plugin_deploy_host": host,
+        "plugin_deploy_username": username,
+        "plugin_deploy_path": path,
+    })
     return jsonify({"ok": True})
 
 
@@ -574,6 +643,38 @@ def api_amap_wipe_config():
     except RconError as exc:
         reset_rcon_client()
         return jsonify({"error": str(exc)}), 502
+
+
+@app.route("/api/amap/plugins")
+def api_amap_plugins():
+    """Currently-installed plugin names, for the upload panel's informational
+    dropdown - parsed from RCON's own oxide.plugins output rather than an
+    SFTP directory listing, since that's already proven reliable here."""
+    try:
+        raw = get_rcon_client().send_command("oxide.plugins", quiet=True)
+    except RconError as exc:
+        reset_rcon_client()
+        return jsonify({"error": str(exc)}), 502
+    return jsonify({"plugins": list_known_plugin_names(raw)})
+
+
+@app.route("/api/amap/upload-plugin", methods=["POST"])
+def api_amap_upload_plugin():
+    cfg = load_config()
+    host = cfg.get("plugin_deploy_host", "")
+    username = cfg.get("plugin_deploy_username", "")
+    path = cfg.get("plugin_deploy_path", "")
+    if not host or host == "CHANGE_ME" or not username or username == "CHANGE_ME" or not path or path == "CHANGE_ME":
+        return jsonify({"error": "Set up Plugin Deploy in Settings first"}), 400
+
+    file = request.files.get("plugin")
+    if not file or not file.filename:
+        return jsonify({"error": "No file selected"}), 400
+
+    ok, message, added = upload_plugin(host, username, path, file.filename, file.read())
+    if not ok:
+        return jsonify({"error": message}), 502
+    return jsonify({"ok": True, "message": message, "added_permissions": added})
 
 
 @app.route("/api/battlemetrics/stats")

@@ -46,12 +46,6 @@ AMAP_ACTIONS = {
         "description": "Updates the server.",
         "confirm": "Update the server now? This may stop the server.",
     },
-    "nightly_restart": {
-        "label": "Nightly Restart",
-        "category": "critical",
-        "description": "Just stops the server (deprecated, but still works).",
-        "confirm": "Run the nightly restart now? This stops the server.",
-    },
     "map_wipe": {
         "label": "Map Wipe",
         "category": "critical",

@@ -1,4 +1,4 @@
-# NOR Dashboard v1.2.1
+# NOR Dashboard v1.2.2
 
 A simple admin dashboard for your Rust server: an at-a-glance overview (player count, queue, BattleMetrics rank, and more), a live console feed, server info/settings, online/offline/banned player management with notes, permission management, player ban/Steam history lookups, a live map with player and world-event tracking, an AMAP tab for running server-management scripts, and a wipe countdown. Same black-and-neon-green look as AMAP and nor.workisboring.com.
 
@@ -44,8 +44,37 @@ On the Rust server (SSH in, or open a terminal on the box):
    mv AmapBridge.cs /home/USERNAME/serverfiles/oxide/plugins/AmapBridge.cs
    ```
    Oxide compiles and loads it automatically within a few seconds - check the server console for `Loaded plugin AmapBridge` to confirm.
+5. Make the scripts executable - this is needed for AMAP and the dashboard to actually be able to run them:
+   ```bash
+   chmod +x /home/USERNAME/AMAP/Files/Scripts/*
+   ```
 
 That's it - the AMAP tab will now work against this server. The plugin figures out file paths from whatever Linux account it's actually running under, so there's nothing to edit inside `AmapBridge.cs` itself, even across different servers with different usernames.
+
+## Setting up SSH keys for the Plugin Upload feature
+
+The AMAP tab's **Upload Plugin** panel sends files to your Rust server over SFTP using a regular SSH key - the same kind you'd use to SSH into the box by hand - rather than a password. If you can already SSH into your Rust server without being asked for a password, you can skip this section; otherwise, from this Windows PC:
+
+1. Open PowerShell and check whether you already have a key:
+   ```powershell
+   dir $env:USERPROFILE\.ssh\id_ed25519.pub
+   ```
+   If that shows a file, skip to step 3. If it says the path doesn't exist, continue to step 2.
+2. Generate a new key (press Enter at every prompt to accept the defaults, including an empty passphrase - a passphrase would mean typing it in every time the dashboard tries to upload a plugin):
+   ```powershell
+   ssh-keygen -t ed25519
+   ```
+3. Copy the public key over to the Rust server - replace `USERNAME` and `SERVER_IP` with the real values (the same ones you'll enter in Settings > Plugin Deploy):
+   ```powershell
+   type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh USERNAME@SERVER_IP "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
+   ```
+   (If your Windows PC has `ssh-copy-id` available, `ssh-copy-id USERNAME@SERVER_IP` does the same thing in one step.)
+4. Test it - this should log you in with no password prompt:
+   ```powershell
+   ssh USERNAME@SERVER_IP
+   ```
+
+Once that works, fill in the same host/username and the path to your `oxide/plugins` folder (e.g. `/home/USERNAME/serverfiles/oxide/plugins`) in the dashboard's Settings > Plugin Deploy section.
 
 ## Running it
 
@@ -55,7 +84,7 @@ Double-click **`run.bat`**. (Same Windows warning as before if it shows up - Mor
 
 If something goes wrong, errors show up as a pop-up notification in the bottom-right corner of the dashboard itself, with a suggested fix. If the dashboard fails to start at all, you'll get a one-time pop-up telling you to check `dashboard.log` in this folder.
 
-`install.bat` also creates a **"Launch NOR Dashboard.lnk"** shortcut in this folder, with its own icon - copy it to your Desktop or pin it to the taskbar if you want a nicer-looking launcher than the plain `run.bat` file.
+`install.bat` also puts a **"Launch NOR Dashboard"** shortcut on your Desktop automatically (with its own icon), plus a copy in this folder - pin either one to the taskbar if you want.
 
 ## Checking for updates
 
@@ -67,13 +96,13 @@ Double-click **`update.bat`**. It downloads the latest version straight from Git
 - **Console** - a live feed of everything your server logs (plugin loads, warnings, chat, command output...), same idea as RustAdmin's console. Type a command and its response shows up in the same feed within a second or two, interleaved with everything else.
 - **Players** - online players (name, SteamID, IP, ping, session/total time, last connected, Rust hours) with one-click ban/unban (reason required and logged) and Look up; plus recently-seen offline players, currently-banned players, and a per-player notes log (ban reasons are added automatically).
 - **Player Lookup** - paste a SteamID64 to see their Steam profile, account age, VAC/game ban counts, and community/economy ban status.
-- **Live Map** - your actual map image (via RustMaps.com) with live-updating markers for online players (avatar + name) and world events - cargo ship, patrol helicopter, Bradley APC, CH47, cargo plane. No plugin required; built entirely on vanilla RCON commands.
+- **Live Map** - your actual map image (via RustMaps.com) with live-updating markers for online players (avatar + name) and world events - cargo ship, patrol helicopter, Bradley APC, CH47, cargo plane. No plugin required; built entirely on vanilla RCON commands (the seed/world size come straight from `server.seed`/`server.worldsize`, so it always matches the live map). Click and drag to pan around it.
 - **Permissions** - grant/revoke an Oxide permission on a player or group, add/remove a player from a group, and check what permissions/groups a player or group currently has.
 - **Server Info** - live stats (players, map, framerate, uptime, entity count, etc.) and editable server settings (hostname, URL, description, header image), pre-filled with the current values.
-- **AMAP** - runs a fixed set of your AMAP server-management scripts (backup, log cleaner, server checker, wipe configurator, updater, nightly restart, map/full wipe) over RCON - no SSH needed. Each is shown as a card with a description and a Critical/Noncritical tag; Critical actions require typing the action's name to confirm. See "AMAP tab setup" below for how this actually works, and `ADMIN-GUIDE.md` for what each one does.
+- **AMAP** - runs a fixed set of your AMAP server-management scripts (backup, log cleaner, server checker, wipe configurator, updater, map/full wipe) over RCON - no SSH needed. Each is shown as a card with a description and a Critical/Noncritical tag; Critical actions require typing the action's name to confirm. Also has an **Upload Plugin** panel that sends a `.cs` file straight to your server's `oxide/plugins` folder over SFTP (set the destination once in Settings > Plugin Deploy) and picks up any permissions it declares automatically. See "AMAP tab setup" below for how this actually works, and `ADMIN-GUIDE.md` for what each one does.
 - **Terminal** - a real interactive SSH terminal embedded in the page (via `xterm.js`), for when you need an actual shell instead of AMAP's fixed action list. Type a host/port/username/password and connect - nothing typed there is ever saved to disk.
-- **Settings** (gear icon, top right of the tab bar) - edit your RCON host/port/password without touching `config.json` by hand (reconnects immediately, no restart needed), and pick a color theme - five presets, or pick your own accent/background/text/alert colors. Saved to this browser only, so it's per-PC/per-browser, not shared.
-- **Wipe countdown** - in the header, counting down to 2pm Central on the first Thursday of the month, DST-aware.
+- **Settings** (gear icon, top right of the tab bar) - four sub-pages: **RCON** (edit host/port/password without touching `config.json` by hand, reconnects immediately); **Theme** (a dropdown of five presets, or your own accent/background/text/alert colors - saved to this browser only); **Wipe Schedule** (Daily, Bi-weekly, or Monthly, plus time/timezone - saved for the server, shared by anyone using this dashboard); **Plugin Deploy** (the SSH target the AMAP tab's plugin upload uses).
+- **Wipe countdown** - in the header, counting down based on whatever's set in Settings > Wipe Schedule (defaults to 2pm Central on the first Thursday of the month), DST-aware, auto-advancing to the next occurrence once it passes.
 
 The window opens maximized and the whole layout scales to fill it - it's no longer capped to a narrow centered column.
 
@@ -83,7 +112,7 @@ This tab needs a small custom Oxide plugin, `AMAP/Plugins/AmapBridge.cs`, instal
 
 The plugin only recognizes a fixed, hardcoded list of action keywords (see the `Actions` dictionary at the top of the file) - it never accepts or runs arbitrary shell text from RCON. Adding a new dashboard button means adding a new line to both that dictionary and `app/amap_commands.py`'s `AMAP_ACTIONS`, not changing what kind of input is accepted.
 
-There's no password on this tab - Critical actions (Updater, Nightly Restart, Map Wipe, Full Wipe) require typing the action's exact name into the confirmation popup before they'll run, which is the actual protection against a stray click. Anyone with the dashboard open can see the tab and its options, same as everything else in the dashboard.
+There's no password on this tab - Critical actions (Updater, Map Wipe, Full Wipe) require typing the action's exact name into the confirmation popup before they'll run, which is the actual protection against a stray click. Anyone with the dashboard open can see the tab and its options, same as everything else in the dashboard.
 
 The rest of `AMAP/` in this repo is a sanitized backup copy of the actual AMAP scripts running on the server, in case the live ones on the server ever need to be restored - real secrets (Discord webhooks, the RCON password) are replaced with `CHANGE_ME` placeholders.
 
@@ -112,4 +141,4 @@ Each admin then:
 - Without a `rustmaps_api_key`, the Live Map tab still shows live player/event markers - just without the background map image. The very first time RustMaps sees a given seed/world size, generating the image can take a couple minutes; the tab shows a "generating" message and a Refresh button until it's ready.
 - Without a `battlemetrics_id`, the Overview tab still shows everything else - Rank just stays blank.
 - The Overview tab's background image is `app/static/img/bg.jpg` - swap that file for your own image (same filename) if you want something different than nor.workisboring.com's background.
-- Several AMAP tab actions (Updater, Map Wipe, Full Wipe, Nightly Restart) stop the live Rust server, which is the very process the AmapBridge plugin runs inside - expect the RCON connection to drop right after using one of those, same as it would if you stopped the server any other way. The dashboard reconnects automatically once the server's back up.
+- Several AMAP tab actions (Updater, Map Wipe, Full Wipe) stop the live Rust server, which is the very process the AmapBridge plugin runs inside - expect the RCON connection to drop right after using one of those, same as it would if you stopped the server any other way. The dashboard reconnects automatically once the server's back up.

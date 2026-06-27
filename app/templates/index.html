@@ -26,6 +26,18 @@
 </head>
 <body>
 
+<div id="loading-screen" class="loading-screen">
+  <img src="{{ url_for('static', filename='img/banner.png') }}" alt="" class="loading-screen-logo">
+  <div class="loading-progress-track">
+    <div id="loading-progress-bar" class="loading-progress-bar"></div>
+  </div>
+  <p id="loading-screen-status" class="loading-screen-status">Loading...</p>
+  <div id="loading-screen-error" class="loading-screen-error" hidden>
+    <p class="muted">Check that the dashboard can still reach your Rust server's RCON, then try again.</p>
+    <button type="button" id="loading-screen-retry" class="btn btn-primary">Refresh</button>
+  </div>
+</div>
+
 <header class="topbar">
   <div class="brand">
     <img src="{{ url_for('static', filename='img/banner.png') }}" alt="Noobs On The Run" class="brand-logo">
@@ -233,9 +245,12 @@
         <span class="map-legend-item"><span class="map-dot map-dot-ch47"></span>CH47</span>
         <span class="map-legend-item"><span class="map-dot map-dot-cargoplane"></span>Cargo Plane</span>
       </div>
+      <p class="muted">Click and drag to pan around.</p>
       <div class="map-wrap" id="map-wrap">
-        <img id="map-image" class="map-image" alt="Server map" hidden>
-        <div class="map-overlay" id="map-overlay"></div>
+        <div class="map-canvas" id="map-canvas">
+          <img id="map-image" class="map-image" alt="Server map" hidden>
+          <div class="map-overlay" id="map-overlay"></div>
+        </div>
       </div>
     </div>
   </section>
@@ -352,6 +367,18 @@
       <div id="amap-cards" class="amap-cards"></div>
       <div id="amap-result-log" class="console-output small"></div>
     </div>
+
+    <div class="panel">
+      <h2>Upload Plugin <span class="amap-tag amap-tag-noncritical">Noncritical</span></h2>
+      <p class="muted">Sends a .cs file to the oxide/plugins folder configured in Settings &gt; Plugin Deploy. Any permissions it declares are added to the Permissions tab's suggestions automatically.</p>
+      <label>Currently installed
+        <select class="custom-select" id="amap-installed-plugins"></select>
+      </label>
+      <div class="inline-form">
+        <input type="file" id="amap-plugin-file" accept=".cs">
+        <button type="button" id="amap-plugin-upload" class="btn btn-primary">Upload</button>
+      </div>
+    </div>
   </section>
 
   <section id="tab-terminal" class="tab-panel">
@@ -390,47 +417,118 @@
   </section>
 
   <section id="tab-settings" class="tab-panel">
-    <div class="panel">
-      <h2>RCON Settings</h2>
-      <p class="muted">Edit the credentials used to connect to your Rust server's RCON. Saving reconnects immediately - no restart needed.</p>
-      <form class="stacked-form" id="rcon-settings-form" onsubmit="return false;">
-        <label>Host
-          <input type="text" id="rcon-setting-host" placeholder="Loading..." autocomplete="off">
-        </label>
-        <label>Port
-          <input type="number" id="rcon-setting-port" placeholder="Loading..." autocomplete="off">
-        </label>
-        <label>Password
-          <input type="password" id="rcon-setting-password" placeholder="Loading..." autocomplete="off">
-        </label>
-        <div class="btn-row">
-          <button type="submit" class="btn btn-primary" id="rcon-settings-save">Save &amp; Reconnect</button>
-        </div>
-      </form>
+    <nav class="settings-subnav">
+      <button class="settings-subnav-btn active" data-settings-section="rcon">RCON</button>
+      <button class="settings-subnav-btn" data-settings-section="theme">Theme</button>
+      <button class="settings-subnav-btn" data-settings-section="wipe">Wipe Schedule</button>
+      <button class="settings-subnav-btn" data-settings-section="plugin-deploy">Plugin Deploy</button>
+    </nav>
+
+    <div id="settings-section-rcon" class="settings-section active">
+      <div class="panel settings-panel">
+        <h2>RCON Settings</h2>
+        <p class="muted">Edit the credentials used to connect to your Rust server's RCON. Saving reconnects immediately - no restart needed.</p>
+        <form class="stacked-form" id="rcon-settings-form" onsubmit="return false;">
+          <label>Host
+            <input type="text" id="rcon-setting-host" placeholder="Loading..." autocomplete="off">
+          </label>
+          <label>Port
+            <input type="number" id="rcon-setting-port" placeholder="Loading..." autocomplete="off">
+          </label>
+          <label>Password
+            <input type="password" id="rcon-setting-password" placeholder="Loading..." autocomplete="off">
+          </label>
+          <div class="btn-row">
+            <button type="submit" class="btn btn-primary" id="rcon-settings-save">Save &amp; Reconnect</button>
+          </div>
+        </form>
+      </div>
     </div>
 
-    <div class="panel">
-      <h2>Theme</h2>
-      <p class="muted">Pick a preset, or customize your own colors - the layout never changes. Saved to this browser only.</p>
-      <div id="theme-presets" class="theme-swatch-grid"></div>
+    <div id="settings-section-theme" class="settings-section">
+      <div class="panel settings-panel">
+        <h2>Theme</h2>
+        <p class="muted">Pick a preset, or customize your own colors - the layout never changes. Saved to this browser only.</p>
+        <label>Preset
+          <select class="custom-select" id="theme-preset-select"></select>
+        </label>
 
-      <h3 class="theme-custom-heading">Customize</h3>
-      <div class="theme-color-row">
-        <label>Accent
-          <input type="color" id="theme-color-accent">
-        </label>
-        <label>Background
-          <input type="color" id="theme-color-bg">
-        </label>
-        <label>Text
-          <input type="color" id="theme-color-text">
-        </label>
-        <label>Danger / Alerts
-          <input type="color" id="theme-color-danger">
-        </label>
+        <h3 class="theme-custom-heading">Customize</h3>
+        <div class="theme-color-row">
+          <label>Accent
+            <input type="color" id="theme-color-accent">
+          </label>
+          <label>Background
+            <input type="color" id="theme-color-bg">
+          </label>
+          <label>Text
+            <input type="color" id="theme-color-text">
+          </label>
+          <label>Danger / Alerts
+            <input type="color" id="theme-color-danger">
+          </label>
+        </div>
+        <div class="btn-row">
+          <button type="button" id="theme-reset" class="btn btn-outline">Reset to Default</button>
+        </div>
       </div>
-      <div class="btn-row">
-        <button type="button" id="theme-reset" class="btn btn-outline">Reset to Default</button>
+    </div>
+
+    <div id="settings-section-wipe" class="settings-section">
+      <div class="panel settings-panel">
+        <h2>Wipe Schedule</h2>
+        <p class="muted">Controls the countdown shown in the header. Saved for everyone who opens this dashboard.</p>
+        <form class="stacked-form" id="wipe-settings-form" onsubmit="return false;">
+          <label>Frequency
+            <select class="custom-select" id="wipe-setting-frequency">
+              <option value="monthly">Monthly (first Thursday)</option>
+              <option value="biweekly">Bi-weekly (every 14 days)</option>
+              <option value="daily">Daily</option>
+            </select>
+          </label>
+          <label>Time
+            <input type="time" id="wipe-setting-time">
+          </label>
+          <label>Timezone
+            <select class="custom-select" id="wipe-setting-timezone">
+              <option value="America/New_York">Eastern</option>
+              <option value="America/Chicago">Central</option>
+              <option value="America/Denver">Mountain</option>
+              <option value="America/Los_Angeles">Pacific</option>
+              <option value="other">Other (type below)</option>
+            </select>
+          </label>
+          <label id="wipe-setting-timezone-other-wrap" hidden>Timezone name (IANA, e.g. Europe/London)
+            <input type="text" id="wipe-setting-timezone-other" placeholder="Europe/London" autocomplete="off">
+          </label>
+          <label id="wipe-setting-anchor-wrap" hidden>Anchor date (any past wipe date - counts every 14 days from here)
+            <input type="date" id="wipe-setting-anchor">
+          </label>
+          <div class="btn-row">
+            <button type="submit" class="btn btn-primary" id="wipe-settings-save">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="settings-section-plugin-deploy" class="settings-section">
+      <div class="panel settings-panel">
+        <h2>Plugin Deploy</h2>
+        <p class="muted">Where the AMAP tab's plugin upload sends files. Assumes SSH keys are already set up for this user - see the README for how.</p>
+        <form class="stacked-form" id="plugin-deploy-settings-form" onsubmit="return false;">
+          <label>Host
+            <input type="text" id="plugin-deploy-setting-host" placeholder="Loading..." autocomplete="off">
+          </label>
+          <label>Username
+            <input type="text" id="plugin-deploy-setting-username" placeholder="Loading..." autocomplete="off">
+          </label>
+          <label>Path to oxide/plugins
+            <input type="text" id="plugin-deploy-setting-path" placeholder="Loading..." autocomplete="off">
+          </label>
+          <div class="btn-row">
+            <button type="submit" class="btn btn-primary" id="plugin-deploy-settings-save">Save</button>
+          </div>
+        </form>
       </div>
     </div>
   </section>

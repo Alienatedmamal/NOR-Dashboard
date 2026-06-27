@@ -1,83 +1,48 @@
 """
 Known permission strings, for the dropdown suggestions on the Permissions
 tab. There's no RCON command that lists every registered permission, so
-this list was built by reading the installed plugins' source on the actual
-server (looking for permission.RegisterPermission(...) calls, including
-ones registered via a named constant rather than an inline string).
+this started as a hand-built list (reading installed plugins' source for
+permission.RegisterPermission(...) calls) and now also grows automatically -
+see app.py's plugin-upload handler, which regex-scans a newly uploaded
+plugin for the same pattern and calls add_permissions() with whatever it
+finds.
 
-This is a snapshot as of when it was generated - if you install or remove
-plugins later, ask for this list to be regenerated rather than hand-editing
-it, since plugins can register more than one permission each.
+Backed by permissions_catalog.json (next to this file) instead of a literal
+Python list, so it can be safely rewritten at runtime - KNOWN_PERMISSIONS
+is exposed the same way either way, for existing callers.
 """
+import json
+import os
+import threading
 
-KNOWN_PERMISSIONS = [
-    "adminhammer.allow",
-    "adminradar.allowed",
-    "adminradar.auto",
-    "adminradar.list",
-    "betterchatflood.bypass",
-    "bettersay.use",
-    "colouredchat.message.bypass",
-    "colouredchat.message.gradient",
-    "colouredchat.message.rainbow",
-    "colouredchat.message.random",
-    "colouredchat.message.setothers",
-    "colouredchat.message.show",
-    "colouredchat.message.use",
-    "colouredchat.name.bypass",
-    "colouredchat.name.gradient",
-    "colouredchat.name.rainbow",
-    "colouredchat.name.random",
-    "colouredchat.name.setothers",
-    "colouredchat.name.show",
-    "colouredchat.name.use",
-    "discordreport.admin",
-    "discordreport.ignorecooldown",
-    "discordreport.use",
-    "freeze.frozen",
-    "freeze.protect",
-    "freeze.use",
-    "grouplimits.ignore",
-    "infiniteammo.use",
-    "inventoryviewer.allowed",
-    "inventoryviewer.unlock",
-    "payback.admin",
-    "payback3.admin",
-    "payback3.user",
-    "playeradministration.access.allowfreeze",
-    "playeradministration.access.ban",
-    "playeradministration.access.clearinventory",
-    "playeradministration.access.detailedinfo",
-    "playeradministration.access.heal",
-    "playeradministration.access.hurt",
-    "playeradministration.access.kick",
-    "playeradministration.access.kill",
-    "playeradministration.access.mute",
-    "playeradministration.access.perms",
-    "playeradministration.access.recovermetabolism",
-    "playeradministration.access.resetblueprint",
-    "playeradministration.access.resetmetabolism",
-    "playeradministration.access.show",
-    "playeradministration.access.spectate",
-    "playeradministration.access.teleport",
-    "playeradministration.protect.ban",
-    "playeradministration.protect.hurt",
-    "playeradministration.protect.kick",
-    "playeradministration.protect.kill",
-    "playeradministration.protect.reset",
-    "rustcord.hidechat",
-    "rustcord.hidejoinquit",
-    "smartchatbot.messages",
-    "steamchecks.skip",
-    "ufilter.admin",
-    "ufilter.bypass",
-    "vanish.allow",
-    "vanish.damage",
-    "vanish.invviewer",
-    "vanish.permanent",
-    "vanish.teleport",
-    "vanish.unlock",
-    "voicemute.list",
-    "voicemute.mute",
-    "voicemute.unmute",
-]
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CATALOG_PATH = os.path.join(BASE_DIR, "permissions_catalog.json")
+_lock = threading.Lock()
+
+
+def _load():
+    with open(CATALOG_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _save(permissions):
+    tmp_path = CATALOG_PATH + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(permissions, f, indent=2)
+    os.replace(tmp_path, CATALOG_PATH)
+
+
+KNOWN_PERMISSIONS = _load()
+
+
+def add_permissions(new_permissions):
+    """Merges newly-discovered permission strings into the catalog and
+    persists them. Returns just the ones that were actually new."""
+    global KNOWN_PERMISSIONS
+    with _lock:
+        current = set(KNOWN_PERMISSIONS)
+        added = sorted({p for p in new_permissions if p not in current})
+        if added:
+            KNOWN_PERMISSIONS = sorted(current | set(added))
+            _save(KNOWN_PERMISSIONS)
+        return added

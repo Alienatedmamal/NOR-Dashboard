@@ -223,23 +223,6 @@ a { color: var(--accent); }
   .player-sidebar { max-width: none; width: 100%; }
 }
 
-/* On wide screens there's room to pin this to the actual left edge of the
-   window instead of just being the first/second block in the centered
-   content column. Below this width it stays in normal flow (still to the
-   left of the console, just not detached) so it can't overlap anything. */
-@media (min-width: 1500px) {
-  .player-sidebar {
-    position: fixed;
-    left: 24px;
-    top: 162px;
-    width: 260px;
-    max-width: 260px;
-    max-height: calc(100vh - 182px);
-    overflow-y: auto;
-    margin: 0;
-  }
-}
-
 .panel-header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
@@ -294,6 +277,19 @@ a { color: var(--accent); }
 .combo-option:hover { background: var(--accent-soft); color: var(--accent); }
 .combo-empty { cursor: default; }
 .combo-empty:hover { background: none; color: var(--text-muted); }
+/* Optional color swatch next to a dropdown option/trigger label - opt-in via
+   a data-color attribute on the <option>, used today by the Theme preset
+   picker but generic to any custom-select. */
+.combo-option-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-right: 8px;
+  vertical-align: middle;
+  background: var(--dot-color);
+  box-shadow: 0 0 5px var(--dot-color);
+}
 
 .custom-select-hidden { display: none; }
 .custom-select-trigger {
@@ -339,6 +335,12 @@ input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:foc
   margin-top: 12px;
 }
 .console-output.small { height: 140px; margin-top: 10px; }
+/* The main Console tab's log specifically scales with the window instead
+   of staying a fixed height regardless of how tall the browser is - the
+   other, smaller uses of .console-output (AMAP's log, permission lookups,
+   player notes) stay at the fixed default above, which suits their much
+   shorter content. */
+#console-output { height: calc(100vh - 400px); min-height: 280px; }
 .console-line { white-space: pre-wrap; word-break: break-word; margin-bottom: 4px; color: var(--text); }
 .console-ts { color: var(--text-muted); }
 .console-cmd { color: var(--accent); }
@@ -389,16 +391,26 @@ input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:foc
 .map-dot-ch47 { background: #ffe066; box-shadow: 0 0 5px #ffe066; }
 .map-dot-cargoplane { background: #b388ff; box-shadow: 0 0 5px #b388ff; }
 
+/* .map-wrap is the visible viewport - capped well below the full map size
+   so it doesn't dominate the page - and .map-canvas inside it is the actual
+   map at a fixed, larger size. Dragging the viewport (see app.js) just
+   scrolls it around the oversized canvas; marker positions are already
+   percentages of the canvas, so they land correctly regardless of either
+   element's size. */
 .map-wrap {
   position: relative;
   width: 100%;
+  max-width: 480px;
   aspect-ratio: 1 / 1;
   background: #000;
   border: 1px solid var(--border);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: auto;
+  cursor: grab;
 }
-.map-image { display: block; width: 100%; height: auto; }
+.map-wrap.dragging { cursor: grabbing; user-select: none; }
+.map-canvas { position: relative; width: 900px; height: 900px; }
+.map-image { display: block; width: 100%; height: 100%; }
 .map-image[hidden] { display: none; }
 .map-overlay { position: absolute; inset: 0; }
 .map-marker {
@@ -585,30 +597,29 @@ input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:foc
 .settings-gear-btn:hover { color: var(--text); }
 .settings-gear-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
 
-.theme-swatch-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 14px; }
-.theme-swatch {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: rgba(255, 255, 255, .03);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 14px;
-  color: var(--text);
-  font-family: var(--font-body);
+/* ---- Settings page: sub-nav + compact panels ---- */
+.settings-subnav { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); }
+.settings-subnav-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--font-heading);
+  font-weight: 600;
   font-size: 14px;
+  padding: 10px 16px;
   cursor: pointer;
+  border-bottom: 3px solid transparent;
 }
-.theme-swatch:hover { border-color: var(--accent-border); }
-.theme-swatch.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
-.theme-swatch-dot {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  background: var(--swatch-color);
-  box-shadow: 0 0 6px var(--swatch-color);
-}
+.settings-subnav-btn:hover { color: var(--text); }
+.settings-subnav-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.settings-section { display: none; }
+.settings-section.active { display: block; }
+
+/* RCON/Theme/Wipe Schedule content is each short, so these panels stay
+   noticeably smaller than the default .panel rather than stretching to
+   fill the page width. */
+.settings-panel { max-width: 460px; padding: 18px 22px; }
 
 .theme-custom-heading { margin-top: 22px; font-size: 16px; }
 .theme-color-row { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; }
@@ -622,3 +633,34 @@ input[type="color"] {
   background: rgba(255, 255, 255, .04);
   cursor: pointer;
 }
+
+/* ---- Loading screen ---- */
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+.loading-screen-logo { height: 56px; filter: drop-shadow(0 0 12px var(--accent-soft)); }
+.loading-progress-track {
+  width: 280px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.loading-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+  transition: width .3s ease;
+}
+.loading-screen-status { color: var(--text-muted); font-family: var(--font-heading); letter-spacing: .5px; }
+.loading-screen-error { display: flex; flex-direction: column; align-items: center; gap: 12px; max-width: 320px; text-align: center; }
