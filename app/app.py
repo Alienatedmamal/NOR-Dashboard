@@ -53,6 +53,17 @@ ssh_ws.register(sock)
 
 _rcon_client = None
 
+# The browser pings /api/heartbeat every few seconds while the dashboard page
+# is open; _heartbeat_watchdog_loop shuts the whole process down once those
+# pings stop, which is how closing the dashboard's browser window closes the
+# dashboard itself now that it runs windowless (see run.bat). Set at import
+# time rather than inside __main__ so it also doubles as "process start" for
+# the grace period below.
+_last_heartbeat = time.time()
+HEARTBEAT_TIMEOUT_SECONDS = 15
+HEARTBEAT_GRACE_SECONDS = 30
+WATCHDOG_CHECK_INTERVAL_SECONDS = 5
+
 
 def load_config():
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
@@ -88,6 +99,17 @@ def api_status():
     except RconError as exc:
         reset_rcon_client()
         return jsonify({"connected": False, "error": str(exc)})
+
+
+@app.route("/api/heartbeat", methods=["POST"])
+def api_heartbeat():
+    """The dashboard page calls this every few seconds for as long as it's
+    open - see _heartbeat_watchdog_loop. Unrelated to /api/status above:
+    that one's about whether RCON is reachable, this one's about whether
+    the browser is still open at all."""
+    global _last_heartbeat
+    _last_heartbeat = time.time()
+    return jsonify({"ok": True})
 
 
 @app.route("/api/command", methods=["POST"])
@@ -547,6 +569,24 @@ def _player_tracker_loop():
         time.sleep(60)
 
 
+def _heartbeat_watchdog_loop():
+    """Shuts the whole process down once the browser stops sending
+    heartbeats (see /api/heartbeat) - this is what makes closing the
+    dashboard's browser window close the dashboard itself, now that it runs
+    windowless with no console to close instead. The grace period exists so
+    this can't fire before the browser has even had a chance to load the
+    page and send its first ping."""
+    process_start = _last_heartbeat
+    while True:
+        time.sleep(WATCHDOG_CHECK_INTERVAL_SECONDS)
+        now = time.time()
+        if now - process_start < HEARTBEAT_GRACE_SECONDS:
+            continue
+        if now - _last_heartbeat > HEARTBEAT_TIMEOUT_SECONDS:
+            os._exit(0)
+
+
 if __name__ == "__main__":
     threading.Thread(target=_player_tracker_loop, daemon=True).start()
+    threading.Thread(target=_heartbeat_watchdog_loop, daemon=True).start()
     app.run(host="127.0.0.1", port=5050, debug=False, threaded=True)

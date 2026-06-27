@@ -4,7 +4,7 @@ This is the day-to-day "how do I do X" guide. For first-time setup (installing P
 
 ## Getting in
 
-Double-click `run.bat` in the dashboard folder. A console window opens (leave it open - closing it shuts the dashboard down) and your browser opens to the dashboard automatically. If it doesn't, go to `http://127.0.0.1:5050`.
+Double-click `run.bat` in the dashboard folder. It runs in the background with no console window, and your browser opens to the dashboard automatically after a couple seconds. If it doesn't, go to `http://127.0.0.1:5050`. Closing that browser window is what shuts the dashboard down now - refreshing the page or switching tabs doesn't.
 
 ## Updating the dashboard
 
@@ -117,6 +117,8 @@ A few things worth knowing:
 
 - **"Not connected" badge won't clear**: check that the dashboard's PC can still reach the Rust server's RCON port - nothing else to do on the dashboard side, it retries automatically. If you just used an AMAP tab action that stops the server, give it a minute to come back up first.
 - **A tab's data looks stale or empty**: most tabs have their own Refresh button - try that first.
-- **Console window got closed by accident**: just double-click `run.bat` again.
+- **A red pop-up appears in the bottom-right corner**: read its suggested fix, then click the × to dismiss it - it won't reappear on its own.
+- **The dashboard closed itself / isn't responding**: just double-click `run.bat` again to relaunch it. (Closing its browser window is what shuts it down now, by design - see README.md.)
+- **`run.bat` opens briefly, then a pop-up says the dashboard didn't start within 25 seconds**: open `dashboard.log` in the dashboard's main folder (the one with `run.bat` in it) and check the last few lines for the actual error.
 - **`update.bat` says it failed**: check your internet connection first. If that's fine, let whoever maintains the dashboard know - it can also fail if the GitHub repo itself is temporarily unavailable, which isn't something fixable from your end.
 - **Windows shows a blue "Windows protected your PC" warning** when double-clicking `run.bat`, `install.bat`, or `update.bat`: that just means the file came from the internet - click **More info**, then **Run anyway**. Nothing's wrong with the file.

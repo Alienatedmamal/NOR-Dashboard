@@ -1,4 +1,4 @@
-# NOR Dashboard v1.1.3
+# NOR Dashboard v1.1.5
 
 A simple admin dashboard for your Rust server: an at-a-glance overview (player count, queue, BattleMetrics rank, and more), a live console feed, server info/settings, online/offline/banned player management with notes, permission management, player ban/Steam history lookups, a live map with player and world-event tracking, an AMAP tab for running server-management scripts, and a wipe countdown. Same black-and-neon-green look as AMAP and nor.workisboring.com.
 
@@ -49,9 +49,11 @@ That's it - the AMAP tab will now work against this server. The plugin figures o
 
 ## Running it
 
-Double-click **`run.bat`**. (Same Windows warning as before if it shows up - More info → Run anyway.) It prints `Running on http://127.0.0.1:5050` and opens that page in your browser for you.
+Double-click **`run.bat`**. (Same Windows warning as before if it shows up - More info → Run anyway.) It runs in the background with no console window - after a couple seconds your browser opens to the dashboard automatically.
 
-Leave the console window open while using the dashboard - closing it shuts the dashboard down. Next time, just double-click `run.bat` again (no need to re-run `install.bat`).
+**Closing the dashboard's browser window is what shuts it down now** - there's no console window to manage. Refreshing the page or switching tabs doesn't close it; only closing that actual browser window does (it takes a few seconds to notice and shut down after you close it). Next time, just double-click `run.bat` again (no need to re-run `install.bat`).
+
+If something goes wrong, errors show up as a pop-up notification in the bottom-right corner of the dashboard itself, with a suggested fix. If the dashboard fails to start at all, you'll get a one-time pop-up telling you to check `dashboard.log` in this folder.
 
 `install.bat` also creates a **"Launch NOR Dashboard.lnk"** shortcut in this folder, with its own icon - copy it to your Desktop or pin it to the taskbar if you want a nicer-looking launcher than the plain `run.bat` file.
 
@@ -100,6 +102,7 @@ Each admin then:
 ## Notes
 
 - This only binds to `127.0.0.1` (your own PC) - it's deliberately not reachable over your network, since `app/config.json` holds your RCON password.
+- The dashboard now runs windowless - no console, just the browser window. It shuts itself down automatically a few seconds after you close that window, and `dashboard.log` in this folder holds the most recent run's output if you ever need to check it.
 - If the RCON connection drops or the server restarts, the dashboard reconnects automatically next time it needs to talk to it.
 - It's normal to see `NOR Dashboard connected` show up periodically (every 15 seconds) in the server's own console/logs - that's just the dashboard's connection health-check, confirming RCON is reachable and everything (including the AMAP tab) is working. It's hidden from the dashboard's own Console tab feed on purpose, but still visible to anyone watching the raw server console directly.
 - The Players list parses your server's `playerlist` RCON response into a table; the Server Info tab uses the built-in `serverinfo` command; the Live Map's event markers use the built-in `find_entity` command - all tested against your actual server and working.
