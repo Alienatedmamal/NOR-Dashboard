@@ -76,15 +76,41 @@ class RconClient:
         if self._ws is not None:
             return
         url = f"ws://{self.host}:{self.port}/{self.password}"
-        ws = websocket.create_connection(url, timeout=self.timeout)
-        # The line above uses self.timeout just to fail fast if the server
-        # is genuinely unreachable. Once connected, clear the socket timeout
-        # entirely - otherwise the background reader thread's recv() call
-        # raises a timeout (and the whole connection gets torn down and
-        # rebuilt) any time the server goes quiet for longer than that, even
-        # though nothing is actually wrong. send_command()'s own wait() call
-        # below already enforces "give up after N seconds" for a specific
-        # command's response, independently of this.
+        # websocket-client's own timeout= doesn't reliably bound the
+        # handshake-read phase if the server accepts the TCP connection but
+        # is too busy to actually complete the WebSocket upgrade (observed
+        # against a live, heavily-loaded Rust server: raw TCP connect was
+        # instant, but create_connection() itself still hung well past the
+        # timeout it was given). That hang holds _send_lock the whole time,
+        # freezing every other RCON-backed feature in the dashboard too,
+        # not just this one call. Running the attempt on a daemon thread
+        # with a hard join(timeout) is a guaranteed backstop regardless of
+        # whether the library's own timeout handling covers every phase of
+        # the handshake - daemon=True means an abandoned, still-stuck
+        # attempt can never block process shutdown either.
+        result = {}
+
+        def _connect():
+            try:
+                result["ws"] = websocket.create_connection(url, timeout=self.timeout)
+            except Exception as exc:
+                result["error"] = exc
+
+        connect_thread = threading.Thread(target=_connect, daemon=True)
+        connect_thread.start()
+        connect_thread.join(self.timeout)
+        if connect_thread.is_alive():
+            raise TimeoutError("Timed out connecting to the RCON server")
+        if "error" in result:
+            raise result["error"]
+        ws = result["ws"]
+        # Once connected, clear the socket timeout entirely - otherwise the
+        # background reader thread's recv() call raises a timeout (and the
+        # whole connection gets torn down and rebuilt) any time the server
+        # goes quiet for longer than that, even though nothing is actually
+        # wrong. send_command()'s own wait() call below already enforces
+        # "give up after N seconds" for a specific command's response,
+        # independently of this.
         ws.settimeout(None)
         self._ws = ws
         threading.Thread(target=self._reader_loop, args=(ws,), daemon=True).start()
@@ -141,7 +167,22 @@ class RconClient:
                         self._pending[ident] = waiter
 
                     payload = json.dumps({"Identifier": ident, "Message": message, "Name": "WebRcon"})
-                    self._ws.send(payload)
+                    # _ensure_connected() leaves this socket with no timeout
+                    # at all (see its comment - needed so the reader
+                    # thread's recv() doesn't spuriously time out during
+                    # quiet periods), but that also means send() itself
+                    # could otherwise block forever if the server's TCP
+                    # buffers back up under load (observed against a live,
+                    # heavily-loaded Rust server - this was the actual
+                    # cause of the dashboard freezing entirely, not the
+                    # connection step). Bound just this one send() call,
+                    # then immediately restore "no timeout" for the
+                    # reader thread's ongoing recv() calls.
+                    self._ws.settimeout(self.timeout)
+                    try:
+                        self._ws.send(payload)
+                    finally:
+                        self._ws.settimeout(None)
 
                     got = waiter["event"].wait(self.timeout)
                     with self._pending_lock:

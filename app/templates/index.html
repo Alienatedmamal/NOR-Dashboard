@@ -4,6 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NOR Dashboard</title>
+<script>
+// Applies any saved theme before the page paints, so a returning user with
+// a custom theme doesn't see a flash of the default green one first - the
+// full theme UI (presets, color pickers) lives in app.js, loaded much
+// later at the bottom of the page; this is just the "apply early" half.
+(function () {
+  try {
+    var saved = JSON.parse(localStorage.getItem("nor-dashboard-theme") || "null");
+    if (saved && saved.vars) {
+      var root = document.documentElement.style;
+      Object.keys(saved.vars).forEach(function (k) { root.setProperty(k, saved.vars[k]); });
+    }
+  } catch (e) { /* fall back to the stylesheet's default theme */ }
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/xterm.css') }}">
@@ -42,12 +57,13 @@
   <button class="tab-btn" data-tab="serverinfo">Server Info</button>
   <button class="tab-btn" data-tab="amap">AMAP</button>
   <button class="tab-btn" data-tab="terminal">Terminal</button>
+  <button id="settings-gear-btn" class="settings-gear-btn" aria-label="Settings" title="Settings">&#9881;</button>
 </nav>
 
 <main class="page-wrap">
 
   <section id="tab-overview" class="tab-panel active">
-    <div class="overview-hero">
+    <div class="overview-hero" id="overview-hero">
       <h1 id="overview-hostname">Loading...</h1>
       <p id="overview-description" class="overview-description"></p>
     </div>
@@ -369,6 +385,52 @@
         <div class="btn-row">
           <button type="button" id="terminal-disconnect" class="btn btn-outline">Disconnect</button>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-settings" class="tab-panel">
+    <div class="panel">
+      <h2>RCON Settings</h2>
+      <p class="muted">Edit the credentials used to connect to your Rust server's RCON. Saving reconnects immediately - no restart needed.</p>
+      <form class="stacked-form" id="rcon-settings-form" onsubmit="return false;">
+        <label>Host
+          <input type="text" id="rcon-setting-host" placeholder="Loading..." autocomplete="off">
+        </label>
+        <label>Port
+          <input type="number" id="rcon-setting-port" placeholder="Loading..." autocomplete="off">
+        </label>
+        <label>Password
+          <input type="password" id="rcon-setting-password" placeholder="Loading..." autocomplete="off">
+        </label>
+        <div class="btn-row">
+          <button type="submit" class="btn btn-primary" id="rcon-settings-save">Save &amp; Reconnect</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="panel">
+      <h2>Theme</h2>
+      <p class="muted">Pick a preset, or customize your own colors - the layout never changes. Saved to this browser only.</p>
+      <div id="theme-presets" class="theme-swatch-grid"></div>
+
+      <h3 class="theme-custom-heading">Customize</h3>
+      <div class="theme-color-row">
+        <label>Accent
+          <input type="color" id="theme-color-accent">
+        </label>
+        <label>Background
+          <input type="color" id="theme-color-bg">
+        </label>
+        <label>Text
+          <input type="color" id="theme-color-text">
+        </label>
+        <label>Danger / Alerts
+          <input type="color" id="theme-color-danger">
+        </label>
+      </div>
+      <div class="btn-row">
+        <button type="button" id="theme-reset" class="btn btn-outline">Reset to Default</button>
       </div>
     </div>
   </section>
