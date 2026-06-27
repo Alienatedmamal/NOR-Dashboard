@@ -1280,7 +1280,18 @@ $("#update-check-btn").addEventListener("click", async () => {
   $("#update-apply-btn").hidden = true;
   updateLatestVersion = null;
   $("#update-status").textContent = "Checking...";
-  const data = await fetch("/api/settings/update-check").then((res) => res.json());
+  let data;
+  try {
+    data = await fetch("/api/settings/update-check").then((res) => res.json());
+  } catch (err) {
+    // Most likely cause: this page is still running old, already-loaded
+    // code from before an update was applied (the update itself succeeded
+    // and the files on disk are current, but this specific route didn't
+    // exist yet in whatever process is still serving this page) - a
+    // restart, not a retry, is what actually fixes that.
+    $("#update-status").textContent = "Error: couldn't reach the dashboard - if you just updated, try restarting it.";
+    return;
+  }
   if (data.error) {
     $("#update-status").textContent = "Error: " + data.error;
     return;
@@ -1297,7 +1308,14 @@ $("#update-check-btn").addEventListener("click", async () => {
 $("#update-apply-btn").addEventListener("click", async () => {
   $("#update-apply-btn").disabled = true;
   $("#update-status").textContent = "Downloading and installing the update - this can take a moment...";
-  const data = await postJson("/api/settings/update-apply", {});
+  let data;
+  try {
+    data = await postJson("/api/settings/update-apply", {});
+  } catch (err) {
+    $("#update-status").textContent = "Error: couldn't reach the dashboard - if it's still running, try restarting it.";
+    $("#update-apply-btn").disabled = false;
+    return;
+  }
   $("#update-apply-btn").disabled = false;
   if (data.error) {
     $("#update-status").textContent = "Error: " + data.error;
