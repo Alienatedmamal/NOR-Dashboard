@@ -1251,7 +1251,6 @@ $("#plugin-deploy-settings-form").addEventListener("submit", async (e) => {
 // in index.html's <head>, before this file even loads, to avoid a flash
 // of the default green theme on page load - everything here is just the
 // Settings page's UI (swatch grid, color pickers) plus saving choices.
-const THEME_STORAGE_KEY = "nor-dashboard-theme";
 const THEME_VARS = ["--bg", "--bg-elevated", "--accent", "--accent-soft", "--accent-border", "--text", "--text-muted", "--danger"];
 
 function hexToRgbParts(hex) {
@@ -1310,8 +1309,14 @@ function applyThemeVars(vars) {
   const root = document.documentElement.style;
   THEME_VARS.forEach((v) => { if (vars[v]) root.setProperty(v, vars[v]); });
 }
-function saveTheme(vars, presetKey) {
-  localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify({ vars: extractThemeVars(vars), presetKey: presetKey || null }));
+// Tracks whatever's currently previewed (applied live to the page) so the
+// Save button has something to send - separate from actually persisting
+// it, which now only happens when Save is clicked (see #theme-settings-form
+// below), not on every preset click or color tweak.
+let activeThemeState = { vars: extractThemeVars(THEME_PRESETS["neon-green"]), presetKey: "neon-green" };
+
+function setActiveTheme(vars, presetKey) {
+  activeThemeState = { vars: extractThemeVars(vars), presetKey: presetKey || null };
 }
 function deriveThemeFromCustom({ accent, bg, text, danger }) {
   return {
@@ -1347,7 +1352,7 @@ $("#theme-preset-select").addEventListener("change", () => {
   if (!preset) return; // "Custom" - nothing to apply, the color pickers already reflect it
   applyThemeVars(preset);
   syncCustomColorInputs(preset);
-  saveTheme(preset, key);
+  setActiveTheme(preset, key);
 });
 
 ["accent", "bg", "text", "danger"].forEach((field) => {
@@ -1359,25 +1364,44 @@ $("#theme-preset-select").addEventListener("change", () => {
       danger: $("#theme-color-danger").value,
     });
     applyThemeVars(custom);
-    saveTheme(custom, null);
+    setActiveTheme(custom, null);
     populateThemePresetSelect(null);
   });
 });
 
 $("#theme-reset").addEventListener("click", () => {
-  localStorage.removeItem(THEME_STORAGE_KEY);
   THEME_VARS.forEach((v) => document.documentElement.style.removeProperty(v));
   syncCustomColorInputs(THEME_PRESETS["neon-green"]);
   populateThemePresetSelect("neon-green");
+  setActiveTheme(THEME_PRESETS["neon-green"], "neon-green");
 });
 
-(function initThemeSettingsUi() {
+$("#theme-settings-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const data = await postJson("/api/settings/theme", {
+    theme_preset_key: activeThemeState.presetKey,
+    theme_vars: activeThemeState.vars,
+  });
+  alert(data.error ? "Error: " + data.error : "Theme saved - it'll still be set next time you open the dashboard.");
+});
+
+async function loadThemeSettingsForm() {
   let saved = null;
-  try { saved = JSON.parse(localStorage.getItem(THEME_STORAGE_KEY) || "null"); } catch (err) { saved = null; }
-  const activeVars = (saved && saved.vars) || THEME_PRESETS["neon-green"];
+  try {
+    const data = await fetch("/api/settings/theme").then((res) => res.json());
+    if (data.theme_vars && Object.keys(data.theme_vars).length) saved = data;
+  } catch (err) {
+    // the inline <head> script already applied whatever config.json had,
+    // or the default stylesheet theme if nothing was ever saved - this
+    // form just couldn't fetch a fresh copy to sync its own UI to.
+  }
+  const activeVars = (saved && saved.theme_vars) || THEME_PRESETS["neon-green"];
+  const presetKey = saved ? saved.theme_preset_key : "neon-green";
   syncCustomColorInputs(activeVars);
-  populateThemePresetSelect(saved ? saved.presetKey : "neon-green");
-})();
+  populateThemePresetSelect(presetKey || null);
+  setActiveTheme(activeVars, presetKey);
+}
+loadThemeSettingsForm();
 
 const STAT_LABELS = {
   Hostname: "Hostname",

@@ -5,17 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NOR Dashboard</title>
 <script>
-// Applies any saved theme before the page paints, so a returning user with
-// a custom theme doesn't see a flash of the default green one first - the
-// full theme UI (presets, color pickers) lives in app.js, loaded much
-// later at the bottom of the page; this is just the "apply early" half.
+// Applies the saved theme (rendered straight from config.json by app.py's
+// index() route) before the page paints, so a returning user with a custom
+// theme doesn't see a flash of the default green one first - the full
+// theme UI (presets, color pickers, the Save button) lives in app.js,
+// loaded much later at the bottom of the page; this is just the "apply
+// early" half. Server-rendered rather than read from localStorage so a
+// saved theme survives a relaunch regardless of browser/profile.
 (function () {
   try {
-    var saved = JSON.parse(localStorage.getItem("nor-dashboard-theme") || "null");
-    if (saved && saved.vars) {
-      var root = document.documentElement.style;
-      Object.keys(saved.vars).forEach(function (k) { root.setProperty(k, saved.vars[k]); });
-    }
+    var vars = {{ theme_vars_json | safe }};
+    var root = document.documentElement.style;
+    Object.keys(vars).forEach(function (k) { root.setProperty(k, vars[k]); });
   } catch (e) { /* fall back to the stylesheet's default theme */ }
 })();
 </script>
@@ -444,29 +445,32 @@
     <div id="settings-section-theme" class="settings-section">
       <div class="panel settings-panel">
         <h2>Theme</h2>
-        <p class="muted">Pick a preset, or customize your own colors - the layout never changes. Saved to this browser only.</p>
-        <label>Preset
-          <select class="custom-select" id="theme-preset-select"></select>
-        </label>
+        <p class="muted">Pick a preset, or customize your own colors - the layout never changes. Click Save to keep your choice for next time; otherwise it's just a preview for this session.</p>
+        <form class="stacked-form" id="theme-settings-form" onsubmit="return false;">
+          <label>Preset
+            <select class="custom-select" id="theme-preset-select"></select>
+          </label>
 
-        <h3 class="theme-custom-heading">Customize</h3>
-        <div class="theme-color-row">
-          <label>Accent
-            <input type="color" id="theme-color-accent">
-          </label>
-          <label>Background
-            <input type="color" id="theme-color-bg">
-          </label>
-          <label>Text
-            <input type="color" id="theme-color-text">
-          </label>
-          <label>Danger / Alerts
-            <input type="color" id="theme-color-danger">
-          </label>
-        </div>
-        <div class="btn-row">
-          <button type="button" id="theme-reset" class="btn btn-outline">Reset to Default</button>
-        </div>
+          <h3 class="theme-custom-heading">Customize</h3>
+          <div class="theme-color-row">
+            <label>Accent
+              <input type="color" id="theme-color-accent">
+            </label>
+            <label>Background
+              <input type="color" id="theme-color-bg">
+            </label>
+            <label>Text
+              <input type="color" id="theme-color-text">
+            </label>
+            <label>Danger / Alerts
+              <input type="color" id="theme-color-danger">
+            </label>
+          </div>
+          <div class="btn-row">
+            <button type="button" id="theme-reset" class="btn btn-outline">Reset to Default</button>
+            <button type="submit" class="btn btn-primary" id="theme-settings-save">Save</button>
+          </div>
+        </form>
       </div>
     </div>
 

@@ -11,5 +11,7 @@
   "wipe_anchor_date": "",
   "plugin_deploy_host": "CHANGE_ME",
   "plugin_deploy_username": "CHANGE_ME",
-  "plugin_deploy_path": "CHANGE_ME"
+  "plugin_deploy_path": "CHANGE_ME",
+  "theme_preset_key": "neon-green",
+  "theme_vars": {}
 }

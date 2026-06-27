@@ -141,7 +141,35 @@ def handle_unhandled_exception(exc):
 
 @app.route("/")
 def index():
-    return render_template("index.html", version=VERSION)
+    cfg = load_config()
+    # Rendered straight into the page rather than fetched after load, so the
+    # inline <head> script (see index.html) can apply it before first paint
+    # with no flash of the default theme and no dependency on localStorage -
+    # this is what makes a saved theme survive a relaunch in any browser.
+    theme_vars_json = json.dumps(cfg.get("theme_vars") or {})
+    return render_template("index.html", version=VERSION, theme_vars_json=theme_vars_json)
+
+
+@app.route("/api/settings/theme")
+def api_settings_theme_get():
+    cfg = load_config()
+    return jsonify({
+        "theme_preset_key": cfg.get("theme_preset_key"),
+        "theme_vars": cfg.get("theme_vars") or {},
+    })
+
+
+@app.route("/api/settings/theme", methods=["POST"])
+def api_settings_theme_set():
+    body = request.get_json(force=True) or {}
+    preset_key = body.get("theme_preset_key")
+    theme_vars = body.get("theme_vars")
+    if not isinstance(theme_vars, dict):
+        return jsonify({"error": "theme_vars must be an object"}), 400
+
+    save_config_fields({"theme_preset_key": preset_key, "theme_vars": theme_vars})
+    logger.info("Settings: theme saved (preset=%s)", preset_key or "custom")
+    return jsonify({"ok": True})
 
 
 @app.route("/api/settings/rcon")
