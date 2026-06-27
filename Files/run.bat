@@ -37,6 +37,13 @@ rem missing rather than fail to launch at all.
 for %%F in ("%PYEXE%") do set "PYWEXE=%%~dpFpythonw.exe"
 if not exist "%PYWEXE%" set "PYWEXE=%PYEXE%"
 
+rem If a previous launch is still alive (closing it only starts the
+rem heartbeat watchdog's up-to-90s grace period - it doesn't shut anything
+rem down immediately), tell it to exit now instead of either failing to
+rem bind the port below or silently leaving you looking at that stale
+rem instance the whole time. Near-instant no-op if nothing's running yet.
+powershell -NoProfile -Command "try { Invoke-WebRequest -Uri 'http://127.0.0.1:5050/api/shutdown' -Method POST -UseBasicParsing -TimeoutSec 2 | Out-Null; Start-Sleep -Milliseconds 500 } catch {}"
+
 echo.
 echo Starting NOR Dashboard in the background...
 echo Your browser will open automatically in a couple seconds.

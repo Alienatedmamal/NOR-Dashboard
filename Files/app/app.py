@@ -357,6 +357,21 @@ def api_heartbeat():
     return jsonify({"ok": True})
 
 
+@app.route("/api/shutdown", methods=["POST"])
+def api_shutdown():
+    """run.bat calls this before launching a new instance, so a previous
+    one that's still alive (closing only starts the up-to-90s heartbeat
+    grace period, it doesn't shut anything down immediately) gets replaced
+    outright instead of either failing to bind the port or - worse -
+    silently leaving you looking at that stale instance the whole time,
+    wondering why a just-applied update still shows the old version.
+    Exits from a separate thread so this request's own response actually
+    makes it back to the caller first."""
+    logger.info("Shutting down: a new launch is taking over")
+    threading.Thread(target=lambda: (time.sleep(0.2), os._exit(0))).start()
+    return jsonify({"ok": True})
+
+
 @app.route("/api/command", methods=["POST"])
 def api_command():
     body = request.get_json(force=True) or {}
