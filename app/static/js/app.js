@@ -21,6 +21,51 @@ async function postJson(url, body) {
   return res.json();
 }
 
+// ---- Loading screen ----
+// Shown until the Overview tab's own first-paint data is in (RCON status/
+// player count, description+header image, BattleMetrics rank), so the page
+// never flashes empty placeholder content. Hooks into those three calls'
+// own first invocation further down rather than firing duplicate fetches -
+// each of them already swallows its own errors internally, so "resolved"
+// just means "this attempt finished," success or not, which is exactly
+// what's needed here (a dead endpoint shouldn't strand the user on the
+// loading screen forever). A timeout is the real backstop for that.
+const LOADING_STEPS_TOTAL = 3;
+const LOADING_TIMEOUT_MS = 15000;
+let loadingStepsDone = 0;
+let loadingRevealed = false;
+
+function loadingStepComplete() {
+  loadingStepsDone = Math.min(loadingStepsDone + 1, LOADING_STEPS_TOTAL);
+  const bar = $("#loading-progress-bar");
+  if (bar) bar.style.width = Math.round((loadingStepsDone / LOADING_STEPS_TOTAL) * 100) + "%";
+  if (loadingStepsDone >= LOADING_STEPS_TOTAL) revealPage();
+}
+
+function revealPage() {
+  if (loadingRevealed) return;
+  loadingRevealed = true;
+  const overlay = $("#loading-screen");
+  if (overlay) overlay.hidden = true;
+}
+
+setTimeout(() => {
+  if (!loadingRevealed) {
+    $("#loading-screen-status").textContent = "This is taking longer than expected.";
+    $("#loading-screen-error").hidden = false;
+  }
+}, LOADING_TIMEOUT_MS);
+
+$("#loading-screen-retry").addEventListener("click", () => {
+  $("#loading-screen-error").hidden = true;
+  $("#loading-screen-status").textContent = "Loading...";
+  loadingStepsDone = 0;
+  $("#loading-progress-bar").style.width = "0%";
+  refreshStatus().then(loadingStepComplete);
+  loadOverviewExtras().then(loadingStepComplete);
+  loadOverviewServerSettings().then(loadingStepComplete);
+});
+
 // ---- Unexpected-error safety net ----
 // Now that the dashboard runs windowless (see run.bat), there's no console
 // to glance at if something breaks - this is the generic catch-all for
@@ -59,16 +104,26 @@ function activateTab(tab) {
   if (tab === "terminal") fitTerminal();
 }
 
-// ---- Wipe countdown: first Thursday of the month, 2pm Central ----
-// "Central time" shifts between CST (UTC-6) and CDT (UTC-5) depending on
-// the date, so this can't just hardcode an offset without being wrong for
-// roughly 8 months of the year. Instead it asks the browser's Intl API what
-// Central time actually is for a given instant and self-corrects from
-// there, which handles the DST switch correctly without a lookup table.
+// ---- Settings sub-nav (RCON / Theme / Wipe Schedule) ----
+$all(".settings-subnav-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    $all(".settings-subnav-btn").forEach((b) => b.classList.toggle("active", b === btn));
+    $all(".settings-section").forEach((s) => s.classList.toggle("active", s.id === "settings-section-" + btn.dataset.settingsSection));
+  });
+});
 
-function chicagoPartsFor(utcDate) {
+// ---- Wipe countdown: configurable frequency/time/timezone ----
+// A timezone's UTC offset isn't fixed (DST), so this can't just hardcode an
+// offset without being wrong for chunks of the year. Instead it asks the
+// browser's Intl API what wall-clock time a given instant actually is in
+// the target zone and self-corrects from there, which handles DST
+// correctly without a lookup table - same trick regardless of which zone
+// or schedule (daily/biweekly/monthly) is configured.
+let wipeConfig = { frequency: "monthly", time: "14:00", timezone: "America/Chicago", anchorDate: "" };
+
+function tzPartsFor(utcDate, timezone) {
   const dtf = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Chicago",
+    timeZone: timezone,
     year: "numeric", month: "2-digit", day: "2-digit",
     hour: "2-digit", minute: "2-digit", second: "2-digit",
     hourCycle: "h23",
@@ -80,12 +135,12 @@ function chicagoPartsFor(utcDate) {
   return parts;
 }
 
-function chicagoWallClockToUtc(year, month, day, hour, minute) {
-  // month is 1-indexed. First guess assumes CST (UTC-6); then check what
-  // that guess actually lands on in Chicago time and correct by the
-  // difference, which works whether the real offset is CST or CDT.
-  const guess = new Date(Date.UTC(year, month - 1, day, hour + 6, minute));
-  const got = chicagoPartsFor(guess);
+function tzWallClockToUtc(year, month, day, hour, minute, timezone) {
+  // month is 1-indexed. Guess assumes offset 0, then checks what that guess
+  // actually lands on in the target zone and corrects by the difference -
+  // works for any zone/offset without needing to know it in advance.
+  const guess = new Date(Date.UTC(year, month - 1, day, hour, minute));
+  const got = tzPartsFor(guess, timezone);
   const wanted = Date.UTC(year, month - 1, day, hour, minute);
   const gotAsUtc = Date.UTC(got.year, got.month - 1, got.day, got.hour, got.minute);
   return new Date(guess.getTime() + (wanted - gotAsUtc));
@@ -100,14 +155,37 @@ function firstThursdayOfMonth(year, month) {
 }
 
 function getNextWipeTarget() {
+  const { frequency, time, timezone, anchorDate } = wipeConfig;
+  const [hour, minute] = (time || "14:00").split(":").map((n) => parseInt(n, 10));
   const nowUtc = new Date();
-  const nowParts = chicagoPartsFor(nowUtc);
+
+  if (frequency === "daily") {
+    let parts = tzPartsFor(nowUtc, timezone);
+    let target = tzWallClockToUtc(parts.year, parts.month, parts.day, hour, minute, timezone);
+    if (target.getTime() <= nowUtc.getTime()) {
+      parts = tzPartsFor(new Date(target.getTime() + 86400000), timezone);
+      target = tzWallClockToUtc(parts.year, parts.month, parts.day, hour, minute, timezone);
+    }
+    return target;
+  }
+
+  if (frequency === "biweekly" && anchorDate) {
+    const [ay, am, ad] = anchorDate.split("-").map((n) => parseInt(n, 10));
+    let target = tzWallClockToUtc(ay, am, ad, hour, minute, timezone);
+    while (target.getTime() <= nowUtc.getTime()) {
+      const parts = tzPartsFor(new Date(target.getTime() + 14 * 86400000), timezone);
+      target = tzWallClockToUtc(parts.year, parts.month, parts.day, hour, minute, timezone);
+    }
+    return target;
+  }
+
+  // monthly (default/fallback) - first Thursday of the month
+  const nowParts = tzPartsFor(nowUtc, timezone);
   let year = nowParts.year;
   let month = nowParts.month;
-
   for (let i = 0; i < 13; i++) {
     const day = firstThursdayOfMonth(year, month);
-    const target = chicagoWallClockToUtc(year, month, day, 14, 0);
+    const target = tzWallClockToUtc(year, month, day, hour, minute, timezone);
     if (target.getTime() > nowUtc.getTime()) return target;
     month += 1;
     if (month > 12) { month = 1; year += 1; }
@@ -131,7 +209,7 @@ function updateWipeCountdown() {
   const totalSeconds = Math.floor((wipeTargetUtc.getTime() - now.getTime()) / 1000);
   if (totalSeconds <= 0) {
     el.textContent = "Wiping now...";
-    wipeTargetUtc = null; // forces a fresh search next tick, which naturally rolls to next month
+    wipeTargetUtc = null; // forces a fresh search next tick, which naturally rolls to the next occurrence
     return;
   }
   const days = Math.floor(totalSeconds / 86400);
@@ -142,6 +220,24 @@ function updateWipeCountdown() {
 }
 updateWipeCountdown();
 setInterval(updateWipeCountdown, 1000);
+
+async function loadWipeConfig() {
+  try {
+    const data = await fetch("/api/settings/wipe").then((res) => res.json());
+    if (data.error) return;
+    wipeConfig = {
+      frequency: data.wipe_frequency || "monthly",
+      time: data.wipe_time || "14:00",
+      timezone: data.wipe_timezone || "America/Chicago",
+      anchorDate: data.wipe_anchor_date || "",
+    };
+    wipeTargetUtc = null; // recompute against the real config instead of the built-in default
+    updateWipeCountdown();
+  } catch (err) {
+    // keep the built-in default (monthly/first Thursday/2pm Central) until the next load attempt
+  }
+}
+loadWipeConfig();
 
 // ---- Toast notifications ----
 // Bottom-right pop-ups - the in-page replacement for the console window
@@ -252,7 +348,7 @@ async function refreshStatus() {
     // leave the last known count showing rather than blank it on a hiccup
   }
 }
-refreshStatus();
+refreshStatus().then(loadingStepComplete);
 setInterval(refreshStatus, 15000);
 
 // ---- Console ----
@@ -401,9 +497,13 @@ function initCustomSelect(select) {
   list.hidden = true;
   wrap.appendChild(list);
 
+  function dotHtml(color) {
+    return color ? `<span class="combo-option-dot" style="--dot-color:${escapeHtml(color)}"></span>` : "";
+  }
+
   function syncTrigger() {
     const opt = select.options[select.selectedIndex];
-    trigger.textContent = opt ? opt.textContent : "";
+    trigger.innerHTML = opt ? `${dotHtml(opt.dataset.color)}${escapeHtml(opt.textContent)}` : "";
   }
 
   function closeList() {
@@ -421,7 +521,7 @@ function initCustomSelect(select) {
       return;
     }
     list.innerHTML = Array.from(select.options)
-      .map((opt) => `<div class="combo-option" data-value="${escapeHtml(opt.value)}">${escapeHtml(opt.textContent)}</div>`)
+      .map((opt) => `<div class="combo-option" data-value="${escapeHtml(opt.value)}">${dotHtml(opt.dataset.color)}${escapeHtml(opt.textContent)}</div>`)
       .join("");
     list.hidden = false;
     document.addEventListener("mousedown", onDocMouseDown);
@@ -438,8 +538,9 @@ function initCustomSelect(select) {
 
   syncTrigger();
 }
-
-$all(".custom-select").forEach(initCustomSelect);
+// Auto-init for every .custom-select happens at the very end of this file,
+// not here - the Theme preset dropdown's <option>s are populated
+// dynamically further down, and need to exist before this runs.
 
 // Shared renderer for the two places that show the same "who's online"
 // list (avatar, name, session time) - the Console tab's sidebar and the
@@ -514,7 +615,7 @@ async function loadOverviewExtras() {
     $("#overview-rank").textContent = "-";
   }
 }
-loadOverviewExtras();
+loadOverviewExtras().then(loadingStepComplete);
 setInterval(loadOverviewExtras, 30000);
 
 // ---- Overview tab extras: description + header image, straight from RCON ----
@@ -539,23 +640,25 @@ async function loadOverviewServerSettings() {
     // next poll will catch up
   }
 }
-loadOverviewServerSettings();
+loadOverviewServerSettings().then(loadingStepComplete);
 setInterval(loadOverviewServerSettings, 30000);
 
-// Permission dropdown suggestions - static for the life of the page load,
-// built from the plugins actually installed on the server (see
-// permissions_catalog.py for how the list itself was generated).
-fetch("/api/permissions/catalog")
-  .then((res) => res.json())
-  .then((data) => {
+// Permission dropdown suggestions - built from the plugins actually
+// installed on the server (see permissions_catalog.py). Re-fetched after a
+// successful plugin upload too, so newly-declared permissions show up
+// without needing a page reload.
+async function loadPermissionsCatalog() {
+  try {
+    const data = await fetch("/api/permissions/catalog").then((res) => res.json());
     const datalist = $("#permission-list");
     datalist.innerHTML = (data.permissions || [])
       .map((p) => `<option value="${escapeHtml(p)}"></option>`)
       .join("");
-  })
-  .catch(() => {
+  } catch (err) {
     // no big deal - the field still works as a plain text input
-  });
+  }
+}
+loadPermissionsCatalog();
 
 // ---- Players ----
 $("#refresh-players").addEventListener("click", loadPlayers);
@@ -1025,6 +1128,90 @@ $("#rcon-settings-form").addEventListener("submit", async (e) => {
   if (!data.error) refreshStatus();
 });
 
+// ---- Settings tab: Wipe Schedule ----
+const COMMON_TIMEZONES = ["America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles"];
+
+function syncWipeFormVisibility() {
+  const frequency = $("#wipe-setting-frequency").value;
+  $("#wipe-setting-anchor-wrap").hidden = frequency !== "biweekly";
+  const tzSelect = $("#wipe-setting-timezone").value;
+  $("#wipe-setting-timezone-other-wrap").hidden = tzSelect !== "other";
+}
+$("#wipe-setting-frequency").addEventListener("change", syncWipeFormVisibility);
+$("#wipe-setting-timezone").addEventListener("change", syncWipeFormVisibility);
+
+async function loadWipeSettingsForm() {
+  try {
+    const data = await fetch("/api/settings/wipe").then((res) => res.json());
+    if (data.error) return;
+    $("#wipe-setting-frequency").value = data.wipe_frequency || "monthly";
+    $("#wipe-setting-time").value = data.wipe_time || "14:00";
+    const tz = data.wipe_timezone || "America/Chicago";
+    if (COMMON_TIMEZONES.includes(tz)) {
+      $("#wipe-setting-timezone").value = tz;
+    } else {
+      $("#wipe-setting-timezone").value = "other";
+      $("#wipe-setting-timezone-other").value = tz;
+    }
+    $("#wipe-setting-anchor").value = data.wipe_anchor_date || "";
+    syncWipeFormVisibility();
+  } catch (err) {
+    // form just keeps its defaults - Save will surface any real problem
+  }
+}
+loadWipeSettingsForm();
+
+$("#wipe-settings-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const wipe_frequency = $("#wipe-setting-frequency").value;
+  const wipe_time = $("#wipe-setting-time").value;
+  const tzSelect = $("#wipe-setting-timezone").value;
+  const wipe_timezone = tzSelect === "other" ? $("#wipe-setting-timezone-other").value.trim() : tzSelect;
+  const wipe_anchor_date = $("#wipe-setting-anchor").value;
+
+  if (!wipe_time || !wipe_timezone) {
+    alert("Time and timezone are required.");
+    return;
+  }
+  if (wipe_frequency === "biweekly" && !wipe_anchor_date) {
+    alert("Bi-weekly needs an anchor date.");
+    return;
+  }
+  const data = await postJson("/api/settings/wipe", { wipe_frequency, wipe_time, wipe_timezone, wipe_anchor_date });
+  if (data.error) {
+    alert("Error: " + data.error);
+    return;
+  }
+  alert("Saved.");
+  loadWipeConfig();
+});
+
+// ---- Settings tab: Plugin Deploy ----
+async function loadPluginDeploySettings() {
+  try {
+    const data = await fetch("/api/settings/plugin-deploy").then((res) => res.json());
+    $("#plugin-deploy-setting-host").value = data.plugin_deploy_host || "";
+    $("#plugin-deploy-setting-username").value = data.plugin_deploy_username || "";
+    $("#plugin-deploy-setting-path").value = data.plugin_deploy_path || "";
+  } catch (err) {
+    // fields stay blank - Save will surface any real problem
+  }
+}
+loadPluginDeploySettings();
+
+$("#plugin-deploy-settings-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const plugin_deploy_host = $("#plugin-deploy-setting-host").value.trim();
+  const plugin_deploy_username = $("#plugin-deploy-setting-username").value.trim();
+  const plugin_deploy_path = $("#plugin-deploy-setting-path").value.trim();
+  if (!plugin_deploy_host || !plugin_deploy_username || !plugin_deploy_path) {
+    alert("Host, username, and path are all required.");
+    return;
+  }
+  const data = await postJson("/api/settings/plugin-deploy", { plugin_deploy_host, plugin_deploy_username, plugin_deploy_path });
+  alert(data.error ? "Error: " + data.error : "Saved.");
+});
+
 // ---- Settings tab: Theme ----
 // Themes only ever touch color custom properties (never --radius or the
 // font variables), so picking one never changes the layout - only colors.
@@ -1113,24 +1300,22 @@ function syncCustomColorInputs(vars) {
   if (vars["--danger"]) $("#theme-color-danger").value = vars["--danger"];
 }
 
-function renderThemeSwatches(activePresetKey) {
-  const container = $("#theme-presets");
-  container.innerHTML = "";
-  Object.entries(THEME_PRESETS).forEach(([key, preset]) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "theme-swatch" + (key === activePresetKey ? " active" : "");
-    btn.style.setProperty("--swatch-color", preset.swatch);
-    btn.innerHTML = `<span class="theme-swatch-dot"></span>${escapeHtml(preset.name)}`;
-    btn.addEventListener("click", () => {
-      applyThemeVars(preset);
-      syncCustomColorInputs(preset);
-      saveTheme(preset, key);
-      renderThemeSwatches(key);
-    });
-    container.appendChild(btn);
-  });
+function populateThemePresetSelect(activePresetKey) {
+  const select = $("#theme-preset-select");
+  select.innerHTML = Object.entries(THEME_PRESETS)
+    .map(([key, preset]) => `<option value="${escapeHtml(key)}" data-color="${escapeHtml(preset.swatch)}">${escapeHtml(preset.name)}</option>`)
+    .join("") + `<option value="" data-color="">Custom</option>`;
+  select.value = activePresetKey || "";
 }
+
+$("#theme-preset-select").addEventListener("change", () => {
+  const key = $("#theme-preset-select").value;
+  const preset = THEME_PRESETS[key];
+  if (!preset) return; // "Custom" - nothing to apply, the color pickers already reflect it
+  applyThemeVars(preset);
+  syncCustomColorInputs(preset);
+  saveTheme(preset, key);
+});
 
 ["accent", "bg", "text", "danger"].forEach((field) => {
   $("#theme-color-" + field).addEventListener("input", () => {
@@ -1142,7 +1327,7 @@ function renderThemeSwatches(activePresetKey) {
     });
     applyThemeVars(custom);
     saveTheme(custom, null);
-    renderThemeSwatches(null);
+    populateThemePresetSelect(null);
   });
 });
 
@@ -1150,7 +1335,7 @@ $("#theme-reset").addEventListener("click", () => {
   localStorage.removeItem(THEME_STORAGE_KEY);
   THEME_VARS.forEach((v) => document.documentElement.style.removeProperty(v));
   syncCustomColorInputs(THEME_PRESETS["neon-green"]);
-  renderThemeSwatches("neon-green");
+  populateThemePresetSelect("neon-green");
 });
 
 (function initThemeSettingsUi() {
@@ -1158,7 +1343,7 @@ $("#theme-reset").addEventListener("click", () => {
   try { saved = JSON.parse(localStorage.getItem(THEME_STORAGE_KEY) || "null"); } catch (err) { saved = null; }
   const activeVars = (saved && saved.vars) || THEME_PRESETS["neon-green"];
   syncCustomColorInputs(activeVars);
-  renderThemeSwatches(saved ? saved.presetKey : "neon-green");
+  populateThemePresetSelect(saved ? saved.presetKey : "neon-green");
 })();
 
 const STAT_LABELS = {
@@ -1315,6 +1500,34 @@ function stopMapPolling() {
 
 $("#refresh-map").addEventListener("click", () => loadMapImage().then(loadMapEntities));
 
+// ---- Live Map: drag to pan ----
+// The viewport (.map-wrap) is a plain scrollable box around the oversized
+// .map-canvas - dragging just converts mouse movement into scrollLeft/Top
+// changes, the same trick as any "click-and-drag to pan" widget.
+(function initMapDrag() {
+  const viewport = $("#map-wrap");
+  let dragging = false;
+  let startX, startY, startScrollLeft, startScrollTop;
+
+  viewport.addEventListener("mousedown", (e) => {
+    dragging = true;
+    viewport.classList.add("dragging");
+    startX = e.clientX;
+    startY = e.clientY;
+    startScrollLeft = viewport.scrollLeft;
+    startScrollTop = viewport.scrollTop;
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+    viewport.scrollLeft = startScrollLeft - (e.clientX - startX);
+    viewport.scrollTop = startScrollTop - (e.clientY - startY);
+  });
+  window.addEventListener("mouseup", () => {
+    dragging = false;
+    viewport.classList.remove("dragging");
+  });
+})();
+
 // ---- Reusable styled confirmation modal ----
 // Replaces native confirm()/prompt() so destructive actions match the
 // dashboard's theme instead of a jarring OS-native popup. Resolves true if
@@ -1440,6 +1653,56 @@ function amapLog(line) {
   box.appendChild(row);
   box.scrollTop = box.scrollHeight;
 }
+
+// ---- AMAP: Upload Plugin ----
+async function loadInstalledPlugins() {
+  try {
+    const data = await fetch("/api/amap/plugins").then((res) => res.json());
+    const select = $("#amap-installed-plugins");
+    select.innerHTML = (data.plugins || [])
+      .map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`)
+      .join("") || '<option value="">(none found)</option>';
+  } catch (err) {
+    // dropdown just stays empty - it's informational only
+  }
+}
+loadInstalledPlugins();
+
+$("#amap-plugin-upload").addEventListener("click", async () => {
+  const fileInput = $("#amap-plugin-file");
+  const file = fileInput.files[0];
+  if (!file) {
+    alert("Choose a .cs file first.");
+    return;
+  }
+  const confirmed = await showConfirmModal({
+    title: "Upload Plugin",
+    message: `Upload "${file.name}" to the configured oxide/plugins folder? This will overwrite an existing file with the same name.`,
+    confirmLabel: "Upload",
+  });
+  if (!confirmed) return;
+
+  amapLog(`Upload Plugin: sending ${file.name}...`);
+  try {
+    const formData = new FormData();
+    formData.append("plugin", file);
+    const res = await fetch("/api/amap/upload-plugin", { method: "POST", body: formData });
+    const data = await res.json();
+    if (data.error) {
+      amapLog(`Upload Plugin: Error - ${data.error}`);
+      return;
+    }
+    amapLog(`Upload Plugin: ${data.message}`);
+    if (data.added_permissions && data.added_permissions.length) {
+      amapLog(`Upload Plugin: added new permissions - ${data.added_permissions.join(", ")}`);
+    }
+    fileInput.value = "";
+    loadInstalledPlugins();
+    loadPermissionsCatalog();
+  } catch (err) {
+    amapLog(`Upload Plugin: Error - ${err.message}`);
+  }
+});
 
 // ---- Terminal ----
 // The dashboard's only WebSocket feature - everything else above is plain

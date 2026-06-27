@@ -4,5 +4,12 @@
   "rcon_password": "CHANGE_ME",
   "steam_api_key": "CHANGE_ME",
   "rustmaps_api_key": "CHANGE_ME",
-  "battlemetrics_id": "CHANGE_ME"
+  "battlemetrics_id": "CHANGE_ME",
+  "wipe_frequency": "monthly",
+  "wipe_time": "14:00",
+  "wipe_timezone": "America/Chicago",
+  "wipe_anchor_date": "",
+  "plugin_deploy_host": "CHANGE_ME",
+  "plugin_deploy_username": "CHANGE_ME",
+  "plugin_deploy_path": "CHANGE_ME"
 }

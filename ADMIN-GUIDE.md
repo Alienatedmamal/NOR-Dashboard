@@ -103,20 +103,25 @@ What each card actually does:
 | Server Checker | Noncritical | Checks if the server is running. If it fails to restart, posts an alert to Discord. |
 | Wipe Configurator | Noncritical | Writes the config for the next wipe (seed, map size, wipe date, wipe type - you fill in the four fields on the card itself). Doesn't affect the live server; it only prepares what the *next* wipe will use. Has its own **View Current Config** button to see what's currently saved before you overwrite it - shows just the seed, map size, wipe type, and description, never the RCON password or Discord webhook that also live in that file. |
 | Updater | Critical | Updates the server. May stop the server. |
-| Nightly Restart | Critical | Just stops the server (deprecated, but still works). |
 | Map Wipe | Critical | Wipes the map. Blueprints are kept. |
 | Full Wipe | Critical | Full wipe - deletes the map and all player data. This cannot be undone. |
 
 A few things worth knowing:
 
 - The Wipe Configurator's four fields are validated before anything runs: Seed and Map Size must be plain numbers, Wipe Date must be MM-DD-YY (or MM-DD-YYYY), and Wipe Type must be exactly "BP" or "Map". It'll tell you exactly which field is wrong rather than silently failing.
-- After a Critical action that stops the server (Updater, Nightly Restart, Map Wipe, Full Wipe), the dashboard's "Connected" badge will briefly flip to "Not connected" - that's expected, since the server you're talking to just went down. It reconnects automatically once the server's back up.
+- After a Critical action that stops the server (Updater, Map Wipe, Full Wipe), the dashboard's "Connected" badge will briefly flip to "Not connected" - that's expected, since the server you're talking to just went down. It reconnects automatically once the server's back up.
 - These cards run the same underlying scripts as AMAP's own menu - nothing here does anything AMAP itself couldn't already do.
+
+Below the cards, the **Upload Plugin** panel sends a `.cs` file straight to your server's `oxide/plugins` folder over SFTP - set the destination once in Settings > Plugin Deploy first (see `README.md` for the one-time SSH key setup this needs). The "Currently installed" dropdown is just for reference, so you can see what's already there before uploading something with the same name. Any permissions the plugin declares (`permission.RegisterPermission(...)`) are picked up automatically and show up in the Permissions tab's suggestions right after a successful upload - if a plugin registers permissions through a named constant instead of a plain string, those won't be auto-detected and need adding by hand.
 
 ## Settings (gear icon)
 
-- **RCON Settings**: edit the host/port/password the dashboard uses to talk to your Rust server. Click **Save & Reconnect** and it takes effect immediately - no need to restart the dashboard or touch `config.json` by hand.
-- **Theme**: click any preset swatch to switch the whole dashboard's colors instantly, or use the four color pickers (Accent, Background, Text, Danger/Alerts) to build your own - the layout never changes, only colors. **Reset to Default** goes back to the original green theme. Your choice is saved to this browser only - it won't follow you to a different browser or PC.
+Four sub-pages along the top:
+
+- **RCON**: edit the host/port/password the dashboard uses to talk to your Rust server. Click **Save & Reconnect** and it takes effect immediately - no need to restart the dashboard or touch `config.json` by hand.
+- **Theme**: pick a preset from the dropdown to switch the whole dashboard's colors instantly, or use the four color pickers (Accent, Background, Text, Danger/Alerts) to build your own - the layout never changes, only colors. **Reset to Default** goes back to the original green theme. Your choice is saved to this browser only - it won't follow you to a different browser or PC.
+- **Wipe Schedule**: controls the countdown shown in the header. Pick Daily, Bi-weekly (every 14 days from a date you set once), or Monthly (first Thursday), plus the time and timezone. This one's saved for the server, not just your browser - everyone who opens this dashboard sees the same countdown.
+- **Plugin Deploy**: the host/username/folder path the AMAP tab's Upload Plugin panel sends files to - see the AMAP section above and `README.md`'s SSH key setup steps.
 
 ## Quick troubleshooting
 

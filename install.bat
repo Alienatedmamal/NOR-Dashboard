@@ -74,9 +74,10 @@ if not exist "%~dp0app\config.json" (
 
 if exist "%~dp0icon.ico" (
     powershell -NoProfile -Command "$s = (New-Object -ComObject WScript.Shell).CreateShortcut('%~dp0Launch NOR Dashboard.lnk'); $s.TargetPath = '%~dp0run.bat'; $s.WorkingDirectory = '%~dp0'; $s.IconLocation = '%~dp0icon.ico'; $s.Save()"
+    powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $desktop = $ws.SpecialFolders('Desktop'); $s = $ws.CreateShortcut(\"$desktop\Launch NOR Dashboard.lnk\"); $s.TargetPath = '%~dp0run.bat'; $s.WorkingDirectory = '%~dp0'; $s.IconLocation = '%~dp0icon.ico'; $s.Save()"
     echo.
-    echo Created "Launch NOR Dashboard.lnk" - copy it to your Desktop or pin it
-    echo to the taskbar for a one-click launcher with its own icon.
+    echo Created a "Launch NOR Dashboard" shortcut on your Desktop and pinned
+    echo a copy in this folder too, both with their own icon.
 )
 
 echo.
