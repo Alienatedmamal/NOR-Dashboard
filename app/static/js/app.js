@@ -21,6 +21,30 @@ async function postJson(url, body) {
   return res.json();
 }
 
+// ---- Unexpected-error safety net ----
+// Now that the dashboard runs windowless (see run.bat), there's no console
+// to glance at if something breaks - this is the generic catch-all for
+// errors nothing else already handles. Deliberately separate from the ~15
+// existing alert("Error: ...") calls elsewhere in this file, which are
+// already-handled cases, not unexpected ones.
+window.addEventListener("error", (event) => {
+  showToast({
+    title: "Unexpected error",
+    message: event.message || "Something went wrong.",
+    fix: "Try refreshing the page. If this keeps happening, check dashboard.log.",
+    variant: "error",
+  });
+});
+window.addEventListener("unhandledrejection", (event) => {
+  const reason = event.reason && event.reason.message ? event.reason.message : String(event.reason);
+  showToast({
+    title: "Unexpected error",
+    message: reason,
+    fix: "Try refreshing the page. If this keeps happening, check dashboard.log.",
+    variant: "error",
+  });
+});
+
 // ---- Tabs ----
 $all(".tab-btn").forEach((btn) => {
   btn.addEventListener("click", () => activateTab(btn.dataset.tab));
@@ -117,26 +141,92 @@ function updateWipeCountdown() {
 updateWipeCountdown();
 setInterval(updateWipeCountdown, 1000);
 
+// ---- Toast notifications ----
+// Bottom-right pop-ups - the in-page replacement for the console window
+// that used to show errors before the dashboard ran windowless. Persist
+// until manually closed (no auto-dismiss) and stack rather than replace
+// each other, since e.g. an RCON-lost toast and an unrelated JS error toast
+// could plausibly both fire around the same time.
+function showToast({ title, message, fix, variant }) {
+  const container = $("#toast-container");
+  const el = document.createElement("div");
+  el.className = `toast toast-${variant === "error" ? "error" : "info"}`;
+  el.innerHTML = `
+    <button type="button" class="toast-close" aria-label="Dismiss">&times;</button>
+    <div class="toast-title">${escapeHtml(title)}</div>
+    <div class="toast-message">${escapeHtml(message)}</div>
+    ${fix ? `<div class="toast-fix">Suggested fix: ${escapeHtml(fix)}</div>` : ""}
+  `;
+  el.querySelector(".toast-close").addEventListener("click", () => el.remove());
+  container.appendChild(el);
+
+  if (variant === "error") {
+    // A brief 3-cycle/1.5s pulse to grab attention, then settle into the
+    // steady toast-error look - not a continuous flash, which would be an
+    // accessibility/photosensitivity problem in a tool meant to stay open
+    // for long admin sessions.
+    el.classList.add("toast-flash");
+    setTimeout(() => el.classList.remove("toast-flash"), 1500);
+  }
+}
+
+// ---- Heartbeat ----
+// Tells app.py's watchdog the browser is still open - see /api/heartbeat
+// and _heartbeat_watchdog_loop in app.py. Must stay well under that
+// function's HEARTBEAT_TIMEOUT_SECONDS (15s) so a couple of missed/slow
+// pings don't trigger a false shutdown.
+const HEARTBEAT_INTERVAL_MS = 5000;
+let heartbeatFailing = false;
+async function sendHeartbeat() {
+  try {
+    await fetch("/api/heartbeat", { method: "POST" });
+    heartbeatFailing = false;
+  } catch (err) {
+    if (!heartbeatFailing) {
+      heartbeatFailing = true;
+      showToast({
+        title: "Connection issue",
+        message: "Couldn't reach the dashboard server.",
+        fix: "Check that the dashboard process is still running, then refresh this page.",
+        variant: "error",
+      });
+    }
+  }
+}
+sendHeartbeat();
+setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
+
 // ---- Connection status ----
+let wasConnected = null; // null = not yet known - avoids a false "lost connection" toast on the very first poll
 async function refreshStatus() {
   const badge = $("#connection-status");
   const text = $("#connection-text");
+  let connectedNow;
   try {
     const res = await fetch("/api/status");
     const data = await res.json();
-    if (data.connected) {
-      badge.className = "status-badge status-online";
-      text.textContent = "Connected";
-    } else {
-      badge.className = "status-badge status-offline";
-      text.textContent = "Not connected";
-    }
+    connectedNow = !!data.connected;
   } catch (err) {
+    connectedNow = false;
+  }
+
+  if (connectedNow) {
+    badge.className = "status-badge status-online";
+    text.textContent = "Connected";
+  } else {
     badge.className = "status-badge status-offline";
     text.textContent = "Not connected";
-  } finally {
-    $("#last-checked").textContent = "Last checked: " + nowTimestamp();
   }
+  if (wasConnected === true && !connectedNow) {
+    showToast({
+      title: "RCON connection lost",
+      message: "The dashboard can no longer reach your Rust server's RCON.",
+      fix: "Check that the server is running and that rcon_host/rcon_port/rcon_password in config.json are correct.",
+      variant: "error",
+    });
+  }
+  wasConnected = connectedNow;
+  $("#last-checked").textContent = "Last checked: " + nowTimestamp();
 
   try {
     const res = await fetch("/api/server/info");
@@ -1299,6 +1389,12 @@ async function runAmapAction(a, card) {
     amapLog(`${a.label}: cancelled.`);
     return;
   }
+  // Critical actions (Updater, Nightly Restart, Map/Full Wipe) intentionally
+  // stop the server - that expected disconnect shouldn't trigger the
+  // "RCON connection lost" toast with its (wrong, in this case) suggestion
+  // to check config.json. Resetting to null means the next status poll
+  // can't see it as a transition; it picks back up once reconnected.
+  if (isCritical) wasConnected = null;
   amapLog(`${a.label}: sending...`);
   try {
     const data = await postJson("/api/amap/run", { action: a.key, fields });

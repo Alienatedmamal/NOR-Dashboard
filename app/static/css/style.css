@@ -467,6 +467,55 @@ input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:foc
 .confirm-modal-typed-wrap input { width: 100%; }
 .modal-box .btn-row { margin-top: 18px; justify-content: flex-end; }
 
+/* ---- Toast notifications ---- */
+.toast-container {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 1100; /* above .modal-overlay's 1000, so a toast can't get hidden behind an open modal */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 360px;
+  pointer-events: none; /* the container itself is never a click target */
+}
+.toast {
+  pointer-events: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .55);
+  position: relative;
+  font-size: 13px;
+}
+.toast-title { font-family: var(--font-heading); font-weight: 700; margin-bottom: 4px; padding-right: 22px; }
+.toast-message { color: var(--text); }
+.toast-fix { margin-top: 8px; color: var(--text-muted); font-size: 12px; }
+.toast-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+.toast-close:hover { color: var(--text); }
+
+.toast-info .toast-title { color: var(--accent); }
+.toast-error { border-color: rgba(255, 77, 77, .5); }
+.toast-error .toast-title { color: var(--danger); }
+
+@keyframes toast-flash-pulse {
+  0%, 100% { box-shadow: 0 12px 32px rgba(0, 0, 0, .55); border-color: rgba(255, 77, 77, .5); }
+  50% { box-shadow: 0 0 22px rgba(255, 77, 77, .85); border-color: var(--danger); }
+}
+.toast-flash { animation: toast-flash-pulse 0.5s ease-in-out 3; }
+
 .amap-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 16px; }
 .amap-card {
   background: rgba(255, 255, 255, .03);
