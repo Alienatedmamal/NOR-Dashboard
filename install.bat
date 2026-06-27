@@ -21,6 +21,11 @@ rem makes robocopy fail outright. The trailing "." is a harmless no-op
 rem that just keeps the closing quote where it belongs.
 robocopy "%~dp0Files" "%~dp0." /E /MOVE >nul
 if %errorlevel% geq 8 goto :unpack_failed
+rem robocopy /MOVE usually removes the now-empty source folder itself too,
+rem but isn't always guaranteed to (e.g. a sync client like OneDrive briefly
+rem locking something inside it) - clean up anything left behind so it
+rem doesn't linger as confusing clutter alongside the real files.
+if exist "%~dp0Files" rmdir /s /q "%~dp0Files"
 goto :files_unpacked
 
 :unpack_failed

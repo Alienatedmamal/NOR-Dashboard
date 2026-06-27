@@ -34,7 +34,36 @@ if (-not $extractedRoot) {
 }
 
 Write-Output "Applying update..."
-Copy-Item -Path (Join-Path $extractedRoot.FullName "*") -Destination $projectDir -Recurse -Force
+# robocopy, not Copy-Item -Recurse - when the destination already has a
+# same-named subfolder (e.g. a leftover Files\ from a previous run),
+# Copy-Item -Recurse can nest it (Files\Files\...) instead of merging into
+# it. robocopy always reconciles file-by-file against the existing tree.
+& robocopy $extractedRoot.FullName $projectDir /E | Out-Null
+if ($LASTEXITCODE -ge 8) {
+    Write-Output "Update failed - couldn't copy the new files into place."
+    Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+    exit 1
+}
+
+# The ZIP packages everything except install.bat/README.md/VERSION inside a
+# "Files" folder (see install.bat) - on an existing install, the line above
+# just dropped a fresh copy of it alongside the files already in place from
+# last time, not on top of them. Unpack it the same way install.bat does on
+# a fresh install, so this actually replaces the running code instead of
+# leaving the update nested uselessly inside Files\.
+$filesDir = Join-Path $projectDir "Files"
+if (Test-Path $filesDir) {
+    & robocopy $filesDir $projectDir /E /MOVE | Out-Null
+    if ($LASTEXITCODE -ge 8) {
+        Write-Output "Warning: couldn't fully unpack the Files folder - check $filesDir manually."
+    } elseif (Test-Path $filesDir) {
+        # robocopy /MOVE usually removes the now-empty source folder itself
+        # too, but isn't always guaranteed to (e.g. a sync client like
+        # OneDrive briefly locking something inside it) - clean up anything
+        # left behind so it doesn't linger as confusing clutter.
+        Remove-Item -Path $filesDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
 
 Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
 Write-Output ""
