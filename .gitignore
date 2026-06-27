@@ -8,3 +8,4 @@ player_stats.json
 *.lnk
 dashboard.log
 dashboard-startup.log
+dashboard-events.log*

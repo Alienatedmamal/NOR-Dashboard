@@ -4,13 +4,16 @@ Talks to the server over WebRcon and to the Steam Web API for player lookups.
 Runs locally only (127.0.0.1) since config.json holds the RCON password.
 """
 import json
+import logging
 import os
 import re
 import threading
 import time
+from logging.handlers import RotatingFileHandler
 
 from flask import Flask, jsonify, render_template, request
 from flask_sock import Sock
+from werkzeug.exceptions import HTTPException
 
 import ssh_ws
 from amap_commands import AMAP_ACTIONS, run_amap_action
@@ -43,6 +46,19 @@ VERSION_PATH = os.path.join(BASE_DIR, "..", "VERSION")
 
 with open(VERSION_PATH, "r", encoding="utf-8") as f:
     VERSION = f.read().strip()
+
+# A small, persistent "what happened" log, separate from dashboard.log (raw
+# stdout/stderr from run.bat - overwritten fresh every launch). Rotates
+# instead of growing forever, but otherwise deliberately plain - just
+# RCON connects/drops, AMAP actions, settings changes, and anything
+# unhandled, with a timestamp, so an issue can be traced after the fact
+# without needing to reproduce it live.
+LOG_PATH = os.path.join(BASE_DIR, "..", "dashboard-events.log")
+logger = logging.getLogger("nor_dashboard")
+logger.setLevel(logging.INFO)
+_log_handler = RotatingFileHandler(LOG_PATH, maxBytes=1_000_000, backupCount=2, encoding="utf-8")
+_log_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+logger.addHandler(_log_handler)
 
 app = Flask(__name__)
 # Without this, Flask only reads templates/index.html once per process start
@@ -100,6 +116,7 @@ def get_rcon_client():
     global _rcon_client
     if _rcon_client is None:
         cfg = load_config()
+        logger.info("RCON: connecting to %s:%s", cfg["rcon_host"], cfg["rcon_port"])
         _rcon_client = RconClient(cfg["rcon_host"], cfg["rcon_port"], cfg["rcon_password"])
     return _rcon_client
 
@@ -108,7 +125,18 @@ def reset_rcon_client():
     global _rcon_client
     if _rcon_client is not None:
         _rcon_client.close()
+        logger.warning("RCON: connection reset (will reconnect on next request)")
     _rcon_client = None
+
+
+@app.errorhandler(Exception)
+def handle_unhandled_exception(exc):
+    # Let Flask's normal 404/405/etc. handling through unchanged - only log
+    # genuinely unexpected bugs, not routine "no such route" type errors.
+    if isinstance(exc, HTTPException):
+        return exc
+    logger.exception("Unhandled error in %s %s", request.method, request.path)
+    return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/")
@@ -141,6 +169,7 @@ def api_settings_rcon_set():
 
     save_config_fields({"rcon_host": host, "rcon_port": port, "rcon_password": password})
     reset_rcon_client()
+    logger.info("Settings: RCON target changed to %s:%s", host, port)
     return jsonify({"ok": True})
 
 
@@ -181,6 +210,7 @@ def api_settings_wipe_set():
         "wipe_timezone": timezone,
         "wipe_anchor_date": anchor_date,
     })
+    logger.info("Settings: wipe schedule changed to %s %s %s", frequency, time_str, timezone)
     return jsonify({"ok": True})
 
 
@@ -208,6 +238,7 @@ def api_settings_plugin_deploy_set():
         "plugin_deploy_username": username,
         "plugin_deploy_path": path,
     })
+    logger.info("Settings: Plugin Deploy target changed to %s@%s:%s", username, host, path)
     return jsonify({"ok": True})
 
 
@@ -631,8 +662,10 @@ def api_amap_run():
         return jsonify({"error": f"Unknown action: {action}"}), 400
     try:
         response = run_amap_action(get_rcon_client(), action, fields)
+        logger.info("AMAP: ran '%s'", action)
         return jsonify({"response": response})
     except RconError as exc:
+        logger.warning("AMAP: '%s' failed: %s", action, exc)
         reset_rcon_client()
         return jsonify({"error": str(exc)}), 502
 
@@ -678,7 +711,9 @@ def api_amap_upload_plugin():
 
     ok, message, added = upload_plugin(host, username, path, file.filename, file.read())
     if not ok:
+        logger.warning("AMAP: plugin upload of '%s' failed: %s", file.filename, message)
         return jsonify({"error": message}), 502
+    logger.info("AMAP: uploaded plugin '%s'%s", file.filename, f" (new permissions: {', '.join(added)})" if added else "")
     return jsonify({"ok": True, "message": message, "added_permissions": added})
 
 
@@ -715,10 +750,13 @@ def _player_tracker_loop():
                     if steamid:
                         snapshot.append({"steamid": steamid, "name": name})
                 record_snapshot(snapshot)
-        except RconError:
-            pass  # server unreachable this cycle - try again next time
+        except RconError as exc:
+            logger.info("Player tracker: RCON unreachable this cycle: %s", exc)
         except Exception:
-            pass  # never let an unexpected error kill this background thread
+            # Never let an unexpected error kill this background thread, but
+            # do record it - this loop runs silently for the life of the
+            # process otherwise, so a bug here would be invisible.
+            logger.exception("Player tracker: unexpected error")
         time.sleep(60)
 
 
@@ -736,10 +774,12 @@ def _heartbeat_watchdog_loop():
         if now - process_start < HEARTBEAT_GRACE_SECONDS:
             continue
         if now - _last_heartbeat > HEARTBEAT_TIMEOUT_SECONDS:
+            logger.warning("Shutting down: no heartbeat received for over %ds", HEARTBEAT_TIMEOUT_SECONDS)
             os._exit(0)
 
 
 if __name__ == "__main__":
+    logger.info("Starting NOR Dashboard v%s", VERSION)
     threading.Thread(target=_player_tracker_loop, daemon=True).start()
     threading.Thread(target=_heartbeat_watchdog_loop, daemon=True).start()
     app.run(host="127.0.0.1", port=5050, debug=False, threaded=True)

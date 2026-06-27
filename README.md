@@ -1,4 +1,4 @@
-# NOR Dashboard v1.2.4
+# NOR Dashboard v1.2.5
 
 A simple admin dashboard for your Rust server: an at-a-glance overview (player count, queue, BattleMetrics rank, and more), a live console feed, server info/settings, online/offline/banned player management with notes, permission management, player ban/Steam history lookups, a live map with player and world-event tracking, an AMAP tab for running server-management scripts, and a wipe countdown. Same black-and-neon-green look as AMAP and nor.workisboring.com.
 
@@ -6,7 +6,7 @@ This doc covers one-time setup. Once it's running, see `ADMIN-GUIDE.md` for how 
 
 ## One-time setup
 
-1. **Double-click `install.bat`.** It checks for Python and installs it automatically (via `winget`) if it's missing, then installs the three small packages this needs (Flask, websocket-client, requests), and creates `app/config.json` from the template if it doesn't already exist.
+1. **Double-click `install.bat`.** (Everything else in the download is tucked inside the `Files` folder - that's expected, `install.bat` unpacks it into place on first run.) It checks for Python and installs it automatically (via `winget`) if it's missing, then installs the three small packages this needs (Flask, websocket-client, requests), and creates `app/config.json` from the template if it doesn't already exist.
    - If Windows shows a blue "Windows protected your PC" warning when you double-click it, that's just because the file came from the internet, not because anything's wrong - click **More info**, then **Run anyway**.
    - If it can't install Python automatically (no `winget`), it'll print a link to download Python yourself - check **"Add python.exe to PATH"** during that install, then run `install.bat` again.
 2. **Edit `app/config.json`**: right-click it → **Open with** → **Notepad**, fill in the values below, then save (Ctrl+S) and close. These three are required - the dashboard won't start without them:
@@ -135,6 +135,7 @@ Each admin then:
 
 - This only binds to `127.0.0.1` (your own PC) - it's deliberately not reachable over your network, since `app/config.json` holds your RCON password.
 - The dashboard now runs windowless - no console, just the browser window. It shuts itself down automatically within about a minute and a half of you closing that window (not while it's merely in the background - see "Running it" above), and `dashboard.log` in this folder holds the most recent run's output if you ever need to check it.
+- `dashboard-events.log` (also in this folder) is a smaller, plain-English running history - RCON connects/drops, AMAP actions, settings changes, and anything unexpected, each with a timestamp - that persists across restarts (it rotates instead of growing forever), unlike `dashboard.log` which only holds the latest run.
 - If the RCON connection drops or the server restarts, the dashboard reconnects automatically next time it needs to talk to it.
 - It's normal to see `NOR Dashboard connected` show up periodically (every 15 seconds) in the server's own console/logs - that's just the dashboard's connection health-check, confirming RCON is reachable and everything (including the AMAP tab) is working. It's hidden from the dashboard's own Console tab feed on purpose, but still visible to anyone watching the raw server console directly.
 - The Players list parses your server's `playerlist` RCON response into a table; the Server Info tab uses the built-in `serverinfo` command; the Live Map's event markers use the built-in `find_entity` command - all tested against your actual server and working.

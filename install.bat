@@ -6,6 +6,31 @@ echo  NOR Dashboard - first-time setup
 echo ===========================================
 echo.
 
+rem The ZIP ships with everything except this script, README.md, and
+rem VERSION tucked inside a "Files" folder, just so it's obvious at a
+rem glance which file to run first. Unpack it into place here, once -
+rem after this, the layout is flat and every other script's existing
+rem %~dp0-relative paths work completely unchanged. Safe to re-run:
+rem if "Files" is already gone, a previous run already did this.
+if not exist "%~dp0Files" goto :files_unpacked
+echo Unpacking files...
+rem "%~dp0." not "%~dp0" - %~dp0 always ends in a backslash, and a path
+rem argument ending in \" gets misparsed by cmd (it swallows the closing
+rem quote), which silently merges /E /MOVE into the destination path and
+rem makes robocopy fail outright. The trailing "." is a harmless no-op
+rem that just keeps the closing quote where it belongs.
+robocopy "%~dp0Files" "%~dp0." /E /MOVE >nul
+if %errorlevel% geq 8 goto :unpack_failed
+goto :files_unpacked
+
+:unpack_failed
+echo.
+echo Something went wrong moving files out of the Files folder.
+pause
+exit /b 1
+
+:files_unpacked
+
 set "PYEXE=%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
 if exist "%PYEXE%" goto :found_python
 
