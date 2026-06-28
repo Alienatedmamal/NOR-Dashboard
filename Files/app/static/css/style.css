@@ -402,18 +402,23 @@ input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:foc
 .map-dot-player { background: var(--accent); box-shadow: 0 0 5px var(--accent); }
 
 /* Event/monument markers - real icon images (user-supplied, already
-   full-color) under /static/img/map-icons/, one file per type, named to
+   full-color) under static/img/map-icons/, one file per type, named to
    match the slug used in app.js (EVENT_LABEL_SLUGS/OIL_RIG_SLUGS).
    .map-legend-icon is the same sizing at legend-swatch scale, so the
-   legend matches what's actually drawn on the map. */
+   legend matches what's actually drawn on the map. Paths are relative to
+   this file's own location (static/css/) rather than absolute - same
+   convention as this file's existing bg.jpg reference below - so they
+   still resolve correctly when this app is reverse-proxied under a path
+   prefix (e.g. the hosted demo's /Demo), where an absolute "/static/..."
+   path would resolve against the domain root and miss the prefix. */
 .map-legend-icon { width: 16px; height: 16px; display: inline-block; flex-shrink: 0; background-repeat: no-repeat; background-position: center; background-size: contain; }
-.map-icon-cargoship { background-image: url("/static/img/map-icons/cargoship.png"); }
-.map-icon-patrolhelicopter { background-image: url("/static/img/map-icons/patrolhelicopter.png"); }
-.map-icon-bradleyapc { background-image: url("/static/img/map-icons/bradleyapc.png"); }
-.map-icon-ch47 { background-image: url("/static/img/map-icons/ch47.png"); }
-.map-icon-cargoplane { background-image: url("/static/img/map-icons/cargoplane.png"); }
-.map-icon-oilrig-small { background-image: url("/static/img/map-icons/oilrig-small.png"); }
-.map-icon-oilrig-large { background-image: url("/static/img/map-icons/oilrig-large.png"); }
+.map-icon-cargoship { background-image: url("../img/map-icons/cargoship.png"); }
+.map-icon-patrolhelicopter { background-image: url("../img/map-icons/patrolhelicopter.png"); }
+.map-icon-bradleyapc { background-image: url("../img/map-icons/bradleyapc.png"); }
+.map-icon-ch47 { background-image: url("../img/map-icons/ch47.png"); }
+.map-icon-cargoplane { background-image: url("../img/map-icons/cargoplane.png"); }
+.map-icon-oilrig-small { background-image: url("../img/map-icons/oilrig-small.png"); }
+.map-icon-oilrig-large { background-image: url("../img/map-icons/oilrig-large.png"); }
 
 /* .map-wrap is the visible viewport, capped at .map-canvas's own native
    size so the full map is always visible at once - centered on the page.
