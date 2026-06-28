@@ -137,26 +137,28 @@
           <input type="text" id="broadcast-message" placeholder="e.g. Wipe in 10 minutes!" autocomplete="off">
           <button type="submit" class="btn btn-primary">Send</button>
         </form>
-
-        <h3 class="panel-subheading">Give Item</h3>
-        <p class="muted">Gives an item to a currently connected player.</p>
-        <form id="give-item-form" class="stacked-form" onsubmit="return false;">
-          <label>Player
-            <select class="custom-select" id="give-item-player"></select>
-          </label>
-          <label>Item
-            <select class="custom-select" id="give-item-shortname"></select>
-          </label>
-          <label>Quantity
-            <input type="number" id="give-item-amount" value="1" min="1" autocomplete="off">
-          </label>
-          <div class="btn-row">
-            <button type="submit" class="btn btn-primary" id="give-item-submit">Give Item</button>
-          </div>
-        </form>
       </div>
 
       <div class="player-sidebar">
+        <div class="panel">
+          <h3>Give Item</h3>
+          <p class="muted">Gives an item to a currently connected player.</p>
+          <form id="give-item-form" class="stacked-form" onsubmit="return false;">
+            <label>Player
+              <select class="custom-select" id="give-item-player"></select>
+            </label>
+            <label>Item
+              <select class="custom-select" id="give-item-shortname"></select>
+            </label>
+            <label>Quantity
+              <input type="number" id="give-item-amount" value="1" min="1" autocomplete="off">
+            </label>
+            <div class="btn-row">
+              <button type="submit" class="btn btn-primary" id="give-item-submit">Give Item</button>
+            </div>
+          </form>
+        </div>
+
         <div class="panel">
           <h3>Online Players</h3>
           <p class="muted">Time shown is this session, not lifetime total.</p>
@@ -396,6 +398,7 @@
     <div class="panel">
       <h2>AMAP Scripts</h2>
       <p class="muted">Runs your AMAP server-management scripts via RCON - no SSH needed. Critical actions require typing the action's name to confirm, since these can stop the server or wipe data.</p>
+      <p class="amap-warning"><strong>Heads up:</strong> Critical actions (Updater, Map Wipe, Full Wipe) will stop and restart the Rust server - everyone currently connected will be disconnected.</p>
 
       <div id="amap-cards" class="amap-cards">
         <div class="amap-card" id="amap-upload-card">

@@ -40,12 +40,9 @@ Most of this comes straight from RCON and updates every 15-20 seconds. BattleMet
 
 A live feed of everything the server logs - plugin messages, warnings, chat, and the response to any command you run - same idea as RustAdmin's console. Type a command in the box at the bottom and hit Send; its response shows up in the feed within a second or two, mixed in with everything else happening on the server.
 
-The sidebar next to it lists who's currently online, with how long they've been connected this session, and a **Kick** button per player (you'll be prompted for an optional reason).
+Below the console input is **Broadcast Message**: sends a chat message to everyone currently connected - type it and hit Send, same as typing `say "your message"` directly, just without needing to know the command.
 
-Below the console input:
-
-- **Broadcast Message**: sends a chat message to everyone currently connected - type it and hit Send, same as typing `say "your message"` directly, just without needing to know the command.
-- **Give Item**: pick a connected player, an item from the list (grouped by category - Resources, Weapons, Ammo, etc., each with its icon), and a quantity, then click Give Item. Only currently-connected players show up in the player dropdown. The item list is a curated common-items set, not every item in the game - let whoever maintains the dashboard know if something you need is missing.
+The sidebar next to it has two panels: **Give Item** on top - pick a connected player, an item from the list (grouped by category - Resources, Weapons, Ammo, etc., each with its icon), and a quantity, then click Give Item (only currently-connected players show up in the dropdown; the item list is a curated common-items set, not every item in the game - let whoever maintains the dashboard know if something you need is missing) - and below it, **Online Players**, listing who's currently connected with how long they've been on this session and a **Kick** button per player (you'll be prompted for an optional reason).
 
 ## Players tab
 
@@ -57,6 +54,8 @@ Below the console input:
 - **Offline Players**: recently-seen players who aren't online right now, with the same Look up / Notes shortcuts.
 - **Banned Players**: everyone currently banned, with a one-click Unban.
 - **Player Notes**: paste a SteamID (or use one of the Notes buttons above) and click Load Notes to see their history - ban reasons show up here automatically, and you can add your own free-text notes too. Each note has a Delete button.
+
+If Settings > Plugin Deploy is set up, everything on this tab is shared with any other admin running their own copy of the dashboard against the same server - notes sync the moment you add or delete one, and total time/last connected merge in every few minutes. You don't need to do anything for this to work beyond the one-time Plugin Deploy setup; see `README.md`'s "Shared player data" section if you're curious how it works under the hood.
 
 ## Player Lookup tab
 
@@ -99,7 +98,7 @@ Nothing typed into this tab - host, username, or password - is ever written to `
 Runs your actual AMAP server-management scripts remotely over RCON - no SSH access needed on your PC at all.
 
 1. Each action is its own card with a description and a Critical/Noncritical tag. Click Run. You'll get a confirmation popup describing exactly what it does.
-2. For Critical actions (red tag), you'll also be asked to type the action's exact name to confirm - this is intentional friction so a stray click can't take the server down or wipe data.
+2. For Critical actions (red tag), you'll also be asked to type the action's exact name to confirm - this is intentional friction since these stop and restart the Rust server (everyone connected gets disconnected), or wipe data outright.
 3. The result shows up in the small log box at the bottom of the tab.
 
 What each card actually does:

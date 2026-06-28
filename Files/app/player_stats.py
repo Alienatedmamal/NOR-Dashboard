@@ -11,14 +11,31 @@ last snapshot, accumulating totals in player_stats.json next to this file.
 This is a polling-based approximation, not an exact log - a session shorter
 than the polling interval could be missed. Good enough for "who's been on
 and for how long" at a glance, not a forensic record.
+
+Also synced to the Rust server itself (see player_data_sync.py) so other
+admins running their own copy of this dashboard see the same totals -
+unlike player_notes.py, this does NOT pull/push on every single
+record_snapshot() call (that runs every 60s; hammering SFTP that often,
+from every admin's dashboard at once, is the kind of server load this
+project has specifically tried to avoid elsewhere). Instead, a separate,
+much slower background loop (see sync_with_remote() and app.py) merges
+the local accumulation with whatever's on the server every few minutes.
+Merging (not overwriting either way) matters because multiple admins'
+dashboards are all independently watching the same online players at the
+same time - summing would double-count a session several dashboards
+all saw happen once; taking the max of each player's total instead just
+keeps whichever dashboard happened to track more of it.
 """
 import json
 import os
 import threading
 from datetime import datetime, timezone
 
+import player_data_sync
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATS_PATH = os.path.join(BASE_DIR, "player_stats.json")
+STATS_FILENAME = "DB-player_stats.json"
 
 _lock = threading.Lock()
 
@@ -111,3 +128,36 @@ def get_all_stats():
     used to build the offline/banned player lists."""
     with _lock:
         return _load()
+
+
+def _merge_entries(local_entry, remote_entry):
+    merged = dict(remote_entry)
+    merged["name"] = local_entry.get("name") or remote_entry.get("name", "")
+    merged["total_seconds"] = max(local_entry.get("total_seconds", 0), remote_entry.get("total_seconds", 0))
+    timestamps = [t for t in (local_entry.get("last_connected"), remote_entry.get("last_connected")) if t]
+    merged["last_connected"] = max(timestamps) if timestamps else None
+    # Whether THIS dashboard's own tracker currently sees them connected is
+    # locally-known information the remote copy (written by some other
+    # admin's dashboard, or by this one a few minutes ago) has no way to
+    # know about, so prefer the local value here rather than the remote's.
+    merged["currently_online_since"] = local_entry.get("currently_online_since") or remote_entry.get("currently_online_since")
+    return merged
+
+
+def sync_with_remote():
+    """Pulls the server's copy, merges it with whatever this dashboard has
+    accumulated locally since the last sync, pushes the merged result back,
+    and updates the local cache to match - called periodically by app.py,
+    not on every record_snapshot() (see module docstring for why). A no-op
+    if Plugin Deploy isn't configured, or if the pull fails for any other
+    reason - never overwrites the remote with a stale/partial local view."""
+    with _lock:
+        local = _load()
+        remote, ok = player_data_sync.pull_json(STATS_FILENAME)
+        if not ok:
+            return
+        merged = dict(remote)
+        for steamid, local_entry in local.items():
+            merged[steamid] = _merge_entries(local_entry, remote.get(steamid, {}))
+        _save(merged)
+        player_data_sync.push_json(STATS_FILENAME, merged)

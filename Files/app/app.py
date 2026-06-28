@@ -33,7 +33,7 @@ from oxide_commands import (
 )
 from permissions_catalog import KNOWN_PERMISSIONS
 from player_notes import add_note, delete_note, get_notes
-from player_stats import get_all_stats, get_stats, record_snapshot
+from player_stats import get_all_stats, get_stats, record_snapshot, sync_with_remote
 from plugin_deploy import list_known_plugin_names, upload_plugin
 from rcon_client import RconClient, RconError, get_log_since, get_log_tail, get_players
 from server_info import SETTING_CONVARS, get_server_info, get_server_settings, set_convar
@@ -101,6 +101,7 @@ _last_heartbeat = time.time()
 HEARTBEAT_TIMEOUT_SECONDS = 90
 HEARTBEAT_GRACE_SECONDS = 30
 WATCHDOG_CHECK_INTERVAL_SECONDS = 10
+PLAYER_STATS_SYNC_INTERVAL_SECONDS = 300
 
 
 def load_config():
@@ -954,6 +955,24 @@ def _player_tracker_loop():
         time.sleep(60)
 
 
+def _player_stats_sync_loop():
+    """Merges this dashboard's locally-accumulated player stats with
+    whatever's on the Rust server (see player_stats.sync_with_remote and
+    player_data_sync.py) every few minutes - deliberately not on every
+    60s record_snapshot() tick, since that would mean every admin's
+    dashboard hitting SFTP once a minute. A short initial delay, not the
+    full interval, so a freshly-opened dashboard picks up other admins'
+    data quickly rather than waiting minutes for the first sync. A no-op
+    (silently) if Plugin Deploy isn't configured."""
+    time.sleep(15)
+    while True:
+        try:
+            sync_with_remote()
+        except Exception:
+            logger.exception("Player stats sync: unexpected error")
+        time.sleep(PLAYER_STATS_SYNC_INTERVAL_SECONDS)
+
+
 def _heartbeat_watchdog_loop():
     """Shuts the whole process down once the browser stops sending
     heartbeats (see /api/heartbeat) - this is what makes closing the
@@ -975,5 +994,6 @@ def _heartbeat_watchdog_loop():
 if __name__ == "__main__":
     logger.info("Starting NOR Dashboard v%s", VERSION)
     threading.Thread(target=_player_tracker_loop, daemon=True).start()
+    threading.Thread(target=_player_stats_sync_loop, daemon=True).start()
     threading.Thread(target=_heartbeat_watchdog_loop, daemon=True).start()
     app.run(host="127.0.0.1", port=5050, debug=False, threaded=True)
