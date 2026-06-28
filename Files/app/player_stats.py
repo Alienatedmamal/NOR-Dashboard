@@ -66,8 +66,9 @@ def _save(data):
 
 
 def record_snapshot(online_players):
-    """online_players: list of {"steamid": ..., "name": ...} for everyone
-    currently connected. Called periodically by the background tracker."""
+    """online_players: list of {"steamid": ..., "name": ..., "ip": ...} for
+    everyone currently connected. Called periodically by the background
+    tracker."""
     with _lock:
         data = _load()
         now_iso = _now_iso()
@@ -81,6 +82,8 @@ def record_snapshot(online_players):
             entry = data.setdefault(steamid, {"name": "", "total_seconds": 0})
             entry["name"] = p.get("name") or entry.get("name", "")
             entry["last_connected"] = now_iso
+            if p.get("ip"):
+                entry["last_ip"] = p.get("ip")
             if not entry.get("currently_online_since"):
                 entry["currently_online_since"] = now_iso
 
@@ -133,6 +136,7 @@ def get_all_stats():
 def _merge_entries(local_entry, remote_entry):
     merged = dict(remote_entry)
     merged["name"] = local_entry.get("name") or remote_entry.get("name", "")
+    merged["last_ip"] = local_entry.get("last_ip") or remote_entry.get("last_ip", "")
     merged["total_seconds"] = max(local_entry.get("total_seconds", 0), remote_entry.get("total_seconds", 0))
     timestamps = [t for t in (local_entry.get("last_connected"), remote_entry.get("last_connected")) if t]
     merged["last_connected"] = max(timestamps) if timestamps else None

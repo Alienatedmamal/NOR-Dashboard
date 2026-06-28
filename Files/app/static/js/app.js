@@ -998,17 +998,17 @@ $("#refresh-offline").addEventListener("click", loadOfflinePlayers);
 
 async function loadOfflinePlayers() {
   const body = $("#offline-body");
-  body.innerHTML = '<tr><td colspan="5" class="muted">Loading...</td></tr>';
+  body.innerHTML = '<tr><td colspan="6" class="muted">Loading...</td></tr>';
   try {
     const res = await fetch("/api/players/offline");
     const data = await res.json();
     if (data.error) {
-      body.innerHTML = `<tr><td colspan="5" class="muted">Error: ${escapeHtml(data.error)}</td></tr>`;
+      body.innerHTML = `<tr><td colspan="6" class="muted">Error: ${escapeHtml(data.error)}</td></tr>`;
       return;
     }
     const players = data.players || [];
     if (players.length === 0) {
-      body.innerHTML = '<tr><td colspan="5" class="muted">No recently-seen offline players yet.</td></tr>';
+      body.innerHTML = '<tr><td colspan="6" class="muted">No recently-seen offline players yet.</td></tr>';
       return;
     }
     body.innerHTML = "";
@@ -1018,6 +1018,7 @@ async function loadOfflinePlayers() {
       tr.innerHTML = `
         <td>${escapeHtml(p.name || "Unknown")}</td>
         <td class="mono">${escapeHtml(p.steamid)}</td>
+        <td>${escapeHtml(p.ip || "-")}</td>
         <td>${escapeHtml(total)}</td>
         <td>${escapeHtml(formatLastConnected(p.last_connected))}</td>
         <td>
@@ -2253,6 +2254,13 @@ $("#terminal-disconnect").addEventListener("click", () => {
 
 window.addEventListener("resize", () => {
   if ($("#tab-terminal").classList.contains("active")) fitTerminal();
+});
+
+// ---- Help tab ----
+$("#help-faq-toggle").addEventListener("click", () => {
+  const content = $("#help-faq-content");
+  content.hidden = !content.hidden;
+  $("#help-faq-toggle").textContent = content.hidden ? "Show FAQ / Troubleshooting" : "Hide FAQ / Troubleshooting";
 });
 
 async function runAmapAction(a, card) {

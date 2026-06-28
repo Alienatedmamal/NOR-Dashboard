@@ -208,10 +208,10 @@
       <div class="table-scroll">
         <table class="data-table" id="offline-table">
           <thead>
-            <tr><th>Name</th><th>SteamID</th><th>Total Time</th><th>Last Connected</th><th></th></tr>
+            <tr><th>Name</th><th>SteamID</th><th>IP</th><th>Total Time</th><th>Last Connected</th><th></th></tr>
           </thead>
           <tbody id="offline-body">
-            <tr><td colspan="5" class="muted">Click Refresh to load.</td></tr>
+            <tr><td colspan="6" class="muted">Click Refresh to load.</td></tr>
           </tbody>
         </table>
       </div>
@@ -484,6 +484,34 @@
     <div class="panel">
       <h2>Help</h2>
       <p class="muted">More guidance is coming here soon. For now, the full admin guide and source live on GitHub.</p>
+
+      <button type="button" id="help-faq-toggle" class="btn btn-outline">Show FAQ / Troubleshooting</button>
+      <div id="help-faq-content" class="help-faq" hidden>
+        <h3 class="panel-subheading">FAQ / Troubleshooting</h3>
+        <dl class="help-faq-list">
+          <dt>The "Not connected" badge won't clear</dt>
+          <dd>Check that this PC can still reach your Rust server's RCON port - nothing else to do on the dashboard side, it retries automatically. If you just used an AMAP tab action that stops the server, give it a minute to come back up first.</dd>
+
+          <dt>A tab's data looks stale or empty</dt>
+          <dd>Most tabs have their own Refresh button - try that first.</dd>
+
+          <dt>A red pop-up appears in the bottom-right corner</dt>
+          <dd>Read its suggested fix, then click the &times; to dismiss it - it won't reappear on its own.</dd>
+
+          <dt>The dashboard closed itself / isn't responding</dt>
+          <dd>Just double-click <code>run.bat</code> again to relaunch it. Closing its browser window is what shuts it down now, by design.</dd>
+
+          <dt><code>run.bat</code> opens briefly, then a pop-up says the dashboard didn't start within 25 seconds</dt>
+          <dd>Open <code>dashboard.log</code> in the dashboard's main folder (the one with <code>run.bat</code> in it) and check the last few lines for the actual error.</dd>
+
+          <dt><code>update.bat</code> says it failed</dt>
+          <dd>Check your internet connection first. If that's fine, let whoever maintains the dashboard know - it can also fail if the GitHub repo itself is temporarily unavailable, which isn't something fixable from your end.</dd>
+
+          <dt>Windows shows a blue "Windows protected your PC" warning</dt>
+          <dd>That just means the file came from the internet - click <strong>More info</strong>, then <strong>Run anyway</strong>. Nothing's wrong with the file.</dd>
+        </dl>
+      </div>
+
       <a href="https://github.com/Alienatedmamal/NOR-RCON-Dashboard" target="_blank" rel="noopener" class="btn btn-primary">Open NOR-RCON-Dashboard on GitHub</a>
     </div>
   </section>
@@ -525,10 +553,10 @@
         <p class="muted">All optional - each feature below just turns itself off if its key is left blank. Saving applies immediately, no restart needed.</p>
         <form class="stacked-form" id="api-keys-settings-form" onsubmit="return false;">
           <label>Steam Web API key <span class="muted">(Player Lookup, Rust hours, avatars)</span>
-            <input type="text" id="api-keys-setting-steam" placeholder="Loading..." autocomplete="off">
+            <input type="password" id="api-keys-setting-steam" placeholder="Loading..." autocomplete="off">
           </label>
           <label>RustMaps API key <span class="muted">(Live Map background image)</span>
-            <input type="text" id="api-keys-setting-rustmaps" placeholder="Loading..." autocomplete="off">
+            <input type="password" id="api-keys-setting-rustmaps" placeholder="Loading..." autocomplete="off">
           </label>
           <label>BattleMetrics server ID <span class="muted">(Overview tab's Rank stat)</span>
             <input type="text" id="api-keys-setting-battlemetrics" placeholder="Loading..." autocomplete="off">
