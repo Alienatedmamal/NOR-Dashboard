@@ -1153,17 +1153,21 @@ async function doGroupAction(url) {
 }
 
 async function loadGroupNames() {
-  const select = $("#group-name");
+  const selects = $all(".group-select");
+  let optionsHtml;
   try {
     const data = await fetch("/api/groups").then((res) => res.json());
     const names = data.names || [];
-    select.innerHTML = names.length
+    optionsHtml = names.length
       ? names.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")
       : '<option value="">(none found)</option>';
   } catch (err) {
-    select.innerHTML = '<option value="">(could not load)</option>';
+    optionsHtml = '<option value="">(could not load)</option>';
   }
-  select._syncCustomSelectTrigger && select._syncCustomSelectTrigger();
+  selects.forEach((select) => {
+    select.innerHTML = optionsHtml;
+    select._syncCustomSelectTrigger && select._syncCustomSelectTrigger();
+  });
 }
 loadGroupNames();
 
@@ -1182,6 +1186,18 @@ $("#group-create-form").addEventListener("submit", async (e) => {
     $("#group-create-title").value = "";
     loadGroupNames();
   }
+});
+
+$("#group-remove-submit").addEventListener("click", async () => {
+  const group = $("#group-remove-name").value.trim();
+  if (!group) {
+    alert("Please select a group to remove.");
+    return;
+  }
+  if (!confirm(`Remove the group "${group}"? This cannot be undone.`)) return;
+  const data = await postJson("/api/group/remove", { group });
+  alert(data.error ? "Error: " + data.error : (data.response || "Done."));
+  if (!data.error) loadGroupNames();
 });
 
 $("#show-submit").addEventListener("click", async () => {

@@ -26,6 +26,7 @@ from oxide_commands import (
     create_group,
     grant_permission,
     list_group_names,
+    remove_group,
     remove_user_from_group,
     revoke_permission,
     show_group,
@@ -740,6 +741,23 @@ def api_group_create():
         response = create_group(client, group, title)
         client.send_command("server.writecfg")
         logger.info("Permissions: created group '%s'", group)
+        return jsonify({"response": response})
+    except RconError as exc:
+        reset_rcon_client()
+        return jsonify({"error": str(exc)}), 502
+
+
+@app.route("/api/group/remove", methods=["POST"])
+def api_group_remove():
+    body = request.get_json(force=True) or {}
+    group = body.get("group", "").strip()
+    if not group:
+        return jsonify({"error": "group is required"}), 400
+    try:
+        client = get_rcon_client()
+        response = remove_group(client, group)
+        client.send_command("server.writecfg")
+        logger.info("Permissions: removed group '%s'", group)
         return jsonify({"response": response})
     except RconError as exc:
         reset_rcon_client()

@@ -310,7 +310,7 @@
             <input type="text" id="group-user" class="player-combo" placeholder="e.g. 76561198000000000" autocomplete="off">
           </label>
           <label>Group
-            <select class="custom-select" id="group-name"></select>
+            <select class="custom-select group-select" id="group-name"></select>
           </label>
           <div class="btn-row">
             <button type="button" id="group-add" class="btn btn-primary">Add to Group</button>
@@ -328,6 +328,16 @@
           </label>
           <div class="btn-row">
             <button type="submit" class="btn btn-primary" id="group-create-submit">Create Group</button>
+          </div>
+        </form>
+
+        <h3 class="panel-subheading">Remove Group</h3>
+        <form class="stacked-form" id="group-remove-form" onsubmit="return false;">
+          <label>Group
+            <select class="custom-select group-select" id="group-remove-name"></select>
+          </label>
+          <div class="btn-row">
+            <button type="button" id="group-remove-submit" class="btn btn-danger">Remove Group</button>
           </div>
         </form>
       </div>

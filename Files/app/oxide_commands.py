@@ -38,6 +38,10 @@ def create_group(client, group, title=""):
     return client.send_command(f'oxide.group add "{group}"')
 
 
+def remove_group(client, group):
+    return client.send_command(f'oxide.group remove "{group}"')
+
+
 def list_groups(client):
     return client.send_command("oxide.show groups")
 
