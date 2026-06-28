@@ -1074,6 +1074,37 @@ async function loadNotes(steamid) {
 
 $("#notes-load").addEventListener("click", () => loadNotes($("#notes-steamid").value.trim()));
 
+// Force Sync - on-demand pull+merge+push of notes and stats with the Rust
+// server, for when an admin doesn't want to wait for the automatic sync.
+// Gated server-side by a 10s cooldown (see app.py's /api/players/sync-now)
+// so mashing the button can't hammer the SSH connection; this bubble is
+// just the UI's reflection of that, not the enforcement itself.
+let syncBubbleTimer = null;
+function showSyncBubble(message, isError) {
+  const bubble = $("#notes-sync-bubble");
+  clearTimeout(syncBubbleTimer);
+  bubble.textContent = message;
+  bubble.classList.remove("hidden", "sync-bubble-error", "sync-bubble-info");
+  bubble.classList.add(isError ? "sync-bubble-error" : "sync-bubble-info");
+  syncBubbleTimer = setTimeout(() => bubble.classList.add("hidden"), 5000);
+}
+
+$("#notes-force-sync").addEventListener("click", async () => {
+  try {
+    const res = await fetch("/api/players/sync-now", { method: "POST" });
+    const data = await res.json();
+    if (!data.ok) {
+      showSyncBubble("Have to wait 10 seconds between syncs.", true);
+      return;
+    }
+    showSyncBubble("Synced notes and stats with the server.", false);
+    const steamid = $("#notes-steamid").value.trim();
+    if (steamid) loadNotes(steamid);
+  } catch (err) {
+    showSyncBubble("Couldn't reach the dashboard to sync.", true);
+  }
+});
+
 $("#notes-add-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const steamid = $("#notes-steamid").value.trim();

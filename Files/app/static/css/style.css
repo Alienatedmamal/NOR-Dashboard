@@ -516,6 +516,20 @@ input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:foc
 .toast-title { font-family: var(--font-heading); font-weight: 700; margin-bottom: 4px; padding-right: 22px; }
 .toast-message { color: var(--text); }
 .toast-fix { margin-top: 8px; color: var(--text-muted); font-size: 12px; }
+
+/* Player Notes panel's Force Sync feedback - small and self-clearing,
+   unlike the persistent bottom-right toasts, since it's just confirming
+   a button click rather than reporting an unprompted error. */
+.sync-bubble {
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  display: inline-block;
+}
+.sync-bubble.hidden { display: none; }
+.sync-bubble-error { background: rgba(255, 77, 77, .14); border: 1px solid rgba(255, 77, 77, .4); color: var(--danger); }
+.sync-bubble-info { background: var(--accent-soft); border: 1px solid var(--accent-border); color: var(--accent); }
 .toast-close {
   position: absolute;
   top: 8px;

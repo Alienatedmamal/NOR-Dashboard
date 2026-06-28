@@ -53,6 +53,19 @@ def _load_latest():
     return _load()
 
 
+def force_full_sync():
+    """Pulls the full remote notes file and refreshes the local cache with
+    it - used by the Players tab's Force Sync button. Every read already
+    pulls fresh (see _load_latest), so this exists mainly to give that
+    button a clear yes/no on whether the remote was actually reachable,
+    and to keep the local fallback cache current even if no one happens
+    to load a specific player's notes right afterward."""
+    data, ok = player_data_sync.pull_json(NOTES_FILENAME)
+    if ok:
+        _save(data)
+    return ok
+
+
 def add_note(steamid, text, note_type="manual"):
     if not steamid or not text:
         return

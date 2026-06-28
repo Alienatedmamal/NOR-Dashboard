@@ -148,16 +148,20 @@ def sync_with_remote():
     """Pulls the server's copy, merges it with whatever this dashboard has
     accumulated locally since the last sync, pushes the merged result back,
     and updates the local cache to match - called periodically by app.py,
-    not on every record_snapshot() (see module docstring for why). A no-op
-    if Plugin Deploy isn't configured, or if the pull fails for any other
-    reason - never overwrites the remote with a stale/partial local view."""
+    not on every record_snapshot() (see module docstring for why), and also
+    on demand by the Players tab's Force Sync button. A no-op if Plugin
+    Deploy isn't configured, or if the pull fails for any other reason -
+    never overwrites the remote with a stale/partial local view. Returns
+    whether the sync actually happened, so on-demand callers can tell the
+    user if the remote was unreachable."""
     with _lock:
         local = _load()
         remote, ok = player_data_sync.pull_json(STATS_FILENAME)
         if not ok:
-            return
+            return False
         merged = dict(remote)
         for steamid, local_entry in local.items():
             merged[steamid] = _merge_entries(local_entry, remote.get(steamid, {}))
         _save(merged)
         player_data_sync.push_json(STATS_FILENAME, merged)
+        return True

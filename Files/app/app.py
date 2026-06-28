@@ -32,7 +32,7 @@ from oxide_commands import (
     show_user,
 )
 from permissions_catalog import KNOWN_PERMISSIONS
-from player_notes import add_note, delete_note, get_notes
+from player_notes import add_note, delete_note, force_full_sync, get_notes
 from player_stats import get_all_stats, get_stats, record_snapshot, sync_with_remote
 from plugin_deploy import list_known_plugin_names, upload_plugin
 from rcon_client import RconClient, RconError, get_log_since, get_log_tail, get_players
@@ -102,6 +102,15 @@ HEARTBEAT_TIMEOUT_SECONDS = 90
 HEARTBEAT_GRACE_SECONDS = 30
 WATCHDOG_CHECK_INTERVAL_SECONDS = 10
 PLAYER_STATS_SYNC_INTERVAL_SECONDS = 300
+
+# Cooldown for the Players tab's manual Force Sync button - protects the
+# Rust server's SSH connection from being hammered if someone double-clicks
+# or mashes the button, since each click does a real pull+push for both
+# notes and stats. Tracked server-side (not just disabled client-side) so
+# it's still enforced even with multiple browser tabs/admins hitting it.
+FORCE_SYNC_COOLDOWN_SECONDS = 10
+_last_force_sync_at = 0.0
+_force_sync_lock = threading.Lock()
 
 
 def load_config():
@@ -570,6 +579,20 @@ def api_players_notes_delete():
         return jsonify({"error": "index must be a number"}), 400
     ok = delete_note(steamid, index)
     return jsonify({"ok": ok})
+
+
+@app.route("/api/players/sync-now", methods=["POST"])
+def api_players_sync_now():
+    global _last_force_sync_at
+    with _force_sync_lock:
+        elapsed = time.time() - _last_force_sync_at
+        if elapsed < FORCE_SYNC_COOLDOWN_SECONDS:
+            wait_seconds = int(round(FORCE_SYNC_COOLDOWN_SECONDS - elapsed))
+            return jsonify({"ok": False, "error": "cooldown", "wait_seconds": max(wait_seconds, 1)}), 429
+        _last_force_sync_at = time.time()
+    notes_synced = force_full_sync()
+    stats_synced = sync_with_remote()
+    return jsonify({"ok": True, "notes_synced": notes_synced, "stats_synced": stats_synced})
 
 
 @app.route("/api/players/offline")

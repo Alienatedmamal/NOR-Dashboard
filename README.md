@@ -1,4 +1,4 @@
-# NOR Dashboard v1.3.2
+# NOR Dashboard v1.3.3
 
 A simple admin dashboard for your Rust server: an at-a-glance overview (player count, queue, BattleMetrics rank, and more), a live console feed, server info/settings, online/offline/banned player management with notes, permission management, player ban/Steam history lookups, a live map with player and world-event tracking, an AMAP tab for running server-management scripts, and a wipe countdown. Same black-and-neon-green look as AMAP and nor.workisboring.com.
 
@@ -137,6 +137,8 @@ Copy the whole `NOR-Dashboard` folder to their PC (or zip it up).
 ### Shared player data
 
 Once Settings > Plugin Deploy is filled in (the same SSH target the AMAP tab's plugin upload already uses - see "Setting up SSH keys" above), player notes and stats stop being purely local. Notes sync to the server immediately on every add/delete; stats (total time, last connected) merge in the background every few minutes, since that updates too often locally to sync on every single change without hammering the SSH connection. Either way, every admin running their own copy of this dashboard against the same Rust server ends up seeing the same notes and history, stored in `AMAP/Files/Config/DB-player_notes.json` and `DB-player_stats.json` on the server - not committed to this repo, not something you need to touch by hand. If the server's briefly unreachable, the dashboard just falls back to whatever it has cached locally rather than failing outright.
+
+The Player Notes panel also has a **Force Sync** button, for when you don't want to wait for the next automatic background merge - it pulls and pushes both notes and stats immediately. It's limited to once every 10 seconds (enforced on the server, not just disabled in the browser) so repeated clicks can't hammer the SSH connection; clicking again too soon shows a small bubble saying so, which clears itself after 5 seconds.
 
 Each admin then:
 

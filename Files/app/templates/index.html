@@ -232,7 +232,9 @@
       <div class="inline-form">
         <input type="text" id="notes-steamid" class="player-combo" placeholder="SteamID" autocomplete="off">
         <button type="button" id="notes-load" class="btn btn-outline">Load Notes</button>
+        <button type="button" id="notes-force-sync" class="btn btn-outline" title="Pulls and merges the latest notes and stats from the Rust server right now, instead of waiting for the automatic sync.">Force Sync</button>
       </div>
+      <div id="notes-sync-bubble" class="sync-bubble hidden"></div>
       <div id="notes-list" class="console-output small"></div>
       <form id="notes-add-form" class="inline-form">
         <input type="text" id="notes-text" placeholder="Add a note...">

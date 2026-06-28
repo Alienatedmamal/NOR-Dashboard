@@ -57,6 +57,8 @@ The sidebar next to it has two panels: **Give Item** on top - pick a connected p
 
 If Settings > Plugin Deploy is set up, everything on this tab is shared with any other admin running their own copy of the dashboard against the same server - notes sync the moment you add or delete one, and total time/last connected merge in every few minutes. You don't need to do anything for this to work beyond the one-time Plugin Deploy setup; see `README.md`'s "Shared player data" section if you're curious how it works under the hood.
 
+If you don't want to wait for the next automatic merge, click **Force Sync** next to Load Notes - it pulls and pushes both notes and stats right away. You can only click it once every 10 seconds; clicking sooner shows a brief "have to wait" message that clears itself after a few seconds.
+
 ## Player Lookup tab
 
 Paste any SteamID64 and click Look Up to see their Steam profile, avatar, account age, profile visibility, and VAC/game/community/economy ban status. Useful for vetting someone before letting them in, or checking a report against them.
