@@ -15,9 +15,10 @@ and for how long" at a glance, not a forensic record.
 Also synced to the Rust server itself (see player_data_sync.py) so other
 admins running their own copy of this dashboard see the same totals -
 unlike player_notes.py, this does NOT pull/push on every single
-record_snapshot() call (that runs every 60s; hammering SFTP that often,
-from every admin's dashboard at once, is the kind of server load this
-project has specifically tried to avoid elsewhere). Instead, a separate,
+record_snapshot() call (that runs every 60s; hammering the RCON
+connection that often, from every admin's dashboard at once, is the kind
+of server load this project has specifically tried to avoid elsewhere).
+Instead, a separate,
 much slower background loop (see sync_with_remote() and app.py) merges
 the local accumulation with whatever's on the server every few minutes.
 Merging (not overwriting either way) matters because multiple admins'
@@ -148,24 +149,25 @@ def _merge_entries(local_entry, remote_entry):
     return merged
 
 
-def sync_with_remote():
+def sync_with_remote(client):
     """Pulls the server's copy, merges it with whatever this dashboard has
     accumulated locally since the last sync, pushes the merged result back,
     and updates the local cache to match - called periodically by app.py,
     not on every record_snapshot() (see module docstring for why), and also
-    on demand by the Players tab's Force Sync button. A no-op if Plugin
-    Deploy isn't configured, or if the pull fails for any other reason -
-    never overwrites the remote with a stale/partial local view. Returns
-    whether the sync actually happened, so on-demand callers can tell the
-    user if the remote was unreachable."""
+    on demand by the Players tab's Force Sync button. A no-op if the pull
+    fails for any reason - never overwrites the remote with a stale/partial
+    local view. Returns (ok, error), so on-demand callers can tell the user
+    why the remote was unreachable instead of just that it was."""
     with _lock:
         local = _load()
-        remote, ok = player_data_sync.pull_json(STATS_FILENAME)
+        remote, ok, error = player_data_sync.pull_json(client, STATS_FILENAME)
         if not ok:
-            return False
+            return False, error
         merged = dict(remote)
         for steamid, local_entry in local.items():
             merged[steamid] = _merge_entries(local_entry, remote.get(steamid, {}))
         _save(merged)
-        player_data_sync.push_json(STATS_FILENAME, merged)
-        return True
+        push_ok, push_error = player_data_sync.push_json(client, STATS_FILENAME, merged)
+        if not push_ok:
+            return False, f"Pulled and merged, but didn't sync back to the server: {push_error}"
+        return True, None

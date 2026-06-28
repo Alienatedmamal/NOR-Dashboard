@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 
 namespace Oxide.Plugins
 {
-    [Info("AmapBridge", "NOR", "1.2.0")]
+    [Info("AmapBridge", "NOR", "1.3.0")]
     [Description("RCON-only bridge to a fixed whitelist of AMAP server-management scripts, for the NOR Dashboard's AMAP Scripts tab.")]
     public class AmapBridge : RustPlugin
     {
@@ -19,6 +19,12 @@ namespace Oxide.Plugins
             // wipe_configure_view is read-only - it just greps the current
             // wipe config and reports back, no script to run.
             public bool IsView;
+            // playerdata_get_*/playerdata_set_* read/write a file in
+            // AMAP/Files/Config directly - no script involved at all, see
+            // RunPlayerDataGet/RunPlayerDataSet below.
+            public bool IsPlayerDataGet;
+            public bool IsPlayerDataSet;
+            public string PlayerDataFile;
         }
 
         // Resolved once at plugin load from the OS account this Rust server
@@ -29,6 +35,7 @@ namespace Oxide.Plugins
         private static readonly string HomeDir = $"/home/{Environment.UserName}";
 
         private static readonly string WipeConfigPath = $"{HomeDir}/AMAP/Files/Config/config.cfg";
+        private static readonly string ConfigDir = $"{HomeDir}/AMAP/Files/Config";
 
         // Fixed whitelist: action keyword -> exact script path. The keyword
         // from RCON is matched against this dictionary's keys only - nothing
@@ -45,6 +52,15 @@ namespace Oxide.Plugins
             ["updater"] = new AmapAction { ScriptPath = $"{HomeDir}/AMAP/Files/Scripts/./Updater.sh" },
             ["wipe_configure"] = new AmapAction { ScriptPath = $"{HomeDir}/AMAP/Files/Scripts/./wipeconfigure.sh", NeedsArgs = true },
             ["wipe_configure_view"] = new AmapAction { IsView = true },
+            // Backs the dashboard's cross-admin player notes/stats sync
+            // (see player_data_sync.py) - reads/writes these two files
+            // directly over RCON instead of SSH, so it only ever needs the
+            // same RCON credentials the rest of the dashboard already
+            // requires, not a separate SSH key setup.
+            ["playerdata_get_notes"] = new AmapAction { IsPlayerDataGet = true, PlayerDataFile = "DB-player_notes.json" },
+            ["playerdata_get_stats"] = new AmapAction { IsPlayerDataGet = true, PlayerDataFile = "DB-player_stats.json" },
+            ["playerdata_set_notes"] = new AmapAction { IsPlayerDataSet = true, PlayerDataFile = "DB-player_notes.json" },
+            ["playerdata_set_stats"] = new AmapAction { IsPlayerDataSet = true, PlayerDataFile = "DB-player_stats.json" },
         };
 
         private static readonly Regex DigitsOnly = new Regex(@"^\d+$");
@@ -78,6 +94,19 @@ namespace Oxide.Plugins
             if (info.IsView)
             {
                 RunWipeConfigureView(arg);
+                return;
+            }
+
+            if (info.IsPlayerDataGet)
+            {
+                RunPlayerDataGet(arg, info.PlayerDataFile);
+                return;
+            }
+
+            if (info.IsPlayerDataSet)
+            {
+                var base64Json = (arg.GetString(1) ?? "").Trim();
+                RunPlayerDataSet(arg, info.PlayerDataFile, base64Json);
                 return;
             }
 
@@ -248,6 +277,75 @@ namespace Oxide.Plugins
             var hash = value.IndexOf('#');
             if (hash >= 0) value = value.Substring(0, hash);
             return value.Trim().Trim('"');
+        }
+
+        // Replies with the raw file content directly - the Python side
+        // (player_data_sync.py) parses it as JSON. A missing file isn't an
+        // error (a server that's never been synced to yet) - replies with
+        // "{}" so the caller treats it the same as an empty-but-successful
+        // read, not a failure to fall back from.
+        private void RunPlayerDataGet(ConsoleSystem.Arg arg, string filename)
+        {
+            try
+            {
+                var path = $"{ConfigDir}/{filename}";
+                if (!System.IO.File.Exists(path))
+                {
+                    arg.ReplyWith("{}");
+                    return;
+                }
+                arg.ReplyWith(System.IO.File.ReadAllText(path));
+            }
+            catch (Exception ex)
+            {
+                PrintError($"AmapBridge: failed to read {filename}: {ex.Message}");
+                arg.ReplyWith($"ERROR: {ex.Message}");
+            }
+        }
+
+        // base64Json arrives as a single RCON argument token (no
+        // whitespace, so Oxide's space-delimited arg parsing can't split
+        // it apart) - base64 specifically so the JSON's own quotes/braces/
+        // newlines never have to survive that parsing intact. Writes via a
+        // temp file + delete + move rather than a direct write, so a
+        // request that fails partway through can't leave a half-written
+        // file behind for the next reader to choke on.
+        private void RunPlayerDataSet(ConsoleSystem.Arg arg, string filename, string base64Json)
+        {
+            try
+            {
+                string json;
+                try
+                {
+                    json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(base64Json));
+                }
+                catch (FormatException)
+                {
+                    arg.ReplyWith("ERROR: payload was not valid base64");
+                    return;
+                }
+
+                if (!System.IO.Directory.Exists(ConfigDir))
+                {
+                    System.IO.Directory.CreateDirectory(ConfigDir);
+                }
+
+                var path = $"{ConfigDir}/{filename}";
+                var tmpPath = path + ".tmp";
+                System.IO.File.WriteAllText(tmpPath, json);
+                if (System.IO.File.Exists(path))
+                {
+                    System.IO.File.Delete(path);
+                }
+                System.IO.File.Move(tmpPath, path);
+
+                arg.ReplyWith("OK");
+            }
+            catch (Exception ex)
+            {
+                PrintError($"AmapBridge: failed to write {filename}: {ex.Message}");
+                arg.ReplyWith($"ERROR: {ex.Message}");
+            }
         }
     }
 }

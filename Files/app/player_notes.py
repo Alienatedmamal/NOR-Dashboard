@@ -43,39 +43,42 @@ def _save(data):
     os.replace(tmp_path, NOTES_PATH)
 
 
-def _load_latest():
+def _load_latest(client):
     """The remote copy if reachable (and keeps the local cache fresh while
-    we're at it), otherwise the local cache as a fallback."""
-    data, ok = player_data_sync.pull_json(NOTES_FILENAME)
+    we're at it), otherwise the local cache as a fallback. Returns
+    (data, error) - error is None when the remote pull succeeded, or a
+    human-readable reason when it didn't (the local cache is still
+    returned either way so callers keep working)."""
+    data, ok, error = player_data_sync.pull_json(client, NOTES_FILENAME)
     if ok:
         _save(data)
-        return data
-    return _load()
+        return data, None
+    return _load(), error
 
 
-def force_full_sync():
+def force_full_sync(client):
     """Pulls the full remote notes file and refreshes the local cache with
     it - used by the Players tab's Force Sync button. Every read already
     pulls fresh (see _load_latest), so this exists mainly to give that
     button a clear yes/no on whether the remote was actually reachable,
     and to keep the local fallback cache current even if no one happens
-    to load a specific player's notes right afterward."""
-    data, ok = player_data_sync.pull_json(NOTES_FILENAME)
+    to load a specific player's notes right afterward. Returns (ok, error)."""
+    data, ok, error = player_data_sync.pull_json(client, NOTES_FILENAME)
     if ok:
         _save(data)
-    return ok
+    return ok, error
 
 
-def search_notes(query):
+def search_notes(client, query):
     """Searches every player's notes for `query` (case-insensitive
     substring match against the note text) - lets an admin spot a pattern
     (e.g. "cheating") across everyone instead of needing a SteamID first.
-    Returns matches newest-first."""
+    Returns (matches, error), matches newest-first."""
     query = (query or "").strip().lower()
     if not query:
-        return []
+        return [], None
     with _lock:
-        data = _load_latest()
+        data, error = _load_latest(client)
     matches = [
         {"steamid": steamid, "timestamp": note.get("timestamp"), "type": note.get("type"), "text": note.get("text")}
         for steamid, notes in data.items()
@@ -83,14 +86,18 @@ def search_notes(query):
         if query in (note.get("text") or "").lower()
     ]
     matches.sort(key=lambda m: m.get("timestamp") or "", reverse=True)
-    return matches
+    return matches, error
 
 
-def add_note(steamid, text, note_type="manual"):
+def add_note(client, steamid, text, note_type="manual"):
+    """Returns (ok, error). ok is True as long as the note was saved
+    locally - error is only about whether it also made it to the remote
+    server, since a failed push still leaves the note safe in the local
+    cache (it'll go out on the next successful sync)."""
     if not steamid or not text:
-        return
+        return False, "Missing steamid or text"
     with _lock:
-        data = _load_latest()
+        data, pull_error = _load_latest(client)
         notes = data.setdefault(steamid, [])
         notes.append({
             "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -98,28 +105,40 @@ def add_note(steamid, text, note_type="manual"):
             "text": text,
         })
         _save(data)
-        player_data_sync.push_json(NOTES_FILENAME, data)
+        push_ok, push_error = player_data_sync.push_json(client, NOTES_FILENAME, data)
+        if not push_ok:
+            return True, f"Note saved locally, but didn't sync to the server: {push_error}"
+        if pull_error:
+            return True, f"Note saved and synced, but the latest remote copy couldn't be confirmed first: {pull_error}"
+        return True, None
 
 
-def get_notes(steamid):
+def get_notes(client, steamid):
+    """Returns (notes, error)."""
     with _lock:
-        return _load_latest().get(steamid, [])
+        data, error = _load_latest(client)
+        return data.get(steamid, []), error
 
 
-def delete_note(steamid, index):
+def delete_note(client, steamid, index):
     """Removes the note at position `index` in this player's note list -
     the same order get_notes() returns them in (oldest first). Returns
-    False if there was nothing at that index to delete."""
+    (ok, error) - ok is False if there was nothing at that index to
+    delete; error covers a failed remote push the same way add_note does."""
     with _lock:
-        data = _load_latest()
+        data, pull_error = _load_latest(client)
         notes = data.get(steamid)
         if not notes or index < 0 or index >= len(notes):
-            return False
+            return False, "No note found at that position"
         notes.pop(index)
         if notes:
             data[steamid] = notes
         else:
             del data[steamid]
         _save(data)
-        player_data_sync.push_json(NOTES_FILENAME, data)
-        return True
+        push_ok, push_error = player_data_sync.push_json(client, NOTES_FILENAME, data)
+        if not push_ok:
+            return True, f"Note deleted locally, but didn't sync to the server: {push_error}"
+        if pull_error:
+            return True, f"Note deleted and synced, but the latest remote copy couldn't be confirmed first: {pull_error}"
+        return True, None
