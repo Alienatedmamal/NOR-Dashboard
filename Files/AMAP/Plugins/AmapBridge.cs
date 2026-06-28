@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 
 namespace Oxide.Plugins
 {
-    [Info("AmapBridge", "NOR", "1.1.0")]
+    [Info("AmapBridge", "NOR", "1.2.0")]
     [Description("RCON-only bridge to a fixed whitelist of AMAP server-management scripts, for the NOR Dashboard's AMAP Scripts tab.")]
     public class AmapBridge : RustPlugin
     {
@@ -49,6 +49,11 @@ namespace Oxide.Plugins
 
         private static readonly Regex DigitsOnly = new Regex(@"^\d+$");
         private static readonly Regex WipeDatePattern = new Regex(@"^\d{2}-\d{2}-\d{2,4}$");
+        // The wipe date has no cfg key of its own - it only ever shows up
+        // embedded in the description field's "Next Wipe MM-DD-YY ..." text
+        // (see wipeconfigure.sh/templateconfig.cfg), so View Current Config
+        // has to pull it back out of there to show it as its own line.
+        private static readonly Regex WipeDateInDescription = new Regex(@"Next Wipe (\S+)");
 
         [ConsoleCommand("amap.run")]
         private void RunAmapAction(ConsoleSystem.Arg arg)
@@ -183,10 +188,11 @@ namespace Oxide.Plugins
         }
 
         // Only reports the fields that actually matter for "what's the next
-        // wipe configured to do" - seed, map size, wipe type, and the
-        // description (which is where the wipe date ends up). Deliberately
-        // does not dump the whole file, since config.cfg also holds the
-        // live RCON password and a Discord webhook URL in plain text.
+        // wipe configured to do" - seed, map size, and wipe type, plus the
+        // wipe date pulled back out of the description text (see
+        // WipeDateInDescription above). Deliberately does not dump the
+        // whole file, since config.cfg also holds the live RCON password
+        // and a Discord webhook URL in plain text.
         //
         // Reads the file directly instead of shelling out to grep - even a
         // "fast" subprocess (bash + grep on a tiny file) reliably took
@@ -194,6 +200,11 @@ namespace Oxide.Plugins
         // warning described above. A plain File.ReadLines call has none of
         // that process-spawn overhead, so it stays comfortably fast enough
         // to reply synchronously without the race.
+        //
+        // Reports each value on its own clearly-labeled line (Seed/Map
+        // Size/Wipe Type/Wipe Date) instead of the raw cfg lines verbatim -
+        // the raw "wipetype=..." syntax mixed in with seed's long inline
+        // comment made the wipe type easy to miss at a glance.
         private void RunWipeConfigureView(ConsoleSystem.Arg arg)
         {
             try
@@ -203,26 +214,40 @@ namespace Oxide.Plugins
                     arg.ReplyWith("No wipe config file found yet - run the Wipe Configurator first.");
                     return;
                 }
-                var fields = new[] { "seed=", "worldsize=", "wipetype=", "description=" };
-                var matches = new List<string>();
+                string seed = null, worldSize = null, wipeType = null, description = null;
                 foreach (var line in System.IO.File.ReadLines(WipeConfigPath))
                 {
-                    foreach (var field in fields)
-                    {
-                        if (line.StartsWith(field))
-                        {
-                            matches.Add(line);
-                            break;
-                        }
-                    }
+                    if (line.StartsWith("seed=")) seed = ExtractCfgValue(line);
+                    else if (line.StartsWith("worldsize=")) worldSize = ExtractCfgValue(line);
+                    else if (line.StartsWith("wipetype=")) wipeType = ExtractCfgValue(line);
+                    else if (line.StartsWith("description=")) description = ExtractCfgValue(line);
                 }
-                arg.ReplyWith(matches.Count > 0 ? string.Join("\n", matches) : "Wipe config file exists but none of the expected fields were found.");
+                if (seed == null && worldSize == null && wipeType == null && description == null)
+                {
+                    arg.ReplyWith("Wipe config file exists but none of the expected fields were found.");
+                    return;
+                }
+                var dateMatch = description != null ? WipeDateInDescription.Match(description) : Match.Empty;
+                var wipeDate = dateMatch.Success ? dateMatch.Groups[1].Value : "(not found)";
+                var summary = $"Seed: {seed ?? "(not set)"}\nMap Size: {worldSize ?? "(not set)"}\nWipe Type: {wipeType ?? "(not set)"}\nWipe Date: {wipeDate}";
+                arg.ReplyWith(summary);
             }
             catch (Exception ex)
             {
                 PrintError($"AmapBridge: failed to view wipe config: {ex.Message}");
                 arg.ReplyWith($"Failed to view wipe config: {ex.Message}");
             }
+        }
+
+        // Strips a cfg line down to its value - everything after the first
+        // "=", minus any trailing "# comment" and surrounding quotes.
+        private static string ExtractCfgValue(string line)
+        {
+            var eq = line.IndexOf('=');
+            var value = eq >= 0 ? line.Substring(eq + 1) : line;
+            var hash = value.IndexOf('#');
+            if (hash >= 0) value = value.Substring(0, hash);
+            return value.Trim().Trim('"');
         }
     }
 }
