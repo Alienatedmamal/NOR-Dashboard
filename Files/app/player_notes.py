@@ -66,6 +66,26 @@ def force_full_sync():
     return ok
 
 
+def search_notes(query):
+    """Searches every player's notes for `query` (case-insensitive
+    substring match against the note text) - lets an admin spot a pattern
+    (e.g. "cheating") across everyone instead of needing a SteamID first.
+    Returns matches newest-first."""
+    query = (query or "").strip().lower()
+    if not query:
+        return []
+    with _lock:
+        data = _load_latest()
+    matches = [
+        {"steamid": steamid, "timestamp": note.get("timestamp"), "type": note.get("type"), "text": note.get("text")}
+        for steamid, notes in data.items()
+        for note in notes
+        if query in (note.get("text") or "").lower()
+    ]
+    matches.sort(key=lambda m: m.get("timestamp") or "", reverse=True)
+    return matches
+
+
 def add_note(steamid, text, note_type="manual"):
     if not steamid or not text:
         return

@@ -32,6 +32,7 @@ The first thing you see when you open the dashboard - a quick-glance summary of 
 
 - **Hostname and description** at the top.
 - **Stat cards**: Players (current/max), Queued, BattleMetrics Rank, Framerate, Game Time, Uptime, Map, and Entity Count.
+- **Entity Count History**: a graph of entity count over time, sampled every 5 minutes. Entity count drives server load more than player count does, so this is the thing to watch for a buildup as a wipe approaches. It's local to this install - if the dashboard wasn't running for a stretch, that stretch just shows as a gap, and a brand-new install starts with an empty graph until a few samples come in.
 - **Connected Players** at the bottom - the same live list shown in the Console tab's sidebar.
 
 Most of this comes straight from RCON and updates every 15-20 seconds. BattleMetrics Rank comes from the public BattleMetrics API instead (no API key needed) and updates roughly every 30 seconds, since BattleMetrics' own crawler doesn't refresh a server's data much faster than that anyway. If Rank shows "-", check that `battlemetrics_id` is set in `app/config.json` (see `README.md`).
@@ -54,6 +55,7 @@ The sidebar next to it has two panels: **Give Item** on top - pick a connected p
 - **Offline Players**: recently-seen players who aren't online right now, with the same Look up / Notes shortcuts.
 - **Banned Players**: everyone currently banned, with a one-click Unban.
 - **Player Notes**: paste a SteamID (or use one of the Notes buttons above) and click Load Notes to see their history - ban reasons show up here automatically, and you can add your own free-text notes too. Each note has a Delete button.
+  - **Search All Notes**: type a keyword (e.g. "cheating") and click Search to find it across every player's notes at once, not just one you already have a SteamID for - each result shows who it's about and a Notes button to jump straight to that player's full history.
 
 If Settings > Plugin Deploy is set up, everything on this tab is shared with any other admin running their own copy of the dashboard against the same server - notes sync the moment you add or delete one, and total time/last connected merge in every few minutes. You don't need to do anything for this to work beyond the one-time Plugin Deploy setup; see `README.md`'s "Shared player data" section if you're curious how it works under the hood.
 

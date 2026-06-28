@@ -114,6 +114,13 @@
     </div>
 
     <div class="panel">
+      <h2>Entity Count History</h2>
+      <p class="muted">Entity count drives server load more than player count - watch for buildup between wipes.</p>
+      <canvas id="entity-history-chart" class="entity-history-canvas"></canvas>
+      <p class="muted" id="entity-history-range"></p>
+    </div>
+
+    <div class="panel">
       <h2>Connected Players</h2>
       <div id="overview-player-list" class="console-player-list overview-player-list">
         <p class="muted">Loading...</p>
@@ -230,6 +237,14 @@
     <div class="panel">
       <h2>Player Notes</h2>
       <p class="muted">Ban reasons show up here automatically. You can also add your own notes for any player.</p>
+
+      <h3 class="panel-subheading">Search All Notes</h3>
+      <form class="inline-form" id="notes-search-form" onsubmit="return false;">
+        <input type="text" id="notes-search-query" placeholder="e.g. cheating" autocomplete="off">
+        <button type="submit" class="btn btn-outline">Search</button>
+      </form>
+      <div id="notes-search-results" class="console-output small"></div>
+
       <div class="inline-form">
         <input type="text" id="notes-steamid" class="player-combo" placeholder="SteamID" autocomplete="off">
         <button type="button" id="notes-load" class="btn btn-outline">Load Notes</button>
