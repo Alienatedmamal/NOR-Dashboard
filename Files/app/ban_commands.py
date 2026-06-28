@@ -1,6 +1,7 @@
 """
-Ban/unban helpers using Rust's built-in console commands (vanilla, not
-Oxide-specific).
+Player moderation/admin action helpers using Rust's built-in console
+commands (vanilla, not Oxide-specific): ban/unban/kick, broadcasting a
+chat message, and giving an item to a connected player.
 """
 import re
 
@@ -22,3 +23,16 @@ def ban_player(client, steamid, reason="Banned via NOR Dashboard"):
 
 def unban_player(client, steamid):
     return client.send_command(f"unban {steamid}")
+
+
+def kick_player(client, steamid, reason=""):
+    reason = reason or "Kicked via NOR Dashboard"
+    return client.send_command(f'kick {steamid} "{reason}"')
+
+
+def broadcast_message(client, message):
+    return client.send_command(f'say "{message}"')
+
+
+def give_item(client, steamid, shortname, amount):
+    return client.send_command(f'inventory.giveto "{steamid}" "{shortname}" {amount}')

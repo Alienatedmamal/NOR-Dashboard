@@ -17,7 +17,7 @@ from werkzeug.exceptions import HTTPException
 
 import ssh_ws
 from amap_commands import AMAP_ACTIONS, run_amap_action
-from ban_commands import ban_player, get_banned_steamids, unban_player
+from ban_commands import ban_player, broadcast_message, get_banned_steamids, give_item, kick_player, unban_player
 from battlemetrics import get_server_stats
 from map_data import get_map_image
 from map_entities import get_world_events
@@ -48,6 +48,12 @@ VERSION_PATH = os.path.join(BASE_DIR, "..", "VERSION")
 
 with open(VERSION_PATH, "r", encoding="utf-8") as f:
     VERSION = f.read().strip()
+
+# A curated reference list for the Console tab's Give Item picker - static,
+# not user-editable at runtime like permissions_catalog.json, so it's just
+# loaded straight from the repo copy rather than getting its own module.
+with open(os.path.join(BASE_DIR, "item_catalog.json"), "r", encoding="utf-8") as f:
+    ITEM_CATALOG = json.load(f)
 
 # A small, persistent "what happened" log, separate from dashboard.log (raw
 # stdout/stderr from run.bat - overwritten fresh every launch). Rotates
@@ -387,6 +393,48 @@ def api_command():
         return jsonify({"error": str(exc)}), 502
 
 
+@app.route("/api/console/broadcast", methods=["POST"])
+def api_console_broadcast():
+    body = request.get_json(force=True) or {}
+    message = (body.get("message") or "").strip()
+    if not message:
+        return jsonify({"error": "message is required"}), 400
+    try:
+        response = broadcast_message(get_rcon_client(), message)
+        return jsonify({"response": response})
+    except RconError as exc:
+        reset_rcon_client()
+        return jsonify({"error": str(exc)}), 502
+
+
+@app.route("/api/console/give-item", methods=["POST"])
+def api_console_give_item():
+    body = request.get_json(force=True) or {}
+    steamid = (body.get("steamid") or "").strip()
+    shortname = (body.get("shortname") or "").strip()
+    amount = body.get("amount")
+    if not steamid or not shortname:
+        return jsonify({"error": "steamid and shortname are required"}), 400
+    try:
+        amount = int(amount)
+    except (TypeError, ValueError):
+        return jsonify({"error": "amount must be a number"}), 400
+    if amount < 1:
+        return jsonify({"error": "amount must be at least 1"}), 400
+    try:
+        response = give_item(get_rcon_client(), steamid, shortname, amount)
+        logger.info("Gave %s x%s to %s", shortname, amount, steamid)
+        return jsonify({"response": response})
+    except RconError as exc:
+        reset_rcon_client()
+        return jsonify({"error": str(exc)}), 502
+
+
+@app.route("/api/items/catalog")
+def api_items_catalog():
+    return jsonify({"items": ITEM_CATALOG})
+
+
 @app.route("/api/console/log")
 def api_console_log():
     tail = request.args.get("tail")
@@ -467,6 +515,22 @@ def api_players_unban():
         return jsonify({"error": "steamid is required"}), 400
     try:
         response = unban_player(get_rcon_client(), steamid)
+        return jsonify({"response": response})
+    except RconError as exc:
+        reset_rcon_client()
+        return jsonify({"error": str(exc)}), 502
+
+
+@app.route("/api/players/kick", methods=["POST"])
+def api_players_kick():
+    body = request.get_json(force=True) or {}
+    steamid = (body.get("steamid") or "").strip()
+    reason = (body.get("reason") or "").strip()
+    if not steamid:
+        return jsonify({"error": "steamid is required"}), 400
+    try:
+        response = kick_player(get_rcon_client(), steamid, reason)
+        logger.info("Kicked %s (%s)", steamid, reason or "no reason given")
         return jsonify({"response": response})
     except RconError as exc:
         reset_rcon_client()

@@ -215,6 +215,7 @@ a { color: var(--accent); }
 .console-player-row { display: flex; align-items: center; gap: 10px; }
 .console-player-avatar { width: 36px; height: 36px; border-radius: 6px; border: 1px solid var(--border); flex-shrink: 0; }
 .console-player-avatar-blank { background: rgba(255, 255, 255, .05); }
+.console-player-meta { flex: 1; min-width: 0; }
 .console-player-name { font-weight: 600; font-size: 14px; }
 .console-player-time { font-size: 12px; }
 

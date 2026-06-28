@@ -130,6 +130,30 @@
           <input type="text" id="console-input" placeholder="Type a command, e.g. status" autocomplete="off">
           <button type="submit" class="btn btn-primary">Send</button>
         </form>
+
+        <h3 class="panel-subheading">Broadcast Message</h3>
+        <p class="muted">Sends a chat message to everyone currently connected.</p>
+        <form id="broadcast-form" class="inline-form">
+          <input type="text" id="broadcast-message" placeholder="e.g. Wipe in 10 minutes!" autocomplete="off">
+          <button type="submit" class="btn btn-primary">Send</button>
+        </form>
+
+        <h3 class="panel-subheading">Give Item</h3>
+        <p class="muted">Gives an item to a currently connected player.</p>
+        <form id="give-item-form" class="stacked-form" onsubmit="return false;">
+          <label>Player
+            <select class="custom-select" id="give-item-player"></select>
+          </label>
+          <label>Item
+            <select class="custom-select" id="give-item-shortname"></select>
+          </label>
+          <label>Quantity
+            <input type="number" id="give-item-amount" value="1" min="1" autocomplete="off">
+          </label>
+          <div class="btn-row">
+            <button type="submit" class="btn btn-primary" id="give-item-submit">Give Item</button>
+          </div>
+        </form>
       </div>
 
       <div class="player-sidebar">

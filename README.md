@@ -1,4 +1,4 @@
-# NOR Dashboard v1.2.13
+# NOR Dashboard v1.2.14
 
 A simple admin dashboard for your Rust server: an at-a-glance overview (player count, queue, BattleMetrics rank, and more), a live console feed, server info/settings, online/offline/banned player management with notes, permission management, player ban/Steam history lookups, a live map with player and world-event tracking, an AMAP tab for running server-management scripts, and a wipe countdown. Same black-and-neon-green look as AMAP and nor.workisboring.com.
 
@@ -103,8 +103,8 @@ Three show up in this same folder once you've run the dashboard, each for a diff
 ## What's in here
 
 - **Overview** - the landing page: hostname/description straight from RCON over your server's own header image (`server.headerimage`, set in the Server Info tab - falls back to a default background if it's not set), stat cards (players, queued, BattleMetrics rank, framerate, game time, uptime, map, entity count), and the live connected-players list.
-- **Console** - a live feed of everything your server logs (plugin loads, warnings, chat, command output...), same idea as RustAdmin's console. Type a command and its response shows up in the same feed within a second or two, interleaved with everything else.
-- **Players** - online players (name, SteamID, IP, ping, session/total time, last connected, Rust hours) with one-click ban/unban (reason required and logged) and Look up; plus recently-seen offline players, currently-banned players, and a per-player notes log (ban reasons are added automatically).
+- **Console** - a live feed of everything your server logs (plugin loads, warnings, chat, command output...), same idea as RustAdmin's console. Type a command and its response shows up in the same feed within a second or two, interleaved with everything else. Below it, **Broadcast Message** sends a chat message to everyone connected, and **Give Item** gives a chosen item/quantity to a currently-connected player from a curated list of common items. The Online Players sidebar also has a one-click **Kick** per player.
+- **Players** - online players (name, SteamID, IP, ping, session/total time, last connected, Rust hours) with one-click kick, ban/unban (reason required and logged), and Look up; plus recently-seen offline players, currently-banned players, and a per-player notes log (ban reasons are added automatically).
 - **Player Lookup** - paste a SteamID64 to see their Steam profile, account age, VAC/game ban counts, and community/economy ban status.
 - **Live Map** - your actual map image (via RustMaps.com) with live-updating markers for online players (avatar + name) and world events - cargo ship, patrol helicopter, Bradley APC, CH47, cargo plane. No plugin required; built entirely on vanilla RCON commands (the seed/world size come straight from `server.seed`/`server.worldsize`, so it always matches the live map). Click and drag to pan around it.
 - **Permissions** - grant/revoke an Oxide permission on a player or group, add/remove a player from a group (picked from a dropdown of your server's actual groups, not typed blind), create a new group, and check what permissions/groups a player or group currently has.

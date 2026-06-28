@@ -427,6 +427,65 @@ $("#console-form").addEventListener("submit", async (e) => {
   }
 });
 
+$("#broadcast-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const input = $("#broadcast-message");
+  const message = input.value.trim();
+  if (!message) return;
+  logToConsole("> say " + message, "console-cmd", nowTimestamp());
+  input.value = "";
+  try {
+    const data = await postJson("/api/console/broadcast", { message });
+    if (data.error) logToConsole("Error: " + data.error, "console-error");
+  } catch (err) {
+    logToConsole("Error: " + err.message, "console-error");
+  }
+});
+
+// ---- Give Item ----
+let onlinePlayersForGiveItem = [];
+
+function populateGiveItemPlayerSelect(players) {
+  onlinePlayersForGiveItem = players;
+  const select = $("#give-item-player");
+  select.innerHTML = players.length
+    ? players.map((p) => `<option value="${escapeHtml(p.steamid)}">${escapeHtml(p.name)}</option>`).join("")
+    : '<option value="">(no players online)</option>';
+  select._syncCustomSelectTrigger && select._syncCustomSelectTrigger();
+}
+
+async function loadItemCatalog() {
+  const select = $("#give-item-shortname");
+  try {
+    const data = await fetch("/api/items/catalog").then((res) => res.json());
+    const items = data.items || [];
+    select.innerHTML = items
+      .map((item) => `<option value="${escapeHtml(item.shortname)}">${escapeHtml(item.category)} - ${escapeHtml(item.name)}</option>`)
+      .join("");
+  } catch (err) {
+    select.innerHTML = '<option value="">(could not load item list)</option>';
+  }
+  select._syncCustomSelectTrigger && select._syncCustomSelectTrigger();
+}
+loadItemCatalog();
+
+$("#give-item-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const steamid = $("#give-item-player").value;
+  const shortname = $("#give-item-shortname").value;
+  const amount = $("#give-item-amount").value;
+  if (!steamid) {
+    alert("No player selected - make sure someone's actually connected.");
+    return;
+  }
+  if (!shortname) {
+    alert("Please pick an item.");
+    return;
+  }
+  const data = await postJson("/api/console/give-item", { steamid, shortname, amount });
+  alert(data.error ? "Error: " + data.error : (data.response || "Given."));
+});
+
 // Live console feed - polls for everything the server has logged since the
 // last poll (your own command responses, plugin loads, chat, warnings...),
 // same idea as RustAdmin's console tab. consoleLastSeq starts as null so
@@ -590,7 +649,9 @@ function initCustomSelect(select) {
 // list (avatar, name, session time) - the Console tab's sidebar and the
 // Overview tab. Takes a container element directly rather than a
 // selector, so the same player data can be rendered into both at once.
-function renderPlayerList(box, players, errorMessage) {
+// showActions adds a Kick button per row - only used for the Console
+// sidebar, not the Overview tab's plainer summary list.
+function renderPlayerList(box, players, errorMessage, showActions) {
   if (errorMessage) {
     box.innerHTML = `<p class="muted">Error: ${escapeHtml(errorMessage)}</p>`;
     return;
@@ -607,21 +668,41 @@ function renderPlayerList(box, players, errorMessage) {
       ? `<img class="console-player-avatar" src="${escapeHtml(p.avatar)}" alt="">`
       : '<div class="console-player-avatar console-player-avatar-blank"></div>';
     const timeText = p.connected_seconds != null ? formatSeconds(p.connected_seconds) + " this session" : "-";
+    const actionsHtml = showActions
+      ? `<button type="button" class="btn btn-outline btn-small" data-kick-steamid="${escapeHtml(p.steamid)}" data-kick-name="${escapeHtml(p.name)}">Kick</button>`
+      : "";
     row.innerHTML = `
       ${avatarHtml}
       <div class="console-player-meta">
         <div class="console-player-name">${escapeHtml(p.name)}</div>
         <div class="console-player-time muted">${escapeHtml(timeText)}</div>
       </div>
+      ${actionsHtml}
     `;
     box.appendChild(row);
   });
+  if (showActions) {
+    $all("[data-kick-steamid]", box).forEach((btn) => {
+      btn.addEventListener("click", () => kickPlayer(btn.dataset.kickSteamid, btn.dataset.kickName));
+    });
+  }
+}
+
+// Shared by the Console sidebar's Kick button and the Players tab's table -
+// reason is optional (unlike Ban's, which is required and logged), since a
+// kick is just a temporary removal, not a permanent moderation record.
+async function kickPlayer(steamid, name) {
+  const reason = prompt(`Kick ${name} (${steamid})? Optionally give a reason:`, "");
+  if (reason === null) return; // cancelled
+  const data = await postJson("/api/players/kick", { steamid, reason: reason.trim() });
+  alert(data.error ? "Error: " + data.error : (data.response || "Kicked."));
 }
 
 // Compact player list next to the console - name, avatar, session time.
 // Also doubles as the data source for the Permissions tab's player
-// dropdown suggestions and the Overview tab's connected-players panel,
-// since it's already fetching this every 20s.
+// dropdown suggestions, the Overview tab's connected-players panel, and
+// the Give Item form's player picker, since it's already fetching this
+// every 20s.
 async function refreshConsolePlayerList() {
   const consoleBox = $("#console-player-list");
   const overviewBox = $("#overview-player-list");
@@ -629,18 +710,21 @@ async function refreshConsolePlayerList() {
     const res = await fetch("/api/players/online");
     const data = await res.json();
     if (data.error) {
-      renderPlayerList(consoleBox, [], data.error);
+      renderPlayerList(consoleBox, [], data.error, true);
       renderPlayerList(overviewBox, [], data.error);
       updateOnlinePlayersDatalist([]);
+      populateGiveItemPlayerSelect([]);
       return;
     }
     const players = data.players || [];
     updateOnlinePlayersDatalist(players);
-    renderPlayerList(consoleBox, players);
+    renderPlayerList(consoleBox, players, null, true);
     renderPlayerList(overviewBox, players);
+    populateGiveItemPlayerSelect(players);
   } catch (err) {
-    renderPlayerList(consoleBox, [], err.message);
+    renderPlayerList(consoleBox, [], err.message, true);
     renderPlayerList(overviewBox, [], err.message);
+    populateGiveItemPlayerSelect([]);
   }
 }
 refreshConsolePlayerList();
@@ -766,6 +850,7 @@ async function loadPlayers() {
           <div class="row-actions">
             <button class="btn btn-outline btn-small" data-steamid="${escapeHtml(steamid)}">Look up</button>
             <button class="btn btn-outline btn-small" data-notes-steamid="${escapeHtml(steamid)}">Notes</button>
+            <button class="btn btn-outline btn-small" data-kick-steamid="${escapeHtml(steamid)}" data-kick-name="${escapeHtml(name)}">Kick</button>
             <button class="btn ${banClass} btn-small" data-ban-steamid="${escapeHtml(steamid)}" data-banned="${p.banned ? "true" : "false"}" data-name="${escapeHtml(name)}">${banLabel}</button>
           </div>
         </td>
@@ -778,6 +863,9 @@ async function loadPlayers() {
         $("#lookup-steamid").value = btn.dataset.steamid;
         $("#lookup-form").dispatchEvent(new Event("submit"));
       });
+    });
+    $all("[data-kick-steamid]", body).forEach((btn) => {
+      btn.addEventListener("click", () => kickPlayer(btn.dataset.kickSteamid, btn.dataset.kickName));
     });
     $all("[data-notes-steamid]", body).forEach((btn) => {
       btn.addEventListener("click", () => {

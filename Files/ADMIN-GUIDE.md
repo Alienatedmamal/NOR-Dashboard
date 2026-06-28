@@ -40,11 +40,17 @@ Most of this comes straight from RCON and updates every 15-20 seconds. BattleMet
 
 A live feed of everything the server logs - plugin messages, warnings, chat, and the response to any command you run - same idea as RustAdmin's console. Type a command in the box at the bottom and hit Send; its response shows up in the feed within a second or two, mixed in with everything else happening on the server.
 
-The sidebar next to it lists who's currently online, with how long they've been connected this session.
+The sidebar next to it lists who's currently online, with how long they've been connected this session, and a **Kick** button per player (you'll be prompted for an optional reason).
+
+Below the console input:
+
+- **Broadcast Message**: sends a chat message to everyone currently connected - type it and hit Send, same as typing `say "your message"` directly, just without needing to know the command.
+- **Give Item**: pick a connected player, an item from the list (grouped by category - Resources, Weapons, Ammo, etc.), and a quantity, then click Give Item. Only currently-connected players show up in the player dropdown. The item list is a curated common-items set, not every item in the game - let whoever maintains the dashboard know if something you need is missing.
 
 ## Players tab
 
 - **Online Players**: everyone currently connected, with SteamID, IP, ping, session time, total time on your server, last connected date, and lifetime Rust hours (pulled from Steam).
+  - **Kick**: click the button next to a player - you'll be prompted for an optional reason. Unlike a ban, this isn't logged to their notes, since it's just a temporary removal.
   - **Ban / Unban**: click the button next to a player. Banning requires a reason - you'll be prompted for one, and it gets saved to that player's notes automatically.
   - **Look up**: jumps to the Player Lookup tab with that SteamID already filled in.
   - **Notes**: jumps down to the Player Notes panel with that SteamID loaded.
