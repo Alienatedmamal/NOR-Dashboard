@@ -753,6 +753,87 @@ async function loadOverviewExtras() {
 loadOverviewExtras();
 setInterval(loadOverviewExtras, 30000);
 
+// ---- Overview tab: Entity Count History chart ----
+// A small dependency-free canvas line chart - no charting library, same
+// vanilla-JS approach as the rest of this app. Refetched every 5 minutes
+// to match the backend's own sampling interval (see entity_history.py /
+// app.py's _entity_history_loop) - polling faster wouldn't surface new
+// data any sooner.
+async function loadEntityHistory() {
+  const canvas = $("#entity-history-chart");
+  if (!canvas) return;
+  try {
+    const data = await fetch("/api/server/entity-history").then((res) => res.json());
+    drawEntityHistoryChart(canvas, data.history || []);
+  } catch (err) {
+    // leave whatever was last drawn rather than blanking it on a hiccup
+  }
+}
+loadEntityHistory();
+setInterval(loadEntityHistory, 300000);
+
+function drawEntityHistoryChart(canvas, history) {
+  const rangeLabel = $("#entity-history-range");
+  // Match the canvas's drawing buffer to its rendered CSS size so the line
+  // stays crisp instead of blurring when a fixed-size buffer gets scaled.
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = Math.max(Math.round(rect.width), 1);
+  canvas.height = Math.max(Math.round(rect.height), 1);
+  const ctx = canvas.getContext("2d");
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const styles = getComputedStyle(document.documentElement);
+  const accent = (styles.getPropertyValue("--accent") || "#39ff14").trim();
+  const muted = (styles.getPropertyValue("--text-muted") || "#a6b0a3").trim();
+
+  if (!history || history.length < 2) {
+    ctx.fillStyle = muted;
+    ctx.font = "13px sans-serif";
+    ctx.fillText("Not enough data yet - check back in a few minutes.", 12, h / 2);
+    if (rangeLabel) rangeLabel.textContent = "";
+    return;
+  }
+
+  const counts = history.map((p) => p.entity_count);
+  const minVal = Math.min(...counts);
+  const maxVal = Math.max(...counts);
+  const range = Math.max(maxVal - minVal, 1);
+  const padX = 12;
+  const padTop = 20;
+  const padBottom = 20;
+
+  ctx.beginPath();
+  history.forEach((point, i) => {
+    const x = padX + (i / (history.length - 1)) * (w - padX * 2);
+    const y = padTop + (1 - (point.entity_count - minVal) / range) * (h - padTop - padBottom);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = muted;
+  ctx.font = "12px sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText(`Max: ${maxVal}`, padX, 14);
+  ctx.textAlign = "right";
+  ctx.fillText(`Now: ${counts[counts.length - 1]}`, w - padX, 14);
+  ctx.textAlign = "left";
+  ctx.fillText(`Min: ${minVal}`, padX, h - 6);
+
+  if (rangeLabel) {
+    const start = new Date(history[0].timestamp);
+    const end = new Date(history[history.length - 1].timestamp);
+    rangeLabel.textContent = isNaN(start.getTime()) || isNaN(end.getTime())
+      ? ""
+      : `Showing ${start.toLocaleString()} → ${end.toLocaleString()}`;
+  }
+}
+window.addEventListener("resize", () => loadEntityHistory());
+
 // ---- Overview tab extras: description + header image, straight from RCON ----
 // Reuses /api/server/settings (same endpoint the Server Info tab edits
 // through) rather than a separate call - description and headerimage are
@@ -1025,6 +1106,43 @@ function formatNoteTimestamp(iso) {
   return isNaN(d.getTime()) ? iso : d.toLocaleString();
 }
 
+async function searchAllNotes(query) {
+  const box = $("#notes-search-results");
+  if (!query) {
+    box.innerHTML = '<p class="muted">Enter a search term first.</p>';
+    return;
+  }
+  box.innerHTML = '<p class="muted">Searching...</p>';
+  try {
+    const data = await fetch(`/api/players/notes/search?q=${encodeURIComponent(query)}`).then((res) => res.json());
+    if (data.error) {
+      box.innerHTML = `<p class="muted">Error: ${escapeHtml(data.error)}</p>`;
+      return;
+    }
+    const matches = data.matches || [];
+    if (matches.length === 0) {
+      box.innerHTML = '<p class="muted">No notes matched.</p>';
+      return;
+    }
+    box.innerHTML = matches
+      .map((m) => `
+        <div class="console-line note-row">
+          <span>[${escapeHtml(formatNoteTimestamp(m.timestamp))}] (${escapeHtml(m.type)}) <strong>${escapeHtml(m.steamid)}</strong>: ${escapeHtml(m.text)}</span>
+          <button class="btn btn-outline btn-small" data-jump-steamid="${escapeHtml(m.steamid)}">Notes</button>
+        </div>
+      `)
+      .join("");
+    $all("[data-jump-steamid]", box).forEach((btn) => {
+      btn.addEventListener("click", () => {
+        $("#notes-steamid").value = btn.dataset.jumpSteamid;
+        loadNotes(btn.dataset.jumpSteamid);
+      });
+    });
+  } catch (err) {
+    box.innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
+  }
+}
+
 async function loadNotes(steamid) {
   const box = $("#notes-list");
   if (!steamid) {
@@ -1071,6 +1189,11 @@ async function loadNotes(steamid) {
     box.innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
   }
 }
+
+$("#notes-search-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  searchAllNotes($("#notes-search-query").value.trim());
+});
 
 $("#notes-load").addEventListener("click", () => loadNotes($("#notes-steamid").value.trim()));
 

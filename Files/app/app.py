@@ -19,6 +19,7 @@ import ssh_ws
 from amap_commands import AMAP_ACTIONS, run_amap_action
 from ban_commands import ban_player, broadcast_message, get_banned_steamids, give_item, kick_player, unban_player
 from battlemetrics import get_server_stats
+from entity_history import get_history as get_entity_history, record_sample as record_entity_sample
 from map_data import get_map_image
 from map_entities import get_world_events
 from oxide_commands import (
@@ -33,7 +34,7 @@ from oxide_commands import (
     show_user,
 )
 from permissions_catalog import KNOWN_PERMISSIONS
-from player_notes import add_note, delete_note, force_full_sync, get_notes
+from player_notes import add_note, delete_note, force_full_sync, get_notes, search_notes
 from player_stats import get_all_stats, get_stats, record_snapshot, sync_with_remote
 from plugin_deploy import list_known_plugin_names, upload_plugin
 from rcon_client import RconClient, RconError, get_log_since, get_log_tail, get_players
@@ -103,6 +104,7 @@ HEARTBEAT_TIMEOUT_SECONDS = 90
 HEARTBEAT_GRACE_SECONDS = 30
 WATCHDOG_CHECK_INTERVAL_SECONDS = 10
 PLAYER_STATS_SYNC_INTERVAL_SECONDS = 300
+ENTITY_HISTORY_INTERVAL_SECONDS = 300
 
 # Cooldown for the Players tab's manual Force Sync button - protects the
 # Rust server's SSH connection from being hammered if someone double-clicks
@@ -557,6 +559,14 @@ def api_players_notes_get():
     return jsonify({"notes": get_notes(steamid)})
 
 
+@app.route("/api/players/notes/search")
+def api_players_notes_search():
+    query = request.args.get("q", "").strip()
+    if not query:
+        return jsonify({"error": "q is required"}), 400
+    return jsonify({"matches": search_notes(query)})
+
+
 @app.route("/api/players/notes", methods=["POST"])
 def api_players_notes_add():
     body = request.get_json(force=True) or {}
@@ -808,6 +818,11 @@ def api_server_info():
         return jsonify({"error": str(exc)}), 502
 
 
+@app.route("/api/server/entity-history")
+def api_server_entity_history():
+    return jsonify({"history": get_entity_history()})
+
+
 @app.route("/api/server/settings", methods=["GET"])
 def api_server_settings_get():
     try:
@@ -1015,6 +1030,24 @@ def _player_stats_sync_loop():
         time.sleep(PLAYER_STATS_SYNC_INTERVAL_SECONDS)
 
 
+def _entity_history_loop():
+    """Samples the server's current EntityCount (from serverinfo) every
+    few minutes and records it via entity_history.py, so the Overview
+    tab's history graph has something to draw - runs independent of
+    whether a browser tab is open, same as the player tracker above."""
+    while True:
+        try:
+            info = get_server_info(get_rcon_client())
+            entity_count = info.get("EntityCount")
+            if entity_count is not None:
+                record_entity_sample(entity_count)
+        except RconError as exc:
+            logger.info("Entity history: RCON unreachable this cycle: %s", exc)
+        except Exception:
+            logger.exception("Entity history: unexpected error")
+        time.sleep(ENTITY_HISTORY_INTERVAL_SECONDS)
+
+
 def _heartbeat_watchdog_loop():
     """Shuts the whole process down once the browser stops sending
     heartbeats (see /api/heartbeat) - this is what makes closing the
@@ -1037,5 +1070,6 @@ if __name__ == "__main__":
     logger.info("Starting NOR Dashboard v%s", VERSION)
     threading.Thread(target=_player_tracker_loop, daemon=True).start()
     threading.Thread(target=_player_stats_sync_loop, daemon=True).start()
+    threading.Thread(target=_entity_history_loop, daemon=True).start()
     threading.Thread(target=_heartbeat_watchdog_loop, daemon=True).start()
     app.run(host="127.0.0.1", port=5050, debug=False, threaded=True)
