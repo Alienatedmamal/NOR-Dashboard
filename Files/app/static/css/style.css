@@ -291,6 +291,17 @@ a { color: var(--accent); }
   background: var(--dot-color);
   box-shadow: 0 0 5px var(--dot-color);
 }
+/* Optional item icon next to a dropdown option/trigger label - opt-in via
+   a data-icon attribute on the <option>, used by the Give Item picker but
+   generic to any custom-select, same idea as the color dot above. */
+.combo-option-icon {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  margin-right: 8px;
+  vertical-align: middle;
+  object-fit: contain;
+}
 
 .custom-select-hidden { display: none; }
 .custom-select-trigger {

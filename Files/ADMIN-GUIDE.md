@@ -45,7 +45,7 @@ The sidebar next to it lists who's currently online, with how long they've been 
 Below the console input:
 
 - **Broadcast Message**: sends a chat message to everyone currently connected - type it and hit Send, same as typing `say "your message"` directly, just without needing to know the command.
-- **Give Item**: pick a connected player, an item from the list (grouped by category - Resources, Weapons, Ammo, etc.), and a quantity, then click Give Item. Only currently-connected players show up in the player dropdown. The item list is a curated common-items set, not every item in the game - let whoever maintains the dashboard know if something you need is missing.
+- **Give Item**: pick a connected player, an item from the list (grouped by category - Resources, Weapons, Ammo, etc., each with its icon), and a quantity, then click Give Item. Only currently-connected players show up in the player dropdown. The item list is a curated common-items set, not every item in the game - let whoever maintains the dashboard know if something you need is missing.
 
 ## Players tab
 

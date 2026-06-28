@@ -460,7 +460,7 @@ async function loadItemCatalog() {
     const data = await fetch("/api/items/catalog").then((res) => res.json());
     const items = data.items || [];
     select.innerHTML = items
-      .map((item) => `<option value="${escapeHtml(item.shortname)}">${escapeHtml(item.category)} - ${escapeHtml(item.name)}</option>`)
+      .map((item) => `<option value="${escapeHtml(item.shortname)}" data-icon="/static/img/items/${escapeHtml(item.shortname)}.png">${escapeHtml(item.category)} - ${escapeHtml(item.name)}</option>`)
       .join("");
   } catch (err) {
     select.innerHTML = '<option value="">(could not load item list)</option>';
@@ -597,9 +597,16 @@ function initCustomSelect(select) {
     return color ? `<span class="combo-option-dot" style="--dot-color:${escapeHtml(color)}"></span>` : "";
   }
 
+  // Optional, opt-in via a data-icon attribute on the <option> (e.g. the
+  // Give Item picker's item images) - generic to any custom-select, same
+  // idea as the color dot above.
+  function iconHtml(src) {
+    return src ? `<img class="combo-option-icon" src="${escapeHtml(src)}" alt="">` : "";
+  }
+
   function syncTrigger() {
     const opt = select.options[select.selectedIndex];
-    trigger.innerHTML = opt ? `${dotHtml(opt.dataset.color)}${escapeHtml(opt.textContent)}` : "";
+    trigger.innerHTML = opt ? `${dotHtml(opt.dataset.color)}${iconHtml(opt.dataset.icon)}${escapeHtml(opt.textContent)}` : "";
   }
 
   function closeList() {
@@ -617,7 +624,7 @@ function initCustomSelect(select) {
       return;
     }
     list.innerHTML = Array.from(select.options)
-      .map((opt) => `<div class="combo-option" data-value="${escapeHtml(opt.value)}">${dotHtml(opt.dataset.color)}${escapeHtml(opt.textContent)}</div>`)
+      .map((opt) => `<div class="combo-option" data-value="${escapeHtml(opt.value)}">${dotHtml(opt.dataset.color)}${iconHtml(opt.dataset.icon)}${escapeHtml(opt.textContent)}</div>`)
       .join("");
     list.hidden = false;
     document.addEventListener("mousedown", onDocMouseDown);
