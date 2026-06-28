@@ -542,6 +542,7 @@ def api_players_kick():
     try:
         response = kick_player(get_rcon_client(), steamid, reason)
         logger.info("Kicked %s (%s)", steamid, reason or "no reason given")
+        add_note(steamid, reason or "Kicked via NOR Dashboard (no reason given)", note_type="kick")
         return jsonify({"response": response})
     except RconError as exc:
         reset_rcon_client()

@@ -47,7 +47,7 @@ The sidebar next to it has two panels: **Give Item** on top - pick a connected p
 ## Players tab
 
 - **Online Players**: everyone currently connected, with SteamID, IP, ping, session time, total time on your server, last connected date, and lifetime Rust hours (pulled from Steam).
-  - **Kick**: click the button next to a player - you'll be prompted for an optional reason. Unlike a ban, this isn't logged to their notes, since it's just a temporary removal.
+  - **Kick**: click the button next to a player - you'll be prompted for an optional reason, which gets saved to that player's notes automatically, same as a ban.
   - **Ban / Unban**: click the button next to a player. Banning requires a reason - you'll be prompted for one, and it gets saved to that player's notes automatically.
   - **Look up**: jumps to the Player Lookup tab with that SteamID already filled in.
   - **Notes**: jumps down to the Player Notes panel with that SteamID loaded.
