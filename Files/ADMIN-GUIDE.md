@@ -95,6 +95,10 @@ Fill in Host, Port (defaults to 22), Username, and Password, then click Connect.
 
 Nothing typed into this tab - host, username, or password - is ever written to `config.json` or any other file. It only exists in memory for the life of that one connection, same as typing a password into a normal terminal program.
 
+## Help tab
+
+A link out to this project's GitHub repo - more in-app guidance is planned for this tab later.
+
 ## AMAP tab
 
 Runs your actual AMAP server-management scripts remotely over RCON - no SSH access needed on your PC at all.
@@ -110,7 +114,7 @@ What each card actually does:
 | Server Backup | Noncritical | Backs up all server data. |
 | Log Cleaner | Noncritical | Clears the logs. |
 | Server Checker | Noncritical | Checks if the server is running. If it fails to restart, posts an alert to Discord. |
-| Wipe Configurator | Noncritical | Writes the config for the next wipe (seed, map size, wipe date, wipe type - you fill in the four fields on the card itself). Doesn't affect the live server; it only prepares what the *next* wipe will use. Has its own **View Current Config** button to see what's currently saved before you overwrite it - shows just the seed, map size, wipe type, and description, never the RCON password or Discord webhook that also live in that file. |
+| Wipe Configurator | Noncritical | Writes the config for the next wipe (seed, map size, wipe date, wipe type - you fill in the four fields on the card itself). Doesn't affect the live server; it only prepares what the *next* wipe will use. Has its own **View Current Config** button to see what's currently saved before you overwrite it - reports Seed, Map Size, Wipe Type, and Wipe Date as clearly labeled lines, never the RCON password or Discord webhook that also live in that file. |
 | Updater | Critical | Updates the server. May stop the server. |
 | Map Wipe | Critical | Wipes the map. Blueprints are kept. |
 | Full Wipe | Critical | Full wipe - deletes the map and all player data. This cannot be undone. |
