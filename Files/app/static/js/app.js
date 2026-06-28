@@ -702,7 +702,13 @@ async function kickPlayer(steamid, name) {
   const reason = prompt(`Kick ${name} (${steamid})? Optionally give a reason:`, "");
   if (reason === null) return; // cancelled
   const data = await postJson("/api/players/kick", { steamid, reason: reason.trim() });
-  alert(data.error ? "Error: " + data.error : (data.response || "Kicked."));
+  if (data.error) {
+    alert("Error: " + data.error);
+  } else if (data.note_warning) {
+    alert(`${data.response || "Kicked."}\n\nWarning: ${data.note_warning}`);
+  } else {
+    alert(data.response || "Kicked.");
+  }
 }
 
 // Compact player list next to the console - name, avatar, session time.
@@ -978,6 +984,7 @@ async function loadPlayers() {
           }
           const data = await postJson("/api/players/ban", { steamid, reason: reason.trim() });
           if (data.error) alert("Error: " + data.error);
+          else if (data.note_warning) alert("Warning: " + data.note_warning);
         }
         refreshAllPlayerTables();
       });
@@ -1121,11 +1128,12 @@ async function searchAllNotes(query) {
       return;
     }
     const matches = data.matches || [];
+    const warningHtml = data.sync_warning ? `<p class="muted sync-warning">Warning: ${escapeHtml(data.sync_warning)}</p>` : "";
     if (matches.length === 0) {
-      box.innerHTML = '<p class="muted">No notes matched.</p>';
+      box.innerHTML = warningHtml + '<p class="muted">No notes matched.</p>';
       return;
     }
-    box.innerHTML = matches
+    box.innerHTML = warningHtml + matches
       .map((m) => `
         <div class="console-line note-row">
           <span>[${escapeHtml(formatNoteTimestamp(m.timestamp))}] (${escapeHtml(m.type)}) <strong>${escapeHtml(m.steamid)}</strong>: ${escapeHtml(m.text)}</span>
@@ -1159,11 +1167,12 @@ async function loadNotes(steamid) {
       return;
     }
     const notes = data.notes || [];
+    const warningHtml = data.sync_warning ? `<p class="muted sync-warning">Warning: ${escapeHtml(data.sync_warning)}</p>` : "";
     if (notes.length === 0) {
-      box.innerHTML = '<p class="muted">No notes for this player yet.</p>';
+      box.innerHTML = warningHtml + '<p class="muted">No notes for this player yet.</p>';
       return;
     }
-    box.innerHTML = notes
+    box.innerHTML = warningHtml + notes
       .map((n, i) => ({ n, i }))
       .reverse()
       .map(({ n, i }) => `
@@ -1183,6 +1192,7 @@ async function loadNotes(steamid) {
         });
         const delData = await delRes.json();
         if (delData.error) alert("Error: " + delData.error);
+        else if (delData.sync_warning) alert("Warning: " + delData.sync_warning);
         loadNotes(btn.dataset.deleteNoteSteamid);
       });
     });
@@ -1221,7 +1231,11 @@ $("#notes-force-sync").addEventListener("click", async () => {
       showSyncBubble("Have to wait 10 seconds between syncs.", true);
       return;
     }
-    showSyncBubble("Synced notes and stats with the server.", false);
+    if (data.errors && data.errors.length) {
+      showSyncBubble(data.errors.join(" / "), true);
+    } else {
+      showSyncBubble("Synced notes and stats with the server.", false);
+    }
     const steamid = $("#notes-steamid").value.trim();
     if (steamid) loadNotes(steamid);
   } catch (err) {
@@ -1242,6 +1256,7 @@ $("#notes-add-form").addEventListener("submit", async (e) => {
     alert("Error: " + data.error);
     return;
   }
+  if (data.sync_warning) alert("Warning: " + data.sync_warning);
   $("#notes-text").value = "";
   loadNotes(steamid);
 });

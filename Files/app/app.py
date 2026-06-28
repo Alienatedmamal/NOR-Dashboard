@@ -516,8 +516,11 @@ def api_players_ban():
     except RconError as exc:
         reset_rcon_client()
         return jsonify({"error": str(exc)}), 502
-    add_note(steamid, reason, note_type="ban")
-    return jsonify({"response": response})
+    _note_ok, note_error = add_note(get_rcon_client(), steamid, reason, note_type="ban")
+    result = {"response": response}
+    if note_error:
+        result["note_warning"] = f"Ban succeeded, but the ban note couldn't be fully synced: {note_error}"
+    return jsonify(result)
 
 
 @app.route("/api/players/unban", methods=["POST"])
@@ -544,8 +547,11 @@ def api_players_kick():
     try:
         response = kick_player(get_rcon_client(), steamid, reason)
         logger.info("Kicked %s (%s)", steamid, reason or "no reason given")
-        add_note(steamid, reason or "Kicked via NOR Dashboard (no reason given)", note_type="kick")
-        return jsonify({"response": response})
+        _note_ok, note_error = add_note(get_rcon_client(), steamid, reason or "Kicked via NOR Dashboard (no reason given)", note_type="kick")
+        result = {"response": response}
+        if note_error:
+            result["note_warning"] = f"Kick succeeded, but the kick note couldn't be fully synced: {note_error}"
+        return jsonify(result)
     except RconError as exc:
         reset_rcon_client()
         return jsonify({"error": str(exc)}), 502
@@ -556,7 +562,11 @@ def api_players_notes_get():
     steamid = request.args.get("steamid", "").strip()
     if not steamid:
         return jsonify({"error": "steamid is required"}), 400
-    return jsonify({"notes": get_notes(steamid)})
+    notes, error = get_notes(get_rcon_client(), steamid)
+    result = {"notes": notes}
+    if error:
+        result["sync_warning"] = f"Showing the locally cached notes - couldn't confirm the latest copy from the server: {error}"
+    return jsonify(result)
 
 
 @app.route("/api/players/notes/search")
@@ -564,7 +574,11 @@ def api_players_notes_search():
     query = request.args.get("q", "").strip()
     if not query:
         return jsonify({"error": "q is required"}), 400
-    return jsonify({"matches": search_notes(query)})
+    matches, error = search_notes(get_rcon_client(), query)
+    result = {"matches": matches}
+    if error:
+        result["sync_warning"] = f"Showing locally cached notes - couldn't confirm the latest copy from the server: {error}"
+    return jsonify(result)
 
 
 @app.route("/api/players/notes", methods=["POST"])
@@ -574,8 +588,11 @@ def api_players_notes_add():
     text = (body.get("text") or "").strip()
     if not steamid or not text:
         return jsonify({"error": "steamid and text are required"}), 400
-    add_note(steamid, text, note_type="manual")
-    return jsonify({"ok": True})
+    ok, error = add_note(get_rcon_client(), steamid, text, note_type="manual")
+    result = {"ok": ok}
+    if error:
+        result["sync_warning"] = error
+    return jsonify(result)
 
 
 @app.route("/api/players/notes", methods=["DELETE"])
@@ -589,8 +606,14 @@ def api_players_notes_delete():
         index = int(index)
     except (TypeError, ValueError):
         return jsonify({"error": "index must be a number"}), 400
-    ok = delete_note(steamid, index)
-    return jsonify({"ok": ok})
+    ok, error = delete_note(get_rcon_client(), steamid, index)
+    result = {"ok": ok}
+    if error:
+        if ok:
+            result["sync_warning"] = error
+        else:
+            result["error"] = error
+    return jsonify(result)
 
 
 @app.route("/api/players/sync-now", methods=["POST"])
@@ -602,9 +625,13 @@ def api_players_sync_now():
             wait_seconds = int(round(FORCE_SYNC_COOLDOWN_SECONDS - elapsed))
             return jsonify({"ok": False, "error": "cooldown", "wait_seconds": max(wait_seconds, 1)}), 429
         _last_force_sync_at = time.time()
-    notes_synced = force_full_sync()
-    stats_synced = sync_with_remote()
-    return jsonify({"ok": True, "notes_synced": notes_synced, "stats_synced": stats_synced})
+    notes_synced, notes_error = force_full_sync(get_rcon_client())
+    stats_synced, stats_error = sync_with_remote(get_rcon_client())
+    result = {"ok": True, "notes_synced": notes_synced, "stats_synced": stats_synced}
+    errors = [e for e in (notes_error, stats_error) if e]
+    if errors:
+        result["errors"] = errors
+    return jsonify(result)
 
 
 @app.route("/api/players/offline")
@@ -1019,14 +1046,19 @@ def _player_stats_sync_loop():
     whatever's on the Rust server (see player_stats.sync_with_remote and
     player_data_sync.py) every few minutes - deliberately not on every
     60s record_snapshot() tick, since that would mean every admin's
-    dashboard hitting SFTP once a minute. A short initial delay, not the
-    full interval, so a freshly-opened dashboard picks up other admins'
-    data quickly rather than waiting minutes for the first sync. A no-op
-    (silently) if Plugin Deploy isn't configured."""
+    dashboard hitting RCON once a minute just for this. A short initial
+    delay, not the full interval, so a freshly-opened dashboard picks up
+    other admins' data quickly rather than waiting minutes for the first
+    sync. Sync failures land in the log instead of going silent, since
+    this loop has no UI to surface them through on its own - the Players
+    tab's Force Sync button is what gives an admin an on-demand,
+    in-browser version of the same error."""
     time.sleep(15)
     while True:
         try:
-            sync_with_remote()
+            ok, error = sync_with_remote(get_rcon_client())
+            if not ok:
+                logger.info("Player stats sync: %s", error)
         except Exception:
             logger.exception("Player stats sync: unexpected error")
         time.sleep(PLAYER_STATS_SYNC_INTERVAL_SECONDS)
