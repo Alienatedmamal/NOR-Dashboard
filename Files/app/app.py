@@ -627,6 +627,7 @@ def api_players_offline():
         offline.append({
             "steamid": steamid,
             "name": entry.get("name", ""),
+            "ip": entry.get("last_ip", ""),
             "last_connected": entry.get("last_connected"),
             "total_seconds_on_server": entry.get("total_seconds", 0),
         })
@@ -999,8 +1000,9 @@ def _player_tracker_loop():
                 for p in players:
                     steamid = p.get("SteamID") or p.get("steamid") or ""
                     name = p.get("DisplayName") or p.get("Name") or p.get("name") or ""
+                    ip = p.get("Address") or p.get("address") or ""
                     if steamid:
-                        snapshot.append({"steamid": steamid, "name": name})
+                        snapshot.append({"steamid": steamid, "name": name, "ip": ip})
                 record_snapshot(snapshot)
         except RconError as exc:
             logger.info("Player tracker: RCON unreachable this cycle: %s", exc)

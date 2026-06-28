@@ -25,11 +25,28 @@ def remove_user_from_group(client, user, group):
 
 
 def show_user(client, user):
-    return client.send_command(f'oxide.show user "{user}"')
+    return _show_with_retry(client, f'oxide.show user "{user}"')
 
 
 def show_group(client, group):
-    return client.send_command(f'oxide.show group "{group}"')
+    return _show_with_retry(client, f'oxide.show group "{group}"')
+
+
+def _show_with_retry(client, command):
+    """The real fix for the empty-reply flakiness these commands used to
+    hit lives in rcon_client.py's _reader_loop (a genuine race between two
+    server messages sharing one Identifier, not just bad luck) - this
+    retry is just a cheap defensive backstop in case anything still slips
+    through (e.g. under real network/server load this quick local testing
+    didn't reproduce), not the primary defense anymore."""
+    response = ""
+    for attempt in range(3):
+        if attempt > 0:
+            time.sleep(0.5)
+        response = client.send_command(command)
+        if response and response.strip():
+            return response
+    return response
 
 
 def create_group(client, group, title=""):
@@ -58,15 +75,15 @@ def parse_group_names(raw):
 
 def list_group_names(client):
     """list_groups() above hits the live server fresh every time, which
-    surfaced a real flakiness in testing: 'oxide.show groups' intermittently
-    comes back as an empty string even though the server genuinely has
-    groups (looks like the real listing and an earlier near-empty ack share
-    the same RCON response identifier, and whichever arrives first is what
-    gets captured) - and confirmed worse than a one-off: right after a
-    group-mutating command on the same connection, it can take a couple of
-    tries in a row before a real response comes back. Retries up to 3 times
-    total, with a brief pause between attempts (not before the first) to
-    give the connection a moment to settle rather than hammering it."""
+    originally surfaced a real flakiness in testing: 'oxide.show groups'
+    intermittently came back as an empty string even though the server
+    genuinely has groups. Root cause confirmed and fixed in
+    rcon_client.py's _reader_loop - the real listing and a second, empty
+    acknowledgement both arrive tagged with the same RCON response
+    Identifier, and without popping the pending waiter atomically on the
+    first match, the second message could race in and overwrite the real
+    one before send_command() read it. This retry now just a cheap
+    defensive backstop, not the primary fix."""
     for attempt in range(3):
         if attempt > 0:
             time.sleep(0.5)

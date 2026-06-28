@@ -52,7 +52,7 @@ The sidebar next to it has two panels: **Give Item** on top - pick a connected p
   - **Ban / Unban**: click the button next to a player. Banning requires a reason - you'll be prompted for one, and it gets saved to that player's notes automatically.
   - **Look up**: jumps to the Player Lookup tab with that SteamID already filled in.
   - **Notes**: jumps down to the Player Notes panel with that SteamID loaded.
-- **Offline Players**: recently-seen players who aren't online right now, with the same Look up / Notes shortcuts.
+- **Offline Players**: recently-seen players who aren't online right now, with the same Look up / Notes shortcuts. Shows each player's last-known IP alongside their name/SteamID, same as the Online Players table.
 - **Banned Players**: everyone currently banned, with a one-click Unban.
 - **Player Notes**: paste a SteamID (or use one of the Notes buttons above) and click Load Notes to see their history - ban reasons show up here automatically, and you can add your own free-text notes too. Each note has a Delete button.
   - **Search All Notes**: type a keyword (e.g. "cheating") and click Search to find it across every player's notes at once, not just one you already have a SteamID for - each result shows who it's about and a Notes button to jump straight to that player's full history.
@@ -79,7 +79,7 @@ Hover any marker to see its name/label. Click Refresh if the map image hasn't lo
 Three independent panels:
 
 - **Grant / Revoke Permission**: pick Player or Group, type their name/SteamID (or group name), type or pick a permission from the suggestions, then Grant or Revoke.
-- **Add / Remove From Group**: pick a group from the dropdown (populated from your server's actual groups, not typed blind) and add or remove a player. Below it, **Create New Group** makes a brand new one (name required, title optional), and **Remove Group** deletes one entirely - pick it from the dropdown and confirm; this is permanent and also removes whatever permissions/members that group had. Both update the dropdown right after, though occasionally you may need to switch tabs and back if the list doesn't refresh immediately (the server's response to a group list lookup is occasionally flaky right after a change - the create/remove itself still goes through either way, this is just the dropdown catching up).
+- **Add / Remove From Group**: pick a group from the dropdown (populated from your server's actual groups, not typed blind) and add or remove a player. Below it, **Create New Group** makes a brand new one (name required, title optional), and **Remove Group** deletes one entirely - pick it from the dropdown and confirm; this is permanent and also removes whatever permissions/members that group had. Both update the dropdown right after automatically.
 - **Check Current Permissions**: pick Player or Group and a name, click Show, and it prints exactly what that player or group currently has.
 
 All three name/SteamID fields let you click in and pick from currently-online players, or just type a SteamID/group name directly.
@@ -99,7 +99,7 @@ Nothing typed into this tab - host, username, or password - is ever written to `
 
 ## Help tab
 
-A link out to this project's GitHub repo - more in-app guidance is planned for this tab later.
+A link out to this project's GitHub repo - more in-app guidance is planned for this tab later. Click **Show FAQ / Troubleshooting** above it for quick answers to common questions without leaving the dashboard.
 
 ## AMAP tab
 
@@ -134,7 +134,7 @@ Below the cards, the **Upload Plugin** panel sends a `.cs` file straight to your
 Six sub-pages along the top:
 
 - **RCON**: edit the host/port/password the dashboard uses to talk to your Rust server. Click **Save & Reconnect** and it takes effect immediately - no need to restart the dashboard or touch `config.json` by hand.
-- **API Keys**: the same Steam Web/RustMaps/BattleMetrics fields from one-time setup in `README.md`, editable here instead of by hand in `config.json`. All three are optional - leave any of them blank and the feature it powers (Player Lookup/Rust hours/avatars, the Live Map background image, or the Overview tab's Rank stat) just turns itself off until you fill it in. Saving applies immediately, no restart needed.
+- **API Keys**: the same Steam Web/RustMaps/BattleMetrics fields from one-time setup in `README.md`, editable here instead of by hand in `config.json`. All three are optional - leave any of them blank and the feature it powers (Player Lookup/Rust hours/avatars, the Live Map background image, or the Overview tab's Rank stat) just turns itself off until you fill it in. Saving applies immediately, no restart needed. The Steam Web and RustMaps key fields are masked like a password box - click into the field and select-all if you need to check what's currently saved.
 - **Theme**: pick a preset from the dropdown to switch the whole dashboard's colors instantly, or use the four color pickers (Accent, Background, Text, Danger/Alerts) to build your own - the layout never changes, only colors. Both are just a live preview until you click **Save** - close the dashboard without saving and it'll go back to whatever was last saved (or the default green theme, if nothing ever was). **Reset to Default** previews the original green theme; click **Save** afterward to actually keep it. Saved in this dashboard's own `config.json`, not just your browser - so it looks the same in any browser tab pointed at *this* install. It is **not** synced to the Rust server the way player notes/stats are (see the Players tab section above) - a different admin running their own separate copy of the dashboard keeps their own independent theme.
 - **Wipe Schedule**: controls the countdown shown in the header. Pick Daily, Bi-weekly (every 14 days from a date you set once), or Monthly (first Thursday), plus the time and timezone. Same as Theme - saved in this dashboard's own `config.json`, consistent across any browser tab pointed at *this* install, but not synced to the Rust server or shared with a different admin's separate dashboard copy.
 - **Plugin Deploy**: the host/username/folder path the AMAP tab's Upload Plugin panel sends files to - see the AMAP section above and `README.md`'s SSH key setup steps.

@@ -133,8 +133,22 @@ class RconClient:
 
             quiet = False
             if ident:
+                # Pop (not just look up) the moment the first message for
+                # this Identifier arrives. Some commands (oxide.show
+                # user/group/groups, confirmed by testing) send the real
+                # response immediately followed by a second, empty
+                # acknowledgement that reuses the same Identifier - without
+                # popping here, that second message can overwrite
+                # waiter["message"] with the empty one before send_command()
+                # (woken by the first message's event.set()) gets a chance
+                # to read it, a genuine race since both run on different
+                # threads. Removing the entry atomically with the first
+                # match means any later message sharing that Identifier
+                # finds nothing pending and just falls through to the
+                # general log below instead of corrupting an already-
+                # answered request.
                 with self._pending_lock:
-                    waiter = self._pending.get(ident)
+                    waiter = self._pending.pop(ident, None)
                 if waiter is not None:
                     waiter["message"] = message
                     quiet = waiter.get("quiet", False)
@@ -148,6 +162,7 @@ class RconClient:
         with self._pending_lock:
             for waiter in self._pending.values():
                 waiter["event"].set()
+            self._pending.clear()
 
     def send_command(self, message, quiet=False):
         """Send one RCON command and return the server's text response.
@@ -185,10 +200,15 @@ class RconClient:
                         self._ws.settimeout(None)
 
                     got = waiter["event"].wait(self.timeout)
-                    with self._pending_lock:
-                        self._pending.pop(ident, None)
-
+                    # No pop needed here on the success path - _reader_loop
+                    # already removed this entry from self._pending the
+                    # moment it matched the first message (see its comment),
+                    # which is what makes waiter["message"] safe to read
+                    # without a race. Only the timeout case below still
+                    # needs cleanup, since nothing ever arrived to pop it.
                     if not got:
+                        with self._pending_lock:
+                            self._pending.pop(ident, None)
                         raise RconError("Timed out waiting for a response from the server")
                     if waiter["message"] is None:
                         raise RconError("Connection closed before a response was received")
