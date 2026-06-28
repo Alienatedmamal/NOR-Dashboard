@@ -540,18 +540,6 @@ input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:foc
 }
 .toast-flash { animation: toast-flash-pulse 0.5s ease-in-out 3; }
 
-.amap-warning {
-  background: rgba(255, 77, 77, .08);
-  border: 1px solid var(--border);
-  border-left: 4px solid var(--danger);
-  border-radius: 8px;
-  padding: 10px 14px;
-  font-size: 13px;
-  color: var(--text-muted);
-  margin-top: 14px;
-}
-.amap-warning strong { color: var(--danger); }
-
 .amap-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 16px; }
 .amap-card {
   background: rgba(255, 255, 255, .03);

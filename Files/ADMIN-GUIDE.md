@@ -98,7 +98,7 @@ Nothing typed into this tab - host, username, or password - is ever written to `
 Runs your actual AMAP server-management scripts remotely over RCON - no SSH access needed on your PC at all.
 
 1. Each action is its own card with a description and a Critical/Noncritical tag. Click Run. You'll get a confirmation popup describing exactly what it does.
-2. For Critical actions (red tag), you'll also be asked to type the action's exact name to confirm - this is intentional friction since these stop and restart the Rust server (everyone connected gets disconnected), or wipe data outright.
+2. For Critical actions (red tag), you'll also be asked to type the action's exact name to confirm - this is intentional friction so a stray click can't take the server down or wipe data.
 3. The result shows up in the small log box at the bottom of the tab.
 
 What each card actually does:
