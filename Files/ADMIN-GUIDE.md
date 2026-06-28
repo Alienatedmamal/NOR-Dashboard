@@ -70,7 +70,8 @@ Paste any SteamID64 and click Look Up to see their Steam profile, avatar, accoun
 Your actual server map, with live markers refreshed every few seconds:
 
 - **Avatar + name** = an online player, at their real in-game position.
-- **Colored dots** (see the legend above the map) = world events currently active: Cargo Ship, Patrol Helicopter, Bradley APC, CH47, Cargo Plane. If a dot isn't showing, that event simply isn't happening right now - it'll appear when one spawns.
+- **Colored icons** (see the legend above the map) = world events currently active: Cargo Ship, Patrol Helicopter, Bradley APC, CH47, Cargo Plane. If one isn't showing, that event simply isn't happening right now - it'll appear when one spawns.
+- **Oil rig icons** (small and large) are always shown once the map loads - they're fixed monument locations on this seed, not something that comes and goes like the events above.
 
 Hover any marker to see its name/label. Click Refresh if the map image hasn't loaded yet (the very first time the server's seed is looked up, generating the image can take a couple of minutes - it'll show a "generating" message until it's ready).
 
