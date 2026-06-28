@@ -102,6 +102,13 @@ if not exist "%~dp0app\config.json" (
     echo app\config.json already exists - leaving it as-is.
 )
 
+rem permissions_catalog.json grows over time as you upload AMAP plugins (see
+rem the AMAP tab) - it's local data, same idea as config.json, so it's only
+rem ever seeded here, never overwritten by a later update.
+if not exist "%~dp0app\permissions_catalog.json" (
+    copy "%~dp0app\permissions_catalog.example.json" "%~dp0app\permissions_catalog.json" >nul
+)
+
 if exist "%~dp0icon.ico" (
     powershell -NoProfile -Command "$s = (New-Object -ComObject WScript.Shell).CreateShortcut('%~dp0Launch NOR Dashboard.lnk'); $s.TargetPath = '%~dp0run.bat'; $s.WorkingDirectory = '%~dp0'; $s.IconLocation = '%~dp0icon.ico'; $s.Save()"
     powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $desktop = $ws.SpecialFolders('Desktop'); $s = $ws.CreateShortcut(\"$desktop\Launch NOR Dashboard.lnk\"); $s.TargetPath = '%~dp0run.bat'; $s.WorkingDirectory = '%~dp0'; $s.IconLocation = '%~dp0icon.ico'; $s.Save()"

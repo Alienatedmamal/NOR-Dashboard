@@ -282,11 +282,24 @@
             <input type="text" id="group-user" class="player-combo" placeholder="e.g. 76561198000000000" autocomplete="off">
           </label>
           <label>Group
-            <input type="text" id="group-name" placeholder="e.g. vip">
+            <select class="custom-select" id="group-name"></select>
           </label>
           <div class="btn-row">
             <button type="button" id="group-add" class="btn btn-primary">Add to Group</button>
             <button type="button" id="group-remove" class="btn btn-outline">Remove from Group</button>
+          </div>
+        </form>
+
+        <h3 class="panel-subheading">Create New Group</h3>
+        <form class="stacked-form" id="group-create-form" onsubmit="return false;">
+          <label>Group name
+            <input type="text" id="group-create-name" placeholder="e.g. vip2" autocomplete="off">
+          </label>
+          <label>Title <span class="muted">(optional)</span>
+            <input type="text" id="group-create-title" placeholder="e.g. VIP Tier 2" autocomplete="off">
+          </label>
+          <div class="btn-row">
+            <button type="submit" class="btn btn-primary" id="group-create-submit">Create Group</button>
           </div>
         </form>
       </div>
@@ -474,7 +487,7 @@
             <select class="custom-select" id="theme-preset-select"></select>
           </label>
 
-          <h3 class="theme-custom-heading">Customize</h3>
+          <h3 class="panel-subheading">Customize</h3>
           <div class="theme-color-row">
             <label>Accent
               <input type="color" id="theme-color-accent">

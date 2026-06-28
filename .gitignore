@@ -5,6 +5,7 @@ __pycache__/
 map_cache.json
 player_notes.json
 player_stats.json
+permissions_catalog.json
 *.lnk
 dashboard.log
 dashboard-startup.log

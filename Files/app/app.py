@@ -23,8 +23,9 @@ from map_data import get_map_image
 from map_entities import get_world_events
 from oxide_commands import (
     add_user_to_group,
+    create_group,
     grant_permission,
-    list_groups,
+    list_group_names,
     remove_user_from_group,
     revoke_permission,
     show_group,
@@ -639,6 +640,24 @@ def api_group_remove_user():
         return jsonify({"error": str(exc)}), 502
 
 
+@app.route("/api/group/create", methods=["POST"])
+def api_group_create():
+    body = request.get_json(force=True) or {}
+    group = body.get("group", "").strip()
+    title = body.get("title", "").strip()
+    if not group:
+        return jsonify({"error": "group is required"}), 400
+    try:
+        client = get_rcon_client()
+        response = create_group(client, group, title)
+        client.send_command("server.writecfg")
+        logger.info("Permissions: created group '%s'", group)
+        return jsonify({"response": response})
+    except RconError as exc:
+        reset_rcon_client()
+        return jsonify({"error": str(exc)}), 502
+
+
 @app.route("/api/permissions/catalog")
 def api_permissions_catalog():
     """Known permission strings, read from the installed plugins' source -
@@ -663,8 +682,11 @@ def api_show():
 
 @app.route("/api/groups")
 def api_groups():
+    """Group names parsed straight from 'oxide.show groups' (not cached),
+    so this always reflects what's actually on the server right now,
+    including any group just created via /api/group/create."""
     try:
-        return jsonify({"response": list_groups(get_rcon_client())})
+        return jsonify({"names": list_group_names(get_rcon_client())})
     except RconError as exc:
         reset_rcon_client()
         return jsonify({"error": str(exc)}), 502

@@ -1026,6 +1026,38 @@ async function doGroupAction(url) {
   alert(data.error ? "Error: " + data.error : (data.response || "Done."));
 }
 
+async function loadGroupNames() {
+  const select = $("#group-name");
+  try {
+    const data = await fetch("/api/groups").then((res) => res.json());
+    const names = data.names || [];
+    select.innerHTML = names.length
+      ? names.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")
+      : '<option value="">(none found)</option>';
+  } catch (err) {
+    select.innerHTML = '<option value="">(could not load)</option>';
+  }
+  select._syncCustomSelectTrigger && select._syncCustomSelectTrigger();
+}
+loadGroupNames();
+
+$("#group-create-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const group = $("#group-create-name").value.trim();
+  const title = $("#group-create-title").value.trim();
+  if (!group) {
+    alert("Please enter a group name.");
+    return;
+  }
+  const data = await postJson("/api/group/create", { group, title });
+  alert(data.error ? "Error: " + data.error : (data.response || "Done."));
+  if (!data.error) {
+    $("#group-create-name").value = "";
+    $("#group-create-title").value = "";
+    loadGroupNames();
+  }
+});
+
 $("#show-submit").addEventListener("click", async () => {
   const type = $("#show-target-type").value;
   const target = $("#show-target").value.trim();
@@ -1660,10 +1692,6 @@ function stopMapPolling() {
 
 $("#refresh-map").addEventListener("click", () => loadMapImage().then(loadMapEntities));
 
-// ---- Live Map: drag to pan ----
-// The viewport (.map-wrap) is a plain scrollable box around the oversized
-// .map-canvas - dragging just converts mouse movement into scrollLeft/Top
-// changes, the same trick as any "click-and-drag to pan" widget.
 // ---- Reusable styled confirmation modal ----
 // Replaces native confirm()/prompt() so destructive actions match the
 // dashboard's theme instead of a jarring OS-native popup. Resolves true if

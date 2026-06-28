@@ -621,7 +621,7 @@ input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:foc
    fill the page width. */
 .settings-panel { max-width: 460px; padding: 18px 22px; }
 
-.theme-custom-heading { margin-top: 22px; font-size: 16px; }
+.panel-subheading { margin-top: 22px; font-size: 16px; }
 .theme-color-row { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; }
 .theme-color-row label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-muted); }
 input[type="color"] {

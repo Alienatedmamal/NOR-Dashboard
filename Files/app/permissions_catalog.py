@@ -21,8 +21,17 @@ _lock = threading.Lock()
 
 
 def _load():
-    with open(CATALOG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+    # install.bat seeds this from permissions_catalog.example.json the same
+    # way it does app/config.json, but fall back to empty rather than crash
+    # at import time if that somehow didn't happen (e.g. a manual git clone
+    # instead of going through install.bat).
+    if not os.path.exists(CATALOG_PATH):
+        return []
+    try:
+        with open(CATALOG_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (ValueError, OSError):
+        return []
 
 
 def _save(permissions):
