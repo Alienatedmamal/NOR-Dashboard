@@ -1874,7 +1874,17 @@ const EVENT_LABEL_SLUGS = {
   "Cargo Plane": "cargoplane",
 };
 
+// Oil rigs are static monuments, not a polled find_entity event - their
+// coordinates come from RustMaps' own monument list (see map_data.py),
+// fetched once per seed/size alongside the map image itself, not on the
+// 8s event poll.
+const OIL_RIG_SLUGS = {
+  "Small Oilrig": "oilrig-small",
+  "Large Oilrig": "oilrig-large",
+};
+
 let mapWorldSize = null;
+let mapOilRigs = [];
 let mapPollTimer = null;
 
 async function loadMapImage() {
@@ -1885,6 +1895,7 @@ async function loadMapImage() {
     const res = await fetch("/api/map/image");
     const data = await res.json();
     mapWorldSize = Number(data.size) || null;
+    mapOilRigs = data.oil_rigs || [];
     if (data.status === "ready") {
       img.src = data.image_url;
       img.hidden = false;
@@ -1902,11 +1913,27 @@ async function loadMapImage() {
   }
 }
 
+// The terrain Rust actually loads (and RustMaps renders) extends past
+// `server.worldsize` itself - that convar is the land disc's diameter,
+// but there's an ocean margin around it where sea-based monuments
+// (oil rigs, the cargo ship's route) actually sit. Confirmed against a
+// live server: the Large Oilrig's real find_entity position landed well
+// outside +-worldsize/2, which is what exposed this - any marker out
+// that far would've been mispositioned before, oil rigs just made it
+// obvious since they're always there. Matches Rust's own terrain
+// generation margin (same formula used by map-editing tools like
+// RustEdit): max(500, 10% of world size), added on every side.
+function mapHalfExtent() {
+  if (!mapWorldSize) return null;
+  return mapWorldSize / 2 + Math.max(500, mapWorldSize * 0.1);
+}
+
 function mapPosition(x, z) {
-  if (!mapWorldSize || x == null || z == null) return null;
+  const halfExtent = mapHalfExtent();
+  if (!halfExtent || x == null || z == null) return null;
   return {
-    left: ((x + mapWorldSize / 2) / mapWorldSize) * 100,
-    top: (1 - (z + mapWorldSize / 2) / mapWorldSize) * 100,
+    left: ((x + halfExtent) / (halfExtent * 2)) * 100,
+    top: (1 - (z + halfExtent) / (halfExtent * 2)) * 100,
   };
 }
 
@@ -1950,7 +1977,12 @@ async function loadMapEntities() {
     });
     (data.events || []).forEach((e) => {
       const slug = EVENT_LABEL_SLUGS[e.label] || "";
-      const el = mapMarker(e.x, e.z, `map-marker map-marker-event map-dot-${slug}`, e.label);
+      const el = mapMarker(e.x, e.z, `map-marker-icon map-icon-${slug}`, e.label);
+      if (el) overlay.appendChild(el);
+    });
+    mapOilRigs.forEach((r) => {
+      const slug = OIL_RIG_SLUGS[r.type] || "";
+      const el = mapMarker(r.x, r.z, `map-marker-icon map-icon-${slug}`, r.type);
       if (el) overlay.appendChild(el);
     });
   } catch (err) {

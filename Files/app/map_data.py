@@ -64,11 +64,34 @@ def _api_request(method, path, api_key, body=None):
         return resp.status_code, {}
 
 
+OIL_RIG_TYPES = {"Small Oilrig", "Large Oilrig"}
+
+
+def _extract_oil_rigs(data):
+    """RustMaps' monument list uses the same world-space coordinates as the
+    server's own RCON (confirmed against a live server: a `find_entity
+    oilrig` hit landed within ~30 units of the matching monument here) -
+    its "y" is this app's "z" (the horizontal-plane coordinate everywhere
+    else in this app calls z, since x/z is the ground plane and y is
+    height). Only oil rigs are pulled out here since that's the one
+    monument type the Live Map actually plots - not a general monument
+    layer."""
+    rigs = []
+    for m in data.get("monuments") or []:
+        if m.get("type") not in OIL_RIG_TYPES:
+            continue
+        coords = m.get("coordinates") or {}
+        if coords.get("x") is None or coords.get("y") is None:
+            continue
+        rigs.append({"type": m["type"], "x": coords["x"], "z": coords["y"]})
+    return rigs
+
+
 def get_map_image(client, api_key):
     """Returns {"status": "ready"|"generating"|"error", ...}. "ready" comes
-    with image_url; "generating" means RustMaps is building this seed/size
-    for the first time (poll again in a bit); "error" comes with a message
-    fit to show directly in the UI."""
+    with image_url and oil_rigs; "generating" means RustMaps is building
+    this seed/size for the first time (poll again in a bit); "error" comes
+    with a message fit to show directly in the UI."""
     seed, size = get_world_seed_size(client)
     if not seed or not size:
         return {"status": "error", "error": "Could not read server.seed / server.worldsize from the server"}
@@ -76,7 +99,7 @@ def get_map_image(client, api_key):
     cache = _load_cache()
     key = f"{size}_{seed}"
     cached = cache.get(key)
-    if cached and cached.get("status") == "ready":
+    if cached and cached.get("status") == "ready" and "oil_rigs" in cached:
         return cached
 
     if not api_key or api_key == "CHANGE_ME":
@@ -91,6 +114,7 @@ def get_map_image(client, api_key):
             "seed": seed,
             "size": size,
             "image_url": data.get("imageUrl"),
+            "oil_rigs": _extract_oil_rigs(data),
         }
         cache[key] = result
         _save_cache(cache)
