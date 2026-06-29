@@ -85,6 +85,17 @@ sock = Sock(app)
 ssh_ws.register(sock)
 
 _rcon_client = None
+# Guards the check-then-create in get_rcon_client()/reset_rcon_client() -
+# without this, two concurrent requests (the dev server runs threaded=True,
+# and several background loops below also call get_rcon_client()) could
+# both see _rcon_client as None and each create their own RconClient. Both
+# would open a real WebSocket to the same Rust server, and since WebRcon
+# broadcasts every console line to every connected client, the orphaned
+# one (silently overwritten in the global, but still running its own
+# _reader_loop forever - nothing ever closes it) would keep logging every
+# line a second time, right alongside the "real" one. This is the actual
+# cause of a since-reported "console shows everything twice" bug.
+_rcon_client_lock = threading.Lock()
 
 # The browser pings /api/heartbeat every few seconds while the dashboard page
 # is open; _heartbeat_watchdog_loop shuts the whole process down once those
@@ -135,19 +146,21 @@ def save_config_fields(updates):
 
 def get_rcon_client():
     global _rcon_client
-    if _rcon_client is None:
-        cfg = load_config()
-        logger.info("RCON: connecting to %s:%s", cfg["rcon_host"], cfg["rcon_port"])
-        _rcon_client = RconClient(cfg["rcon_host"], cfg["rcon_port"], cfg["rcon_password"])
-    return _rcon_client
+    with _rcon_client_lock:
+        if _rcon_client is None:
+            cfg = load_config()
+            logger.info("RCON: connecting to %s:%s", cfg["rcon_host"], cfg["rcon_port"])
+            _rcon_client = RconClient(cfg["rcon_host"], cfg["rcon_port"], cfg["rcon_password"])
+        return _rcon_client
 
 
 def reset_rcon_client():
     global _rcon_client
-    if _rcon_client is not None:
-        _rcon_client.close()
-        logger.warning("RCON: connection reset (will reconnect on next request)")
-    _rcon_client = None
+    with _rcon_client_lock:
+        if _rcon_client is not None:
+            _rcon_client.close()
+            logger.warning("RCON: connection reset (will reconnect on next request)")
+        _rcon_client = None
 
 
 @app.errorhandler(Exception)
