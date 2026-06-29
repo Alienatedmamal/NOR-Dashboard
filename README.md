@@ -4,6 +4,15 @@ A simple admin dashboard for your Rust server: an at-a-glance overview (player c
 
 This doc covers one-time setup. Once it's running, see `ADMIN-GUIDE.md` for how to actually use each tab day-to-day.
 
+## Prerequisites
+
+The dashboard itself only needs RCON access to your Rust server - nothing extra to install for Console, Players, Permissions, Server Info, Live Map, or Terminal. The **AMAP tab** specifically (backups, wipes, updates, log cleaning) has two extra requirements on the Rust server side:
+
+- **LinuxGSM (LGSM)** - the AMAP scripts are built to call LGSM's own management functions directly, so they currently only work on a Rust server managed by LGSM. Support for a standard (non-LGSM) Steam Rust server is planned but not available yet.
+- **Oxide** - `AmapBridge.cs` (the plugin that lets RCON commands actually trigger the AMAP scripts) is an Oxide plugin, so Oxide is currently the only supported modding framework. Support for other frameworks may be added in the future.
+
+If your server doesn't run LGSM + Oxide, every other tab still works fully - just skip "Setting up AMAP on your Rust server" below.
+
 ## One-time setup
 
 1. **Double-click `install.bat`.** (Everything else in the download is tucked inside the `Files` folder - that's expected, `install.bat` unpacks it into place on first run.) It checks for Python and installs it automatically (via `winget`) if it's missing, then installs the small set of packages this needs (`app/requirements.txt`: Flask, flask-sock, websocket-client, requests, paramiko), and creates `app/config.json` from the template if it doesn't already exist.
