@@ -66,6 +66,21 @@ def _save(data):
     os.replace(tmp_path, STATS_PATH)
 
 
+# A single tracked session can never contribute more than this many
+# seconds toward total_seconds, no matter how long currently_online_since
+# claims it's been. Without a cap, one bad reading - a stuck/never-cleared
+# currently_online_since (e.g. from a process that died without going
+# through the disconnect branch below), real clock skew, or a second
+# dashboard/sandbox pointed at this same live server pushing a bad value
+# through the shared sync - inflates total_seconds permanently: the
+# cross-admin merge in sync_with_remote() takes max(local, remote), which
+# can only ever grow, never correct itself back down. 48h is generous for
+# a real continuous session while still catching anything that's actually
+# broken (this is what a real report of an account showing 600+ tracked
+# hours after only ~2 days of this feature existing turned out to be).
+MAX_SESSION_SECONDS = 48 * 3600
+
+
 def record_snapshot(online_players):
     """online_players: list of {"steamid": ..., "name": ..., "ip": ...} for
     everyone currently connected. Called periodically by the background
@@ -98,6 +113,7 @@ def record_snapshot(online_players):
                 try:
                     started = datetime.fromisoformat(since)
                     elapsed = max(0, int((_now() - started).total_seconds()))
+                    elapsed = min(elapsed, MAX_SESSION_SECONDS)
                     entry["total_seconds"] = entry.get("total_seconds", 0) + elapsed
                 except ValueError:
                     pass
@@ -118,7 +134,8 @@ def get_stats(steamid):
     if since:
         try:
             started = datetime.fromisoformat(since)
-            total_seconds += max(0, int((_now() - started).total_seconds()))
+            elapsed = max(0, int((_now() - started).total_seconds()))
+            total_seconds += min(elapsed, MAX_SESSION_SECONDS)
         except ValueError:
             pass
     return {
@@ -144,8 +161,19 @@ def _merge_entries(local_entry, remote_entry):
     # Whether THIS dashboard's own tracker currently sees them connected is
     # locally-known information the remote copy (written by some other
     # admin's dashboard, or by this one a few minutes ago) has no way to
-    # know about, so prefer the local value here rather than the remote's.
-    merged["currently_online_since"] = local_entry.get("currently_online_since") or remote_entry.get("currently_online_since")
+    # know about - use the local value outright, never fall back to the
+    # remote's. This used to be `local or remote`, which silently
+    # resurrected a stale remote timestamp whenever local had correctly
+    # cleared it to None right after banking a disconnect (this function's
+    # caller, sync_with_remote(), saves the merged result back over the
+    # local file too) - the next record_snapshot() tick would then see
+    # that resurrected timestamp as still online, "disconnect" them all
+    # over again, and bank the now-even-larger elapsed-since-that-stale-
+    # timestamp on top. Each sync (including every manual Force Sync
+    # click) re-triggered this, compounding without bound - this is what
+    # actually produced a real report of 600+ tracked hours on an account
+    # after this feature had only existed for about two days.
+    merged["currently_online_since"] = local_entry.get("currently_online_since")
     return merged
 
 
