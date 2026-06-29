@@ -39,7 +39,7 @@ from player_stats import get_all_stats, get_stats, record_snapshot, sync_with_re
 from plugin_deploy import list_known_plugin_names, upload_plugin
 from rcon_client import RconClient, RconError, get_log_since, get_log_tail, get_players
 from server_info import SETTING_CONVARS, get_server_info, get_server_settings, set_convar
-from steam_api import get_player_summary, get_rust_playtime_hours, lookup_player
+from steam_api import get_player_bans_cached, get_player_summary, get_rust_playtime_hours, lookup_player
 from updater import apply_update, check_for_update
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -496,6 +496,15 @@ def api_players():
     api_key = cfg.get("steam_api_key", "")
     have_key = bool(api_key) and api_key != "CHANGE_ME"
 
+    steamids = [p.get("SteamID") or p.get("steamid") or "" for p in players]
+    steamids = [s for s in steamids if s]
+    bans_by_id = {}
+    if have_key and steamids:
+        try:
+            bans_by_id = get_player_bans_cached(api_key, steamids)
+        except Exception:
+            bans_by_id = {}
+
     enriched = []
     for p in players:
         steamid = p.get("SteamID") or p.get("steamid") or ""
@@ -506,12 +515,16 @@ def api_players():
                 rust_hours = get_rust_playtime_hours(api_key, steamid)
             except Exception:
                 rust_hours = None
+        ban_info = bans_by_id.get(steamid) or {}
         enriched.append({
             **p,
             "banned": steamid in banned_ids,
             "rust_hours": rust_hours,
             "last_connected": stats.get("last_connected") if stats else None,
             "total_seconds_on_server": stats.get("total_seconds_on_server") if stats else None,
+            "vac_banned": ban_info.get("VACBanned", False),
+            "number_of_vac_bans": ban_info.get("NumberOfVACBans", 0),
+            "number_of_game_bans": ban_info.get("NumberOfGameBans", 0),
         })
 
     return jsonify({"players": enriched, "raw": raw, "ok": ok})
@@ -672,7 +685,22 @@ def api_players_offline():
             "total_seconds_on_server": entry.get("total_seconds", 0),
         })
     offline.sort(key=lambda p: p.get("last_connected") or "", reverse=True)
-    return jsonify({"players": offline[:20]})
+    offline = offline[:20]
+
+    cfg = load_config()
+    api_key = cfg.get("steam_api_key", "")
+    if api_key and api_key != "CHANGE_ME":
+        try:
+            bans_by_id = get_player_bans_cached(api_key, [p["steamid"] for p in offline])
+        except Exception:
+            bans_by_id = {}
+        for p in offline:
+            ban_info = bans_by_id.get(p["steamid"]) or {}
+            p["vac_banned"] = ban_info.get("VACBanned", False)
+            p["number_of_vac_bans"] = ban_info.get("NumberOfVACBans", 0)
+            p["number_of_game_bans"] = ban_info.get("NumberOfGameBans", 0)
+
+    return jsonify({"players": offline})
 
 
 @app.route("/api/players/banned")

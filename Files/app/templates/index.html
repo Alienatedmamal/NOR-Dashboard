@@ -67,7 +67,7 @@
   <button class="tab-btn" data-tab="amap">AMAP</button>
   <button class="tab-btn" data-tab="terminal">Terminal</button>
   <button class="tab-btn" data-tab="help">Help</button>
-  <button id="settings-gear-btn" class="settings-gear-btn" aria-label="Settings" title="Settings">&#9881;</button>
+  <button id="settings-gear-btn" class="settings-gear-btn has-tooltip" aria-label="Settings" data-tooltip="Settings">&#9881;</button>
 </nav>
 
 <main class="page-wrap">
@@ -182,18 +182,27 @@
     <div class="panel">
       <div class="panel-header-row">
         <h2>Online Players</h2>
-        <button id="refresh-players" class="btn btn-outline">Refresh</button>
+        <div class="btn-row">
+          <input type="text" id="players-filter" class="table-filter" placeholder="Filter by name or SteamID..." autocomplete="off">
+          <button id="refresh-players" class="btn btn-outline">Refresh</button>
+        </div>
+      </div>
+      <div id="players-bulk-bar" class="bulk-action-bar hidden">
+        <span id="players-bulk-count" class="muted">0 selected</span>
+        <button type="button" id="players-bulk-kick" class="btn btn-outline btn-small">Kick Selected</button>
+        <button type="button" id="players-bulk-ban" class="btn btn-danger btn-small">Ban Selected</button>
       </div>
       <div class="table-scroll">
         <table class="data-table" id="players-table">
           <thead>
             <tr>
+              <th><input type="checkbox" id="players-select-all" title="Select all"></th>
               <th>Name</th><th>SteamID</th><th>IP</th><th>Ping</th><th>Session</th>
-              <th>Total Time</th><th>Last Connected</th><th>Rust Hours</th><th></th>
+              <th>Total Time</th><th>Last Connected</th><th>Rust Hours</th><th>Bans</th><th></th>
             </tr>
           </thead>
           <tbody id="players-body">
-            <tr><td colspan="9" class="muted">Click Refresh to load players.</td></tr>
+            <tr><td colspan="11" class="muted">Click Refresh to load players.</td></tr>
           </tbody>
         </table>
       </div>
@@ -202,16 +211,19 @@
     <div class="panel">
       <div class="panel-header-row">
         <h2>Offline Players</h2>
-        <button id="refresh-offline" class="btn btn-outline">Refresh</button>
+        <div class="btn-row">
+          <input type="text" id="offline-filter" class="table-filter" placeholder="Filter by name or SteamID..." autocomplete="off">
+          <button id="refresh-offline" class="btn btn-outline">Refresh</button>
+        </div>
       </div>
       <p class="muted">Recently seen, not currently connected.</p>
       <div class="table-scroll">
         <table class="data-table" id="offline-table">
           <thead>
-            <tr><th>Name</th><th>SteamID</th><th>IP</th><th>Total Time</th><th>Last Connected</th><th></th></tr>
+            <tr><th>Name</th><th>SteamID</th><th>IP</th><th>Total Time</th><th>Last Connected</th><th>Bans</th><th></th></tr>
           </thead>
           <tbody id="offline-body">
-            <tr><td colspan="6" class="muted">Click Refresh to load.</td></tr>
+            <tr><td colspan="7" class="muted">Click Refresh to load.</td></tr>
           </tbody>
         </table>
       </div>
@@ -220,15 +232,22 @@
     <div class="panel">
       <div class="panel-header-row">
         <h2>Banned Players</h2>
-        <button id="refresh-banned" class="btn btn-outline">Refresh</button>
+        <div class="btn-row">
+          <input type="text" id="banned-filter" class="table-filter" placeholder="Filter by name or SteamID..." autocomplete="off">
+          <button id="refresh-banned" class="btn btn-outline">Refresh</button>
+        </div>
+      </div>
+      <div id="banned-bulk-bar" class="bulk-action-bar hidden">
+        <span id="banned-bulk-count" class="muted">0 selected</span>
+        <button type="button" id="banned-bulk-unban" class="btn btn-outline btn-small">Unban Selected</button>
       </div>
       <div class="table-scroll">
         <table class="data-table" id="banned-table">
           <thead>
-            <tr><th>Name</th><th>SteamID</th><th></th></tr>
+            <tr><th><input type="checkbox" id="banned-select-all" title="Select all"></th><th>Name</th><th>SteamID</th><th></th></tr>
           </thead>
           <tbody id="banned-body">
-            <tr><td colspan="3" class="muted">Click Refresh to load.</td></tr>
+            <tr><td colspan="4" class="muted">Click Refresh to load.</td></tr>
           </tbody>
         </table>
       </div>
@@ -248,7 +267,7 @@
       <div class="inline-form">
         <input type="text" id="notes-steamid" class="player-combo" placeholder="SteamID" autocomplete="off">
         <button type="button" id="notes-load" class="btn btn-outline">Load Notes</button>
-        <button type="button" id="notes-force-sync" class="btn btn-outline" title="Pulls and merges the latest notes and stats from the Rust server right now, instead of waiting for the automatic sync.">Force Sync</button>
+        <button type="button" id="notes-force-sync" class="btn btn-outline has-tooltip" data-tooltip="Pulls and merges the latest notes and stats from the Rust server right now, instead of waiting for the automatic sync.">Force Sync</button>
       </div>
       <div id="notes-sync-bubble" class="sync-bubble hidden"></div>
       <div id="notes-list" class="console-output small"></div>
