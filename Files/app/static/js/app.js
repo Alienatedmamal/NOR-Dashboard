@@ -1913,27 +1913,26 @@ async function loadMapImage() {
   }
 }
 
-// The terrain Rust actually loads (and RustMaps renders) extends past
-// `server.worldsize` itself - that convar is the land disc's diameter,
-// but there's an ocean margin around it where sea-based monuments
-// (oil rigs, the cargo ship's route) actually sit. Confirmed against a
-// live server: the Large Oilrig's real find_entity position landed well
-// outside +-worldsize/2, which is what exposed this - any marker out
-// that far would've been mispositioned before, oil rigs just made it
-// obvious since they're always there. Matches Rust's own terrain
-// generation margin (same formula used by map-editing tools like
-// RustEdit): max(500, 10% of world size), added on every side.
-function mapHalfExtent() {
-  if (!mapWorldSize) return null;
-  return mapWorldSize / 2 + Math.max(500, mapWorldSize * 0.1);
-}
-
+// v1.4.3 tried to compensate for oil rigs sitting outside +-worldsize/2
+// by widening this scale for every marker - that was wrong: checking
+// several on-land monuments (Outpost, Bandit Town, both Lighthouses)
+// against RustMaps' own coordinates for this map, every one of them
+// already falls inside +-worldsize/2 on both axes. Only the oil rigs sit
+// outside it. Widening the scale for everyone shifted players and every
+// event noticeably off their real position (e.g. ~40px on a 900px
+// canvas for a monument like Outpost) to "fix" markers that were never
+// actually wrong. Reverted to the original worldsize-only scale, and
+// clamped the result instead so a marker that's genuinely outside the
+// rendered image (currently just the two oil rigs) still pins to just
+// inside the edge in the right general direction rather than landing
+// off-canvas and invisible.
 function mapPosition(x, z) {
-  const halfExtent = mapHalfExtent();
-  if (!halfExtent || x == null || z == null) return null;
+  if (!mapWorldSize || x == null || z == null) return null;
+  const left = ((x + mapWorldSize / 2) / mapWorldSize) * 100;
+  const top = (1 - (z + mapWorldSize / 2) / mapWorldSize) * 100;
   return {
-    left: ((x + halfExtent) / (halfExtent * 2)) * 100,
-    top: (1 - (z + halfExtent) / (halfExtent * 2)) * 100,
+    left: Math.max(1, Math.min(99, left)),
+    top: Math.max(1, Math.min(99, top)),
   };
 }
 
