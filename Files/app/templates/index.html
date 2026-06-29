@@ -22,8 +22,8 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/xterm.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+{% for href in module_styles %}<link rel="stylesheet" href="{{ href }}">{% endfor %}
 </head>
 <body>
 
@@ -64,8 +64,7 @@
   <button class="tab-btn" data-tab="map">Live Map</button>
   <button class="tab-btn" data-tab="permissions">Permissions</button>
   <button class="tab-btn" data-tab="serverinfo">Server Info</button>
-  <button class="tab-btn" data-tab="amap">AMAP</button>
-  <button class="tab-btn" data-tab="terminal">Terminal</button>
+  {% for html in module_tab_buttons %}{{ html|safe }}{% endfor %}
   <button class="tab-btn" data-tab="help">Help</button>
   <button id="settings-gear-btn" class="settings-gear-btn has-tooltip" aria-label="Settings" data-tooltip="Settings">&#9881;</button>
 </nav>
@@ -443,63 +442,7 @@
     </div>
   </section>
 
-  <section id="tab-amap" class="tab-panel">
-    <div class="panel">
-      <h2>AMAP Scripts</h2>
-      <p class="muted">Runs your AMAP server-management scripts via RCON - no SSH needed. Critical actions require typing the action's name to confirm, since these can stop the server or wipe data.</p>
-
-      <div id="amap-cards" class="amap-cards">
-        <div class="amap-card" id="amap-upload-card">
-          <div class="amap-card-header">
-            <span class="amap-card-title">Upload Plugin</span>
-            <span class="amap-tag amap-tag-noncritical">Noncritical</span>
-          </div>
-          <p class="amap-card-desc">Sends a .cs file to the oxide/plugins folder configured in Settings &gt; Plugin Deploy. Any permissions it declares are added to the Permissions tab's suggestions automatically.</p>
-          <div class="amap-card-fields">
-            <select class="custom-select" id="amap-installed-plugins"></select>
-            <input type="file" id="amap-plugin-file" accept=".cs">
-          </div>
-          <button type="button" id="amap-plugin-upload" class="btn btn-small btn-outline">Upload</button>
-        </div>
-      </div>
-      <div id="amap-result-log" class="console-output small"></div>
-    </div>
-  </section>
-
-  <section id="tab-terminal" class="tab-panel">
-    <div class="panel">
-      <div class="panel-header-row">
-        <h2>Terminal</h2>
-        <span id="terminal-status" class="muted">Not connected</span>
-      </div>
-      <p class="muted">SSH into any host - nothing typed here is ever saved to disk.</p>
-
-      <form id="terminal-connect-form" class="stacked-form terminal-connect-form">
-        <label>Host
-          <input type="text" id="terminal-host" placeholder="e.g. 10.0.35.2" autocomplete="off" required>
-        </label>
-        <label>Port
-          <input type="number" id="terminal-port" placeholder="22" value="22" autocomplete="off">
-        </label>
-        <label>Username
-          <input type="text" id="terminal-username" autocomplete="off" required>
-        </label>
-        <label>Password
-          <input type="password" id="terminal-password" autocomplete="off" required>
-        </label>
-        <div class="btn-row">
-          <button type="submit" class="btn btn-primary">Connect</button>
-        </div>
-      </form>
-
-      <div id="terminal-wrap" class="terminal-wrap" hidden>
-        <div id="terminal-container" class="terminal-container"></div>
-        <div class="btn-row">
-          <button type="button" id="terminal-disconnect" class="btn btn-outline">Disconnect</button>
-        </div>
-      </div>
-    </div>
-  </section>
+  {% for html in module_tab_panels %}{{ html|safe }}{% endfor %}
 
   <section id="tab-help" class="tab-panel">
     <div class="panel">
@@ -543,8 +486,8 @@
       <button class="settings-subnav-btn" data-settings-section="api-keys">API Keys</button>
       <button class="settings-subnav-btn" data-settings-section="theme">Theme</button>
       <button class="settings-subnav-btn" data-settings-section="wipe">Wipe Schedule</button>
-      <button class="settings-subnav-btn" data-settings-section="plugin-deploy">Plugin Deploy</button>
       <button class="settings-subnav-btn" data-settings-section="notifications">Notifications</button>
+      {% if show_module_settings %}<button class="settings-subnav-btn" data-settings-section="modules">Module Settings</button>{% endif %}
       <button class="settings-subnav-btn" data-settings-section="update">Update</button>
     </nav>
 
@@ -659,27 +602,6 @@
       </div>
     </div>
 
-    <div id="settings-section-plugin-deploy" class="settings-section">
-      <div class="panel settings-panel">
-        <h2>Plugin Deploy</h2>
-        <p class="muted">Where the AMAP tab's plugin upload sends files. Assumes SSH keys are already set up for this user - see the README for how.</p>
-        <form class="stacked-form" id="plugin-deploy-settings-form" onsubmit="return false;">
-          <label>Host
-            <input type="text" id="plugin-deploy-setting-host" placeholder="Loading..." autocomplete="off">
-          </label>
-          <label>Username
-            <input type="text" id="plugin-deploy-setting-username" placeholder="Loading..." autocomplete="off">
-          </label>
-          <label>Path to oxide/plugins
-            <input type="text" id="plugin-deploy-setting-path" placeholder="Loading..." autocomplete="off">
-          </label>
-          <div class="btn-row">
-            <button type="submit" class="btn btn-primary" id="plugin-deploy-settings-save">Save</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
     <div id="settings-section-notifications" class="settings-section">
       <div class="panel settings-panel">
         <h2>Notifications</h2>
@@ -712,6 +634,17 @@
         <p id="update-status" class="muted"></p>
       </div>
     </div>
+
+    {% if show_module_settings %}
+    <div id="settings-section-modules" class="settings-section">
+      <div class="panel settings-panel">
+        <h2>Module Settings</h2>
+        <p class="muted">Modules are dropped into the dashboard's <code>modules</code> folder and picked up on the next launch - nothing to toggle here beyond each module's own settings below.</p>
+        <div id="module-status-list"></div>
+      </div>
+      {% for m in module_settings_panels %}{{ m.html|safe }}{% endfor %}
+    </div>
+    {% endif %}
   </section>
 
 </main>
@@ -751,8 +684,7 @@
   </div>
 </div>
 
-<script src="{{ url_for('static', filename='js/vendor/xterm.js') }}"></script>
-<script src="{{ url_for('static', filename='js/vendor/xterm-addon-fit.js') }}"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% for src in module_scripts %}<script src="{{ src }}"></script>{% endfor %}
 </body>
 </html>

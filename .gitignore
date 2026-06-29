@@ -10,3 +10,14 @@ permissions_catalog.json
 dashboard.log
 dashboard-startup.log
 dashboard-events.log*
+
+# Modules (v1.6+) are a separate distribution, not part of this repo - see
+# Files/app/modules/README.md. Ignore everything dropped in here except
+# that README and a .gitkeep so the folder itself still exists after a
+# clone. Paths here are repo-root-relative (this repo ships everything
+# under Files/, see install.bat) - a pattern without that prefix wouldn't
+# match at all, since any slash anchors a gitignore pattern to where the
+# .gitignore file itself lives, unlike the slash-free patterns above.
+Files/app/modules/*
+!Files/app/modules/README.md
+!Files/app/modules/.gitkeep
