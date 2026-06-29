@@ -282,17 +282,25 @@ loadWipeConfig();
 // until manually closed (no auto-dismiss) and stack rather than replace
 // each other, since e.g. an RCON-lost toast and an unrelated JS error toast
 // could plausibly both fire around the same time.
-function showToast({ title, message, fix, variant }) {
+function showToast({ title, message, fix, variant, onClick }) {
   const container = $("#toast-container");
   const el = document.createElement("div");
   el.className = `toast toast-${variant === "error" ? "error" : "info"}`;
+  if (onClick) el.classList.add("toast-clickable");
   el.innerHTML = `
     <button type="button" class="toast-close" aria-label="Dismiss">&times;</button>
     <div class="toast-title">${escapeHtml(title)}</div>
     <div class="toast-message">${escapeHtml(message)}</div>
     ${fix ? `<div class="toast-fix">Suggested fix: ${escapeHtml(fix)}</div>` : ""}
   `;
-  el.querySelector(".toast-close").addEventListener("click", () => el.remove());
+  el.querySelector(".toast-close").addEventListener("click", (e) => {
+    e.stopPropagation();
+    el.remove();
+  });
+  // Optional - lets a caller (e.g. the join-alert toast) make the whole
+  // toast clickable to jump elsewhere, without every other showToast()
+  // call site needing to know or care that this exists.
+  if (onClick) el.addEventListener("click", onClick);
   container.appendChild(el);
 
   if (variant === "error") {
@@ -384,9 +392,67 @@ async function refreshStatus() {
   } catch (err) {
     // leave the last known count showing rather than blank it on a hiccup
   }
+
+  checkJoinAlerts();
 }
 refreshStatus();
 setInterval(refreshStatus, 15000);
+
+// Two-tone alert beep via the Web Audio API - no audio file/asset needed
+// at all, sidesteps having to source/vendor one. Lazily creates the
+// AudioContext on first use rather than at page load, since some
+// browsers block audio output until a user gesture has happened on the
+// page anyway (which will already be true by the time a real admin is
+// clicking around the dashboard).
+let audioCtx = null;
+function playAlertTone() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = audioCtx.currentTime;
+    [880, 660].forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.15, now + i * 0.15);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.15 + 0.14);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now + i * 0.15);
+      osc.stop(now + i * 0.15 + 0.15);
+    });
+  } catch (err) {
+    // Web Audio unavailable/blocked - the toast itself still shows.
+  }
+}
+
+// Piggybacked on refreshStatus()'s existing 15s poll rather than its own
+// faster one - this is sourced from a 60s-interval background tick (see
+// _player_tracker_loop in app.py), so polling more often than that
+// wouldn't surface anything sooner.
+async function checkJoinAlerts() {
+  try {
+    const data = await fetch("/api/players/join-alerts").then((res) => res.json());
+    const alerts = data.alerts || [];
+    if (alerts.length === 0) return;
+    alerts.forEach((a) => {
+      showToast({
+        title: "Noted player reconnected",
+        message: `${a.name || a.steamid} has ${a.note_count} note${a.note_count === 1 ? "" : "s"} on file. Click to view.`,
+        variant: "info",
+        onClick: () => {
+          activateTab("players");
+          $("#notes-steamid").value = a.steamid;
+          loadNotes(a.steamid);
+          $("#notes-list").scrollIntoView({ behavior: "smooth", block: "center" });
+        },
+      });
+    });
+    if (notificationSettings.sound_alerts_enabled !== false) playAlertTone();
+  } catch (err) {
+    // next poll will catch up
+  }
+}
 
 // ---- Console ----
 const consoleOutput = $("#console-output");
@@ -899,100 +965,226 @@ function formatLastConnected(iso) {
   return isNaN(d.getTime()) ? "-" : d.toLocaleString();
 }
 
+// Bans column - only shows a badge when there's something to flag, since
+// the overwhelming majority of players are clean and a "Clean" tag on
+// every single row would just be noise.
+function formatBanBadge(p) {
+  if (p.vac_banned) return '<span class="tag tag-danger has-tooltip" data-tooltip="VAC banned">VAC</span>';
+  if (p.number_of_game_bans > 0) return '<span class="tag tag-danger has-tooltip" data-tooltip="Game-banned on at least one other server">Game Ban</span>';
+  return '<span class="muted">-</span>';
+}
+
+// Last-fetched rows per table, kept around so the filter boxes (below)
+// can re-render from already-fetched data instead of re-fetching on
+// every keystroke. Selection Sets persist across a table's own re-renders
+// (e.g. after filtering) but get cleared on a fresh Refresh/load.
+let lastOnlinePlayers = [];
+let lastOfflinePlayers = [];
+let lastBannedPlayers = [];
+const selectedOnlineSteamids = new Set();
+const selectedBannedSteamids = new Set();
+
+function updateBulkBar(prefix, selectedSet) {
+  const bar = $(`#${prefix}-bulk-bar`);
+  const count = $(`#${prefix}-bulk-count`);
+  bar.classList.toggle("hidden", selectedSet.size === 0);
+  count.textContent = `${selectedSet.size} selected`;
+}
+
 async function loadPlayers() {
   const body = $("#players-body");
-  body.innerHTML = '<tr><td colspan="9" class="muted">Loading...</td></tr>';
+  body.innerHTML = '<tr><td colspan="11" class="muted">Loading...</td></tr>';
   try {
     const res = await fetch("/api/players");
     const data = await res.json();
     if (data.error) {
-      body.innerHTML = `<tr><td colspan="9" class="muted">Error: ${escapeHtml(data.error)}</td></tr>`;
+      body.innerHTML = `<tr><td colspan="11" class="muted">Error: ${escapeHtml(data.error)}</td></tr>`;
       return;
     }
-    const players = data.players || [];
-    if (players.length === 0) {
-      body.innerHTML = data.ok === false
-        ? `<tr><td colspan="9" class="muted">Response wasn't in the expected format.<br>Raw response: ${escapeHtml(data.raw || "(empty)")}</td></tr>`
-        : `<tr><td colspan="9" class="muted">No players currently online.</td></tr>`;
+    if (data.players && data.players.length === 0 && data.ok === false) {
+      body.innerHTML = `<tr><td colspan="11" class="muted">Response wasn't in the expected format.<br>Raw response: ${escapeHtml(data.raw || "(empty)")}</td></tr>`;
       return;
     }
-    body.innerHTML = "";
-    players.forEach((p) => {
-      const steamid = p.SteamID || p.steamid || "";
-      const name = p.DisplayName || p.Name || p.name || "Unknown";
-      const ip = p.Address || p.address || "-";
-      const ping = p.Ping !== undefined ? p.Ping : (p.ping !== undefined ? p.ping : "-");
-      const session = p.ConnectedSeconds !== undefined ? formatSeconds(p.ConnectedSeconds) : "-";
-      const total = p.total_seconds_on_server != null ? formatSeconds(p.total_seconds_on_server) : "-";
-      const lastConnected = formatLastConnected(p.last_connected);
-      const rustHours = p.rust_hours != null ? p.rust_hours : "-";
-
-      const banLabel = p.banned ? "Unban" : "Ban";
-      const banClass = p.banned ? "btn-outline" : "btn-danger";
-
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${escapeHtml(name)}</td>
-        <td class="mono">${escapeHtml(steamid)}</td>
-        <td class="mono">${escapeHtml(String(ip))}</td>
-        <td>${escapeHtml(String(ping))}</td>
-        <td>${escapeHtml(session)}</td>
-        <td>${escapeHtml(total)}</td>
-        <td>${escapeHtml(lastConnected)}</td>
-        <td>${escapeHtml(String(rustHours))}</td>
-        <td>
-          <div class="row-actions">
-            <button class="btn btn-outline btn-small" data-steamid="${escapeHtml(steamid)}">Look up</button>
-            <button class="btn btn-outline btn-small" data-notes-steamid="${escapeHtml(steamid)}">Notes</button>
-            <button class="btn btn-outline btn-small" data-kick-steamid="${escapeHtml(steamid)}" data-kick-name="${escapeHtml(name)}">Kick</button>
-            <button class="btn ${banClass} btn-small" data-ban-steamid="${escapeHtml(steamid)}" data-banned="${p.banned ? "true" : "false"}" data-name="${escapeHtml(name)}">${banLabel}</button>
-          </div>
-        </td>
-      `;
-      body.appendChild(tr);
-    });
-    $all("[data-steamid]", body).forEach((btn) => {
-      btn.addEventListener("click", () => {
-        activateTab("lookup");
-        $("#lookup-steamid").value = btn.dataset.steamid;
-        $("#lookup-form").dispatchEvent(new Event("submit"));
-      });
-    });
-    $all("[data-kick-steamid]", body).forEach((btn) => {
-      btn.addEventListener("click", () => kickPlayer(btn.dataset.kickSteamid, btn.dataset.kickName));
-    });
-    $all("[data-notes-steamid]", body).forEach((btn) => {
-      btn.addEventListener("click", () => {
-        $("#notes-steamid").value = btn.dataset.notesSteamid;
-        loadNotes(btn.dataset.notesSteamid);
-        $("#notes-list").scrollIntoView({ behavior: "smooth", block: "center" });
-      });
-    });
-    $all("[data-ban-steamid]", body).forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const steamid = btn.dataset.banSteamid;
-        const isBanned = btn.dataset.banned === "true";
-        if (isBanned) {
-          const data = await postJson("/api/players/unban", { steamid });
-          if (data.error) alert("Error: " + data.error);
-        } else {
-          const reason = prompt(`Why are you banning ${btn.dataset.name} (${steamid})?`, "");
-          if (reason === null) return; // cancelled
-          if (!reason.trim()) {
-            alert("A ban reason is required.");
-            return;
-          }
-          const data = await postJson("/api/players/ban", { steamid, reason: reason.trim() });
-          if (data.error) alert("Error: " + data.error);
-          else if (data.note_warning) alert("Warning: " + data.note_warning);
-        }
-        refreshAllPlayerTables();
-      });
-    });
+    selectedOnlineSteamids.clear();
+    updateBulkBar("players", selectedOnlineSteamids);
+    lastOnlinePlayers = data.players || [];
+    renderPlayersTable(lastOnlinePlayers);
   } catch (err) {
-    body.innerHTML = `<tr><td colspan="9" class="muted">Error: ${escapeHtml(err.message)}</td></tr>`;
+    body.innerHTML = `<tr><td colspan="11" class="muted">Error: ${escapeHtml(err.message)}</td></tr>`;
   }
 }
+
+function renderPlayersTable(players) {
+  const body = $("#players-body");
+  if (players.length === 0) {
+    body.innerHTML = '<tr><td colspan="11" class="muted">No players currently online.</td></tr>';
+    return;
+  }
+  body.innerHTML = "";
+  players.forEach((p) => {
+    const steamid = p.SteamID || p.steamid || "";
+    const name = p.DisplayName || p.Name || p.name || "Unknown";
+    const ip = p.Address || p.address || "-";
+    const ping = p.Ping !== undefined ? p.Ping : (p.ping !== undefined ? p.ping : "-");
+    const session = p.ConnectedSeconds !== undefined ? formatSeconds(p.ConnectedSeconds) : "-";
+    const total = p.total_seconds_on_server != null ? formatSeconds(p.total_seconds_on_server) : "-";
+    const lastConnected = formatLastConnected(p.last_connected);
+    const rustHours = p.rust_hours != null ? p.rust_hours : "-";
+
+    const banLabel = p.banned ? "Unban" : "Ban";
+    const banClass = p.banned ? "btn-outline" : "btn-danger";
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input type="checkbox" class="row-select-checkbox" data-select-steamid="${escapeHtml(steamid)}" ${selectedOnlineSteamids.has(steamid) ? "checked" : ""}></td>
+      <td>${escapeHtml(name)}</td>
+      <td class="mono">${escapeHtml(steamid)}</td>
+      <td class="mono">${escapeHtml(String(ip))}</td>
+      <td>${escapeHtml(String(ping))}</td>
+      <td>${escapeHtml(session)}</td>
+      <td>${escapeHtml(total)}</td>
+      <td>${escapeHtml(lastConnected)}</td>
+      <td>${escapeHtml(String(rustHours))}</td>
+      <td>${formatBanBadge(p)}</td>
+      <td>
+        <div class="row-actions">
+          <button class="btn btn-outline btn-small" data-steamid="${escapeHtml(steamid)}">Look up</button>
+          <button class="btn btn-outline btn-small" data-notes-steamid="${escapeHtml(steamid)}">Notes</button>
+          <button class="btn btn-outline btn-small" data-kick-steamid="${escapeHtml(steamid)}" data-kick-name="${escapeHtml(name)}">Kick</button>
+          <button class="btn ${banClass} btn-small" data-ban-steamid="${escapeHtml(steamid)}" data-banned="${p.banned ? "true" : "false"}" data-name="${escapeHtml(name)}">${banLabel}</button>
+        </div>
+      </td>
+    `;
+    body.appendChild(tr);
+  });
+  $all("[data-select-steamid]", body).forEach((cb) => {
+    cb.addEventListener("change", () => {
+      if (cb.checked) selectedOnlineSteamids.add(cb.dataset.selectSteamid);
+      else selectedOnlineSteamids.delete(cb.dataset.selectSteamid);
+      $("#players-select-all").checked = selectedOnlineSteamids.size > 0 && selectedOnlineSteamids.size === players.length;
+      updateBulkBar("players", selectedOnlineSteamids);
+    });
+  });
+  $all("[data-steamid]", body).forEach((btn) => {
+    btn.addEventListener("click", () => {
+      activateTab("lookup");
+      $("#lookup-steamid").value = btn.dataset.steamid;
+      $("#lookup-form").dispatchEvent(new Event("submit"));
+    });
+  });
+  $all("[data-kick-steamid]", body).forEach((btn) => {
+    btn.addEventListener("click", () => kickPlayer(btn.dataset.kickSteamid, btn.dataset.kickName));
+  });
+  $all("[data-notes-steamid]", body).forEach((btn) => {
+    btn.addEventListener("click", () => {
+      $("#notes-steamid").value = btn.dataset.notesSteamid;
+      loadNotes(btn.dataset.notesSteamid);
+      $("#notes-list").scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  });
+  $all("[data-ban-steamid]", body).forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const steamid = btn.dataset.banSteamid;
+      const isBanned = btn.dataset.banned === "true";
+      if (isBanned) {
+        const data = await postJson("/api/players/unban", { steamid });
+        if (data.error) alert("Error: " + data.error);
+      } else {
+        const reason = prompt(`Why are you banning ${btn.dataset.name} (${steamid})?`, "");
+        if (reason === null) return; // cancelled
+        if (!reason.trim()) {
+          alert("A ban reason is required.");
+          return;
+        }
+        const data = await postJson("/api/players/ban", { steamid, reason: reason.trim() });
+        if (data.error) alert("Error: " + data.error);
+        else if (data.note_warning) alert("Warning: " + data.note_warning);
+      }
+      refreshAllPlayerTables();
+    });
+  });
+}
+
+// Shared by every filterable table - checks against whichever
+// name/steamid keys that table's rows actually use (RCON's raw
+// DisplayName/SteamID for the online table, this app's own normalized
+// name/steamid for offline/banned).
+function applyTableFilter(players, query) {
+  const q = (query || "").trim().toLowerCase();
+  if (!q) return players;
+  return players.filter((p) => {
+    const name = (p.DisplayName || p.Name || p.name || "").toLowerCase();
+    const steamid = (p.SteamID || p.steamid || "").toLowerCase();
+    return name.includes(q) || steamid.includes(q);
+  });
+}
+
+$("#players-filter").addEventListener("input", () => {
+  renderPlayersTable(applyTableFilter(lastOnlinePlayers, $("#players-filter").value));
+});
+
+$("#players-select-all").addEventListener("change", (e) => {
+  const visible = applyTableFilter(lastOnlinePlayers, $("#players-filter").value);
+  visible.forEach((p) => {
+    const steamid = p.SteamID || p.steamid || "";
+    if (e.target.checked) selectedOnlineSteamids.add(steamid);
+    else selectedOnlineSteamids.delete(steamid);
+  });
+  renderPlayersTable(visible);
+  updateBulkBar("players", selectedOnlineSteamids);
+});
+
+async function bulkKickPlayers(steamids) {
+  if (steamids.length === 0) return;
+  const confirmed = await showConfirmModal({
+    title: "Bulk Kick",
+    message: `Kick ${steamids.length} selected player(s)?`,
+    confirmLabel: "Kick Selected",
+    confirmClass: "btn-danger",
+  });
+  if (!confirmed) return;
+  let success = 0, failed = 0;
+  for (const steamid of steamids) {
+    const data = await postJson("/api/players/kick", { steamid, reason: "" });
+    if (data.error) failed++; else success++;
+  }
+  showToast({
+    title: "Bulk Kick complete",
+    message: `${success} kicked${failed ? `, ${failed} failed` : ""}.`,
+    variant: failed ? "error" : "info",
+  });
+  refreshAllPlayerTables();
+}
+
+async function bulkBanPlayers(steamids) {
+  if (steamids.length === 0) return;
+  const reason = prompt(`Reason for banning ${steamids.length} selected player(s)? (applied to all of them)`, "");
+  if (reason === null) return; // cancelled
+  if (!reason.trim()) {
+    alert("A ban reason is required.");
+    return;
+  }
+  const confirmed = await showConfirmModal({
+    title: "Bulk Ban",
+    message: `Ban ${steamids.length} selected player(s) for "${reason.trim()}"?`,
+    confirmLabel: "Ban Selected",
+    confirmClass: "btn-danger",
+  });
+  if (!confirmed) return;
+  let success = 0, failed = 0;
+  for (const steamid of steamids) {
+    const data = await postJson("/api/players/ban", { steamid, reason: reason.trim() });
+    if (data.error) failed++; else success++;
+  }
+  showToast({
+    title: "Bulk Ban complete",
+    message: `${success} banned${failed ? `, ${failed} failed` : ""}.`,
+    variant: failed ? "error" : "info",
+  });
+  refreshAllPlayerTables();
+}
+$("#players-bulk-kick").addEventListener("click", () => bulkKickPlayers(Array.from(selectedOnlineSteamids)));
+$("#players-bulk-ban").addEventListener("click", () => bulkBanPlayers(Array.from(selectedOnlineSteamids)));
 
 function refreshAllPlayerTables() {
   loadPlayers();
@@ -1002,110 +1194,168 @@ function refreshAllPlayerTables() {
 
 // ---- Offline Players ----
 $("#refresh-offline").addEventListener("click", loadOfflinePlayers);
+$("#offline-filter").addEventListener("input", () => {
+  renderOfflineTable(applyTableFilter(lastOfflinePlayers, $("#offline-filter").value));
+});
 
 async function loadOfflinePlayers() {
   const body = $("#offline-body");
-  body.innerHTML = '<tr><td colspan="6" class="muted">Loading...</td></tr>';
+  body.innerHTML = '<tr><td colspan="7" class="muted">Loading...</td></tr>';
   try {
     const res = await fetch("/api/players/offline");
     const data = await res.json();
     if (data.error) {
-      body.innerHTML = `<tr><td colspan="6" class="muted">Error: ${escapeHtml(data.error)}</td></tr>`;
+      body.innerHTML = `<tr><td colspan="7" class="muted">Error: ${escapeHtml(data.error)}</td></tr>`;
       return;
     }
-    const players = data.players || [];
-    if (players.length === 0) {
-      body.innerHTML = '<tr><td colspan="6" class="muted">No recently-seen offline players yet.</td></tr>';
-      return;
-    }
-    body.innerHTML = "";
-    players.forEach((p) => {
-      const total = p.total_seconds_on_server != null ? formatSeconds(p.total_seconds_on_server) : "-";
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${escapeHtml(p.name || "Unknown")}</td>
-        <td class="mono">${escapeHtml(p.steamid)}</td>
-        <td>${escapeHtml(p.ip || "-")}</td>
-        <td>${escapeHtml(total)}</td>
-        <td>${escapeHtml(formatLastConnected(p.last_connected))}</td>
-        <td>
-          <div class="row-actions">
-            <button class="btn btn-outline btn-small" data-steamid="${escapeHtml(p.steamid)}">Look up</button>
-            <button class="btn btn-outline btn-small" data-notes-steamid="${escapeHtml(p.steamid)}">Notes</button>
-          </div>
-        </td>
-      `;
-      body.appendChild(tr);
-    });
-    $all("[data-steamid]", body).forEach((btn) => {
-      btn.addEventListener("click", () => {
-        activateTab("lookup");
-        $("#lookup-steamid").value = btn.dataset.steamid;
-        $("#lookup-form").dispatchEvent(new Event("submit"));
-      });
-    });
-    $all("[data-notes-steamid]", body).forEach((btn) => {
-      btn.addEventListener("click", () => {
-        $("#notes-steamid").value = btn.dataset.notesSteamid;
-        loadNotes(btn.dataset.notesSteamid);
-        $("#notes-list").scrollIntoView({ behavior: "smooth", block: "center" });
-      });
-    });
+    lastOfflinePlayers = data.players || [];
+    renderOfflineTable(lastOfflinePlayers);
   } catch (err) {
-    body.innerHTML = `<tr><td colspan="5" class="muted">Error: ${escapeHtml(err.message)}</td></tr>`;
+    body.innerHTML = `<tr><td colspan="7" class="muted">Error: ${escapeHtml(err.message)}</td></tr>`;
   }
+}
+
+function renderOfflineTable(players) {
+  const body = $("#offline-body");
+  if (players.length === 0) {
+    body.innerHTML = '<tr><td colspan="7" class="muted">No recently-seen offline players yet.</td></tr>';
+    return;
+  }
+  body.innerHTML = "";
+  players.forEach((p) => {
+    const total = p.total_seconds_on_server != null ? formatSeconds(p.total_seconds_on_server) : "-";
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escapeHtml(p.name || "Unknown")}</td>
+      <td class="mono">${escapeHtml(p.steamid)}</td>
+      <td>${escapeHtml(p.ip || "-")}</td>
+      <td>${escapeHtml(total)}</td>
+      <td>${escapeHtml(formatLastConnected(p.last_connected))}</td>
+      <td>${formatBanBadge(p)}</td>
+      <td>
+        <div class="row-actions">
+          <button class="btn btn-outline btn-small" data-steamid="${escapeHtml(p.steamid)}">Look up</button>
+          <button class="btn btn-outline btn-small" data-notes-steamid="${escapeHtml(p.steamid)}">Notes</button>
+        </div>
+      </td>
+    `;
+    body.appendChild(tr);
+  });
+  $all("[data-steamid]", body).forEach((btn) => {
+    btn.addEventListener("click", () => {
+      activateTab("lookup");
+      $("#lookup-steamid").value = btn.dataset.steamid;
+      $("#lookup-form").dispatchEvent(new Event("submit"));
+    });
+  });
+  $all("[data-notes-steamid]", body).forEach((btn) => {
+    btn.addEventListener("click", () => {
+      $("#notes-steamid").value = btn.dataset.notesSteamid;
+      loadNotes(btn.dataset.notesSteamid);
+      $("#notes-list").scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  });
 }
 
 // ---- Banned Players ----
 $("#refresh-banned").addEventListener("click", loadBannedPlayers);
+$("#banned-filter").addEventListener("input", () => {
+  renderBannedTable(applyTableFilter(lastBannedPlayers, $("#banned-filter").value));
+});
+$("#banned-select-all").addEventListener("change", (e) => {
+  const visible = applyTableFilter(lastBannedPlayers, $("#banned-filter").value);
+  visible.forEach((p) => {
+    if (e.target.checked) selectedBannedSteamids.add(p.steamid);
+    else selectedBannedSteamids.delete(p.steamid);
+  });
+  renderBannedTable(visible);
+  updateBulkBar("banned", selectedBannedSteamids);
+});
+$("#banned-bulk-unban").addEventListener("click", async () => {
+  const steamids = Array.from(selectedBannedSteamids);
+  if (steamids.length === 0) return;
+  const confirmed = await showConfirmModal({
+    title: "Bulk Unban",
+    message: `Unban ${steamids.length} selected player(s)?`,
+    confirmLabel: "Unban Selected",
+  });
+  if (!confirmed) return;
+  let success = 0, failed = 0;
+  for (const steamid of steamids) {
+    const data = await postJson("/api/players/unban", { steamid });
+    if (data.error) failed++; else success++;
+  }
+  showToast({
+    title: "Bulk Unban complete",
+    message: `${success} unbanned${failed ? `, ${failed} failed` : ""}.`,
+    variant: failed ? "error" : "info",
+  });
+  refreshAllPlayerTables();
+});
 
 async function loadBannedPlayers() {
   const body = $("#banned-body");
-  body.innerHTML = '<tr><td colspan="3" class="muted">Loading...</td></tr>';
+  body.innerHTML = '<tr><td colspan="4" class="muted">Loading...</td></tr>';
   try {
     const res = await fetch("/api/players/banned");
     const data = await res.json();
     if (data.error) {
-      body.innerHTML = `<tr><td colspan="3" class="muted">Error: ${escapeHtml(data.error)}</td></tr>`;
+      body.innerHTML = `<tr><td colspan="4" class="muted">Error: ${escapeHtml(data.error)}</td></tr>`;
       return;
     }
-    const players = data.players || [];
-    if (players.length === 0) {
-      body.innerHTML = '<tr><td colspan="3" class="muted">No players currently banned.</td></tr>';
-      return;
-    }
-    body.innerHTML = "";
-    players.forEach((p) => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${escapeHtml(p.name || "Unknown")}</td>
-        <td class="mono">${escapeHtml(p.steamid)}</td>
-        <td>
-          <div class="row-actions">
-            <button class="btn btn-outline btn-small" data-unban-steamid="${escapeHtml(p.steamid)}">Unban</button>
-            <button class="btn btn-outline btn-small" data-notes-steamid="${escapeHtml(p.steamid)}">Notes</button>
-          </div>
-        </td>
-      `;
-      body.appendChild(tr);
-    });
-    $all("[data-unban-steamid]", body).forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const data = await postJson("/api/players/unban", { steamid: btn.dataset.unbanSteamid });
-        if (data.error) alert("Error: " + data.error);
-        refreshAllPlayerTables();
-      });
-    });
-    $all("[data-notes-steamid]", body).forEach((btn) => {
-      btn.addEventListener("click", () => {
-        $("#notes-steamid").value = btn.dataset.notesSteamid;
-        loadNotes(btn.dataset.notesSteamid);
-        $("#notes-list").scrollIntoView({ behavior: "smooth", block: "center" });
-      });
-    });
+    selectedBannedSteamids.clear();
+    updateBulkBar("banned", selectedBannedSteamids);
+    lastBannedPlayers = data.players || [];
+    renderBannedTable(lastBannedPlayers);
   } catch (err) {
-    body.innerHTML = `<tr><td colspan="3" class="muted">Error: ${escapeHtml(err.message)}</td></tr>`;
+    body.innerHTML = `<tr><td colspan="4" class="muted">Error: ${escapeHtml(err.message)}</td></tr>`;
   }
+}
+
+function renderBannedTable(players) {
+  const body = $("#banned-body");
+  if (players.length === 0) {
+    body.innerHTML = '<tr><td colspan="4" class="muted">No players currently banned.</td></tr>';
+    return;
+  }
+  body.innerHTML = "";
+  players.forEach((p) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input type="checkbox" class="row-select-checkbox" data-select-steamid="${escapeHtml(p.steamid)}" ${selectedBannedSteamids.has(p.steamid) ? "checked" : ""}></td>
+      <td>${escapeHtml(p.name || "Unknown")}</td>
+      <td class="mono">${escapeHtml(p.steamid)}</td>
+      <td>
+        <div class="row-actions">
+          <button class="btn btn-outline btn-small" data-unban-steamid="${escapeHtml(p.steamid)}">Unban</button>
+          <button class="btn btn-outline btn-small" data-notes-steamid="${escapeHtml(p.steamid)}">Notes</button>
+        </div>
+      </td>
+    `;
+    body.appendChild(tr);
+  });
+  $all("[data-select-steamid]", body).forEach((cb) => {
+    cb.addEventListener("change", () => {
+      if (cb.checked) selectedBannedSteamids.add(cb.dataset.selectSteamid);
+      else selectedBannedSteamids.delete(cb.dataset.selectSteamid);
+      $("#banned-select-all").checked = selectedBannedSteamids.size > 0 && selectedBannedSteamids.size === players.length;
+      updateBulkBar("banned", selectedBannedSteamids);
+    });
+  });
+  $all("[data-unban-steamid]", body).forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const data = await postJson("/api/players/unban", { steamid: btn.dataset.unbanSteamid });
+      if (data.error) alert("Error: " + data.error);
+      refreshAllPlayerTables();
+    });
+  });
+  $all("[data-notes-steamid]", body).forEach((btn) => {
+    btn.addEventListener("click", () => {
+      $("#notes-steamid").value = btn.dataset.notesSteamid;
+      loadNotes(btn.dataset.notesSteamid);
+      $("#notes-list").scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  });
 }
 
 // ---- Player Notes ----
@@ -1819,6 +2069,126 @@ async function loadThemeSettingsForm() {
 }
 loadThemeSettingsForm();
 
+// ---- Notifications settings (tour dismissal + sound alerts) ----
+// Kept in one module-level object since both the guided tour and the
+// join-alert toast (added separately) need to read sound_alerts_enabled/
+// tour_dismissed without each re-fetching it themselves.
+let notificationSettings = { tour_dismissed: false, sound_alerts_enabled: true };
+
+async function loadNotificationSettings() {
+  try {
+    const data = await fetch("/api/settings/notifications").then((res) => res.json());
+    notificationSettings = data;
+  } catch (err) {
+    // stick with the defaults above - worst case the tour shows up once
+    // more than it should, or sound alerts default to on.
+  }
+  $("#notifications-setting-tour-dismissed").checked = !!notificationSettings.tour_dismissed;
+  $("#notifications-setting-sound-alerts").checked = notificationSettings.sound_alerts_enabled !== false;
+  if (!notificationSettings.tour_dismissed) startTour();
+}
+loadNotificationSettings();
+
+$("#notifications-settings-form").addEventListener("submit", async () => {
+  const tourDismissed = $("#notifications-setting-tour-dismissed").checked;
+  const soundAlerts = $("#notifications-setting-sound-alerts").checked;
+  const data = await postJson("/api/settings/notifications", { tour_dismissed: tourDismissed, sound_alerts_enabled: soundAlerts });
+  if (data.error) {
+    alert("Error: " + data.error);
+    return;
+  }
+  notificationSettings = { tour_dismissed: tourDismissed, sound_alerts_enabled: soundAlerts };
+  showToast({ title: "Settings saved", message: "Notification preferences updated.", variant: "info" });
+});
+
+$("#replay-tour-btn").addEventListener("click", startTour);
+
+// ---- First-run guided tour ----
+// Targets the tab buttons themselves (and the settings gear) rather than
+// content inside each tab - the one set of elements guaranteed to exist
+// and be visible regardless of which tab happens to be active when the
+// tour starts.
+const TOUR_STEPS = [
+  { tab: "overview", selector: '[data-tab="overview"]', title: "Overview", text: "Your at-a-glance dashboard - player count, server stats, and entity-count history. This is what loads first every time." },
+  { tab: "console", selector: '[data-tab="console"]', title: "Console", text: "A live feed of everything your server logs, a command box, broadcast messages, and quick kick/give-item actions for whoever's online." },
+  { tab: "players", selector: '[data-tab="players"]', title: "Players", text: "Online, offline, and banned players - kick, ban, bulk actions on multiple players at once, notes, and a filter box to find someone fast." },
+  { tab: "map", selector: '[data-tab="map"]', title: "Live Map", text: "Real-time player positions, world events, and the map's oil rigs, overlaid on your actual map image." },
+  { tab: "amap", selector: '[data-tab="amap"]', title: "AMAP", text: "Run your server's backup, wipe, update, and log-cleaning scripts with one click - no SSH or memorized commands needed." },
+  { tab: "settings", selector: "#settings-gear-btn", title: "Settings", text: "RCON, API keys, theme, wipe schedule, and notification preferences (including turning this tour off for good) all live here." },
+];
+let tourStepIndex = 0;
+
+function positionTourHighlight(el) {
+  const rect = el.getBoundingClientRect();
+  const pad = 6;
+  const highlight = $("#tour-highlight");
+  highlight.style.top = (rect.top - pad) + "px";
+  highlight.style.left = (rect.left - pad) + "px";
+  highlight.style.width = (rect.width + pad * 2) + "px";
+  highlight.style.height = (rect.height + pad * 2) + "px";
+
+  const caption = $("#tour-caption");
+  const captionWidth = 320;
+  const fitsBelow = rect.bottom + 220 < window.innerHeight;
+  if (fitsBelow) {
+    caption.style.top = (rect.bottom + 16) + "px";
+    caption.style.bottom = "";
+  } else {
+    caption.style.bottom = (window.innerHeight - rect.top + 16) + "px";
+    caption.style.top = "";
+  }
+  caption.style.left = Math.max(16, Math.min(rect.left, window.innerWidth - captionWidth - 16)) + "px";
+}
+
+function showTourStep(index) {
+  const step = TOUR_STEPS[index];
+  if (!step) {
+    endTour($("#tour-dont-show-again").checked);
+    return;
+  }
+  activateTab(step.tab);
+  // Tab switching can change layout (e.g. content height) - wait a frame
+  // so getBoundingClientRect() below reflects the post-switch layout.
+  requestAnimationFrame(() => {
+    const el = document.querySelector(step.selector);
+    if (!el) {
+      tourStepIndex++;
+      showTourStep(tourStepIndex);
+      return;
+    }
+    positionTourHighlight(el);
+    $("#tour-caption-title").textContent = step.title;
+    $("#tour-caption-text").textContent = step.text;
+    $("#tour-step-counter").textContent = `Step ${index + 1} of ${TOUR_STEPS.length}`;
+    $("#tour-next-btn").textContent = index === TOUR_STEPS.length - 1 ? "Finish" : "Next";
+  });
+}
+
+function startTour() {
+  tourStepIndex = 0;
+  $("#tour-overlay").hidden = false;
+  $("#tour-dont-show-again").checked = false;
+  showTourStep(0);
+}
+
+async function endTour(dismissPermanently) {
+  $("#tour-overlay").hidden = true;
+  if (dismissPermanently && !notificationSettings.tour_dismissed) {
+    notificationSettings.tour_dismissed = true;
+    $("#notifications-setting-tour-dismissed").checked = true;
+    await postJson("/api/settings/notifications", notificationSettings);
+  }
+}
+
+$("#tour-next-btn").addEventListener("click", () => {
+  tourStepIndex++;
+  showTourStep(tourStepIndex);
+});
+$("#tour-skip-btn").addEventListener("click", () => endTour($("#tour-dont-show-again").checked));
+window.addEventListener("resize", () => {
+  if (!$("#tour-overlay").hidden) showTourStep(tourStepIndex);
+});
+
 const STAT_LABELS = {
   Hostname: "Hostname",
   Map: "Map",
@@ -2099,10 +2469,13 @@ function renderAmapCards() {
       ? '<button type="button" class="btn btn-outline btn-small" data-view-wipe-config>View Current Config</button>'
       : "";
 
+    const categoryTooltip = isCritical
+      ? "Destructive or hard to undo - requires typing the action name to confirm."
+      : "Safe to run - just needs a quick Confirm click.";
     card.innerHTML = `
       <div class="amap-card-header">
         <span class="amap-card-title">${escapeHtml(a.label)}</span>
-        <span class="amap-tag amap-tag-${a.category}">${isCritical ? "Critical" : "Noncritical"}</span>
+        <span class="amap-tag amap-tag-${a.category} has-tooltip" data-tooltip="${escapeHtml(categoryTooltip)}">${isCritical ? "Critical" : "Noncritical"}</span>
       </div>
       <p class="amap-card-desc">${escapeHtml(a.description || "")}</p>
       ${fieldsHtml ? `<div class="amap-card-fields">${fieldsHtml}</div>` : ""}

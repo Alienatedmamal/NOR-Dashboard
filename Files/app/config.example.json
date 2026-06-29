@@ -13,5 +13,7 @@
   "plugin_deploy_username": "CHANGE_ME",
   "plugin_deploy_path": "CHANGE_ME",
   "theme_preset_key": "neon-green",
-  "theme_vars": {}
+  "theme_vars": {},
+  "tour_dismissed": false,
+  "sound_alerts_enabled": true
 }

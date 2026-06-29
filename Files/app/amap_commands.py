@@ -16,6 +16,12 @@ AMAP_ACTIONS = {
         "description": "Backs up all server data.",
         "confirm": "Run a server backup now?",
     },
+    "backup_list": {
+        "label": "List Backups",
+        "category": "noncritical",
+        "description": "Lists existing backups and their size - read-only, doesn't create or touch anything.",
+        "confirm": "Fetch the current backup list?",
+    },
     "log_cleaner": {
         "label": "Log Cleaner",
         "category": "noncritical",

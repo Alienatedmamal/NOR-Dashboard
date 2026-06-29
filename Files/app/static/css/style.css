@@ -224,7 +224,21 @@ a { color: var(--accent); }
   .player-sidebar { max-width: none; width: 100%; }
 }
 
-.panel-header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.panel-header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 10px; }
+.panel-header-row .btn-row { margin-top: 0; align-items: center; }
+.table-filter { min-width: 220px; }
+
+.bulk-action-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+}
+.bulk-action-bar.hidden { display: none; }
 
 .entity-history-canvas { display: block; width: 100%; height: 220px; margin-top: 10px; }
 
@@ -323,6 +337,8 @@ a { color: var(--accent); }
 
 .stacked-form { display: flex; flex-direction: column; gap: 14px; margin-top: 10px; }
 .stacked-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-muted); }
+.stacked-form label.checkbox-label { flex-direction: row; align-items: center; gap: 8px; font-size: 14px; color: var(--text); cursor: pointer; }
+.stacked-form label.checkbox-label input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
 
 input[type="text"], input[type="number"], input[type="password"], select {
   background: rgba(255, 255, 255, .04);
@@ -391,6 +407,37 @@ input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:foc
 .tag { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 700; border: 1px solid var(--border); }
 .tag-ok { color: var(--accent); border-color: var(--accent-border); background: var(--accent-soft); }
 .tag-danger { color: var(--danger); border-color: rgba(255, 77, 77, .4); background: rgba(255, 77, 77, .1); }
+
+/* Inline tooltips - pure CSS, no JS positioning, matches this project's
+   no-external-JS-deps convention. data-tooltip holds the text; the
+   popup is just a styled ::after shown on hover/focus, themed with the
+   same CSS variables as everything else so it follows whatever
+   accent/background colors the user has picked in Settings > Theme. */
+.has-tooltip { position: relative; cursor: help; }
+.has-tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 240px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent-border);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 400;
+  text-align: center;
+  line-height: 1.4;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .12s ease;
+  z-index: 50;
+}
+.has-tooltip:hover::after, .has-tooltip:focus-visible::after { opacity: 1; visibility: visible; }
 
 .settings-grid { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
 .settings-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-muted); }
@@ -513,6 +560,34 @@ input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:foc
 .confirm-modal-typed-wrap input { width: 100%; }
 .modal-box .btn-row { margin-top: 18px; justify-content: flex-end; }
 
+/* First-run guided tour. .tour-highlight's own oversized box-shadow IS
+   the dimmed backdrop (a standard "spotlight" trick) - filling the whole
+   viewport except its own box, so there's no separate full-page overlay
+   element needed just to dim the page. */
+.tour-overlay { position: fixed; inset: 0; z-index: 998; pointer-events: none; }
+.tour-overlay[hidden] { display: none; }
+.tour-highlight {
+  position: fixed;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, .75);
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  transition: top .2s ease, left .2s ease, width .2s ease, height .2s ease;
+}
+.tour-caption {
+  position: fixed;
+  width: 320px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .6);
+  pointer-events: auto;
+  transition: top .2s ease, bottom .2s ease, left .2s ease;
+}
+.tour-caption h3 { margin: 2px 0 8px; }
+.tour-caption .checkbox-label { margin: 12px 0; font-size: 13px; }
+.tour-caption .btn-row { justify-content: flex-end; margin-top: 0; }
+
 /* ---- Toast notifications ---- */
 .toast-container {
   position: fixed;
@@ -535,6 +610,8 @@ input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:foc
   position: relative;
   font-size: 13px;
 }
+.toast-clickable { cursor: pointer; }
+.toast-clickable:hover { filter: brightness(1.15); }
 .toast-title { font-family: var(--font-heading); font-weight: 700; margin-bottom: 4px; padding-right: 22px; }
 .toast-message { color: var(--text); }
 .toast-fix { margin-top: 8px; color: var(--text-muted); font-size: 12px; }

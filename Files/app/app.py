@@ -39,7 +39,7 @@ from player_stats import get_all_stats, get_stats, record_snapshot, sync_with_re
 from plugin_deploy import list_known_plugin_names, upload_plugin
 from rcon_client import RconClient, RconError, get_log_since, get_log_tail, get_players
 from server_info import SETTING_CONVARS, get_server_info, get_server_settings, set_convar
-from steam_api import get_player_summary, get_rust_playtime_hours, lookup_player
+from steam_api import get_player_bans_cached, get_player_summary, get_rust_playtime_hours, lookup_player
 from updater import apply_update, check_for_update
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -203,6 +203,26 @@ def api_settings_theme_set():
 
     save_config_fields({"theme_preset_key": preset_key, "theme_vars": theme_vars})
     logger.info("Settings: theme saved (preset=%s)", preset_key or "custom")
+    return jsonify({"ok": True})
+
+
+@app.route("/api/settings/notifications")
+def api_settings_notifications_get():
+    cfg = load_config()
+    return jsonify({
+        "tour_dismissed": cfg.get("tour_dismissed", False),
+        "sound_alerts_enabled": cfg.get("sound_alerts_enabled", True),
+    })
+
+
+@app.route("/api/settings/notifications", methods=["POST"])
+def api_settings_notifications_set():
+    body = request.get_json(force=True) or {}
+    save_config_fields({
+        "tour_dismissed": bool(body.get("tour_dismissed")),
+        "sound_alerts_enabled": bool(body.get("sound_alerts_enabled")),
+    })
+    logger.info("Settings: notifications saved")
     return jsonify({"ok": True})
 
 
@@ -496,6 +516,15 @@ def api_players():
     api_key = cfg.get("steam_api_key", "")
     have_key = bool(api_key) and api_key != "CHANGE_ME"
 
+    steamids = [p.get("SteamID") or p.get("steamid") or "" for p in players]
+    steamids = [s for s in steamids if s]
+    bans_by_id = {}
+    if have_key and steamids:
+        try:
+            bans_by_id = get_player_bans_cached(api_key, steamids)
+        except Exception:
+            bans_by_id = {}
+
     enriched = []
     for p in players:
         steamid = p.get("SteamID") or p.get("steamid") or ""
@@ -506,12 +535,16 @@ def api_players():
                 rust_hours = get_rust_playtime_hours(api_key, steamid)
             except Exception:
                 rust_hours = None
+        ban_info = bans_by_id.get(steamid) or {}
         enriched.append({
             **p,
             "banned": steamid in banned_ids,
             "rust_hours": rust_hours,
             "last_connected": stats.get("last_connected") if stats else None,
             "total_seconds_on_server": stats.get("total_seconds_on_server") if stats else None,
+            "vac_banned": ban_info.get("VACBanned", False),
+            "number_of_vac_bans": ban_info.get("NumberOfVACBans", 0),
+            "number_of_game_bans": ban_info.get("NumberOfGameBans", 0),
         })
 
     return jsonify({"players": enriched, "raw": raw, "ok": ok})
@@ -647,6 +680,15 @@ def api_players_sync_now():
     return jsonify(result)
 
 
+@app.route("/api/players/join-alerts")
+def api_players_join_alerts():
+    """Drains and returns whatever join alerts _player_tracker_loop has
+    queued since the last time this was called - no replay/history like
+    the console log's after=seq scheme, since the frontend only ever
+    needs "what's new since I last checked"."""
+    return jsonify({"alerts": _drain_join_alerts()})
+
+
 @app.route("/api/players/offline")
 def api_players_offline():
     """Recently-seen players who aren't currently connected, most recent
@@ -672,7 +714,22 @@ def api_players_offline():
             "total_seconds_on_server": entry.get("total_seconds", 0),
         })
     offline.sort(key=lambda p: p.get("last_connected") or "", reverse=True)
-    return jsonify({"players": offline[:20]})
+    offline = offline[:20]
+
+    cfg = load_config()
+    api_key = cfg.get("steam_api_key", "")
+    if api_key and api_key != "CHANGE_ME":
+        try:
+            bans_by_id = get_player_bans_cached(api_key, [p["steamid"] for p in offline])
+        except Exception:
+            bans_by_id = {}
+        for p in offline:
+            ban_info = bans_by_id.get(p["steamid"]) or {}
+            p["vac_banned"] = ban_info.get("VACBanned", False)
+            p["number_of_vac_bans"] = ban_info.get("NumberOfVACBans", 0)
+            p["number_of_game_bans"] = ban_info.get("NumberOfGameBans", 0)
+
+    return jsonify({"players": offline})
 
 
 @app.route("/api/players/banned")
@@ -1028,10 +1085,40 @@ def api_steam_lookup(steamid):
         return jsonify({"error": str(exc)}), 502
 
 
+# Pending "a player with existing notes just reconnected" alerts, drained
+# by the frontend's periodic /api/players/join-alerts poll (piggybacked
+# onto refreshStatus() in app.js, not its own fast poll - this is sourced
+# from a 60s-interval background tick, so polling it any faster wouldn't
+# surface anything sooner). Capped so a long stretch with no one looking
+# at the dashboard can't grow this unbounded.
+_join_alerts_lock = threading.Lock()
+_pending_join_alerts = []
+MAX_PENDING_JOIN_ALERTS = 50
+
+
+def _queue_join_alert(steamid, name, note_count):
+    with _join_alerts_lock:
+        _pending_join_alerts.append({"steamid": steamid, "name": name, "note_count": note_count})
+        del _pending_join_alerts[:-MAX_PENDING_JOIN_ALERTS]
+
+
+def _drain_join_alerts():
+    with _join_alerts_lock:
+        alerts = list(_pending_join_alerts)
+        _pending_join_alerts.clear()
+    return alerts
+
+
 def _player_tracker_loop():
     """Runs for the life of the process, independent of whether a browser
     tab is open, so 'last connected' / 'total time on server' keep building
-    up even if nobody's looking at the dashboard."""
+    up even if nobody's looking at the dashboard. Also flags a join alert
+    for anyone with existing notes who shows up newly online this tick -
+    previously_online_ids starts as None (not an empty set) specifically
+    so the very first tick after a restart establishes a baseline instead
+    of treating every already-connected noted player as a fresh "just
+    reconnected" event."""
+    previously_online_ids = None
     while True:
         try:
             players, _raw, ok = get_players(get_rcon_client())
@@ -1044,6 +1131,18 @@ def _player_tracker_loop():
                     if steamid:
                         snapshot.append({"steamid": steamid, "name": name, "ip": ip})
                 record_snapshot(snapshot)
+
+                current_ids = {p["steamid"] for p in snapshot}
+                if previously_online_ids is not None:
+                    for steamid in current_ids - previously_online_ids:
+                        name = next((p["name"] for p in snapshot if p["steamid"] == steamid), steamid)
+                        try:
+                            notes, _error = get_notes(get_rcon_client(), steamid)
+                        except Exception:
+                            notes = []
+                        if notes:
+                            _queue_join_alert(steamid, name, len(notes))
+                previously_online_ids = current_ids
         except RconError as exc:
             logger.info("Player tracker: RCON unreachable this cycle: %s", exc)
         except Exception:
