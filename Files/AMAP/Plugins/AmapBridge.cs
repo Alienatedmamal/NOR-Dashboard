@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 
 namespace Oxide.Plugins
 {
-    [Info("AmapBridge", "NOR", "1.3.0")]
+    [Info("AmapBridge", "NOR", "1.4.1")]
     [Description("RCON-only bridge to a fixed whitelist of AMAP server-management scripts, for the NOR Dashboard's AMAP Scripts tab.")]
     public class AmapBridge : RustPlugin
     {
@@ -25,6 +25,10 @@ namespace Oxide.Plugins
             public bool IsPlayerDataGet;
             public bool IsPlayerDataSet;
             public string PlayerDataFile;
+            // backup_list is read-only too, but lists ServerBackups.sh's
+            // output directory rather than reading one known file - see
+            // RunBackupList below.
+            public bool IsBackupList;
         }
 
         // Resolved once at plugin load from the OS account this Rust server
@@ -36,6 +40,10 @@ namespace Oxide.Plugins
 
         private static readonly string WipeConfigPath = $"{HomeDir}/AMAP/Files/Config/config.cfg";
         private static readonly string ConfigDir = $"{HomeDir}/AMAP/Files/Config";
+        // Where ServerBackups.sh actually writes timestamped backup
+        // folders (confirmed by reading that script directly) - not under
+        // AMAP/Files at all, a level up at the home directory.
+        private static readonly string BackupsDir = $"{HomeDir}/BackUps";
 
         // Fixed whitelist: action keyword -> exact script path. The keyword
         // from RCON is matched against this dictionary's keys only - nothing
@@ -61,6 +69,8 @@ namespace Oxide.Plugins
             ["playerdata_get_stats"] = new AmapAction { IsPlayerDataGet = true, PlayerDataFile = "DB-player_stats.json" },
             ["playerdata_set_notes"] = new AmapAction { IsPlayerDataSet = true, PlayerDataFile = "DB-player_notes.json" },
             ["playerdata_set_stats"] = new AmapAction { IsPlayerDataSet = true, PlayerDataFile = "DB-player_stats.json" },
+            // Lists ServerBackups.sh's output - read-only, see RunBackupList.
+            ["backup_list"] = new AmapAction { IsBackupList = true },
         };
 
         private static readonly Regex DigitsOnly = new Regex(@"^\d+$");
@@ -100,6 +110,12 @@ namespace Oxide.Plugins
             if (info.IsPlayerDataGet)
             {
                 RunPlayerDataGet(arg, info.PlayerDataFile);
+                return;
+            }
+
+            if (info.IsBackupList)
+            {
+                RunBackupList(arg);
                 return;
             }
 
@@ -300,6 +316,62 @@ namespace Oxide.Plugins
             {
                 PrintError($"AmapBridge: failed to read {filename}: {ex.Message}");
                 arg.ReplyWith($"ERROR: {ex.Message}");
+            }
+        }
+
+        // Caps how many backup entries get reported - ServerBackups.sh
+        // runs every 5 minutes and prunes anything older than 24h, which
+        // is still up to ~288 folders; dumping all of them into the AMAP
+        // tab's result log isn't useful (confirmed against the live
+        // server - it really does build up that many). Most recent 15
+        // covers a bit over an hour, which is what you'd actually check
+        // this for.
+        private const int MaxBackupsListed = 15;
+
+        // Lists ServerBackups.sh's output directory, newest first - just
+        // folder names and each one's own last-write time, both single
+        // stat calls against the top-level directory only. Deliberately
+        // does NOT recurse into each backup to sum its size - tried that
+        // first and it took over a second against this server's real
+        // backups (LIVE_FILES is tens of thousands of files), long enough
+        // to trip the same Oxide slow-hook-call race documented on
+        // RunWipeConfigure above and get the wrong text captured as the
+        // reply.
+        private void RunBackupList(ConsoleSystem.Arg arg)
+        {
+            try
+            {
+                if (!System.IO.Directory.Exists(BackupsDir))
+                {
+                    arg.ReplyWith("No backups directory found yet - run a backup first.");
+                    return;
+                }
+                var dirs = System.IO.Directory.GetDirectories(BackupsDir);
+                if (dirs.Length == 0)
+                {
+                    arg.ReplyWith("No backups found yet.");
+                    return;
+                }
+                Array.Sort(dirs);
+                Array.Reverse(dirs);
+                var lines = new List<string>();
+                var shown = Math.Min(dirs.Length, MaxBackupsListed);
+                for (var i = 0; i < shown; i++)
+                {
+                    var name = System.IO.Path.GetFileName(dirs[i]);
+                    var modified = System.IO.Directory.GetLastWriteTimeUtc(dirs[i]);
+                    lines.Add($"{name} (completed {modified:yyyy-MM-dd HH:mm} UTC)");
+                }
+                if (dirs.Length > shown)
+                {
+                    lines.Add($"...and {dirs.Length - shown} more.");
+                }
+                arg.ReplyWith(string.Join("\n", lines));
+            }
+            catch (Exception ex)
+            {
+                PrintError($"AmapBridge: failed to list backups: {ex.Message}");
+                arg.ReplyWith($"Failed to list backups: {ex.Message}");
             }
         }
 
