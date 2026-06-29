@@ -337,6 +337,8 @@ a { color: var(--accent); }
 
 .stacked-form { display: flex; flex-direction: column; gap: 14px; margin-top: 10px; }
 .stacked-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-muted); }
+.stacked-form label.checkbox-label { flex-direction: row; align-items: center; gap: 8px; font-size: 14px; color: var(--text); cursor: pointer; }
+.stacked-form label.checkbox-label input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
 
 input[type="text"], input[type="number"], input[type="password"], select {
   background: rgba(255, 255, 255, .04);
@@ -557,6 +559,34 @@ input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:foc
 .confirm-modal-typed-wrap { margin-top: 14px; }
 .confirm-modal-typed-wrap input { width: 100%; }
 .modal-box .btn-row { margin-top: 18px; justify-content: flex-end; }
+
+/* First-run guided tour. .tour-highlight's own oversized box-shadow IS
+   the dimmed backdrop (a standard "spotlight" trick) - filling the whole
+   viewport except its own box, so there's no separate full-page overlay
+   element needed just to dim the page. */
+.tour-overlay { position: fixed; inset: 0; z-index: 998; pointer-events: none; }
+.tour-overlay[hidden] { display: none; }
+.tour-highlight {
+  position: fixed;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, .75);
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  transition: top .2s ease, left .2s ease, width .2s ease, height .2s ease;
+}
+.tour-caption {
+  position: fixed;
+  width: 320px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .6);
+  pointer-events: auto;
+  transition: top .2s ease, bottom .2s ease, left .2s ease;
+}
+.tour-caption h3 { margin: 2px 0 8px; }
+.tour-caption .checkbox-label { margin: 12px 0; font-size: 13px; }
+.tour-caption .btn-row { justify-content: flex-end; margin-top: 0; }
 
 /* ---- Toast notifications ---- */
 .toast-container {

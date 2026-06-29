@@ -2003,6 +2003,126 @@ async function loadThemeSettingsForm() {
 }
 loadThemeSettingsForm();
 
+// ---- Notifications settings (tour dismissal + sound alerts) ----
+// Kept in one module-level object since both the guided tour and the
+// join-alert toast (added separately) need to read sound_alerts_enabled/
+// tour_dismissed without each re-fetching it themselves.
+let notificationSettings = { tour_dismissed: false, sound_alerts_enabled: true };
+
+async function loadNotificationSettings() {
+  try {
+    const data = await fetch("/api/settings/notifications").then((res) => res.json());
+    notificationSettings = data;
+  } catch (err) {
+    // stick with the defaults above - worst case the tour shows up once
+    // more than it should, or sound alerts default to on.
+  }
+  $("#notifications-setting-tour-dismissed").checked = !!notificationSettings.tour_dismissed;
+  $("#notifications-setting-sound-alerts").checked = notificationSettings.sound_alerts_enabled !== false;
+  if (!notificationSettings.tour_dismissed) startTour();
+}
+loadNotificationSettings();
+
+$("#notifications-settings-form").addEventListener("submit", async () => {
+  const tourDismissed = $("#notifications-setting-tour-dismissed").checked;
+  const soundAlerts = $("#notifications-setting-sound-alerts").checked;
+  const data = await postJson("/api/settings/notifications", { tour_dismissed: tourDismissed, sound_alerts_enabled: soundAlerts });
+  if (data.error) {
+    alert("Error: " + data.error);
+    return;
+  }
+  notificationSettings = { tour_dismissed: tourDismissed, sound_alerts_enabled: soundAlerts };
+  showToast({ title: "Settings saved", message: "Notification preferences updated.", variant: "info" });
+});
+
+$("#replay-tour-btn").addEventListener("click", startTour);
+
+// ---- First-run guided tour ----
+// Targets the tab buttons themselves (and the settings gear) rather than
+// content inside each tab - the one set of elements guaranteed to exist
+// and be visible regardless of which tab happens to be active when the
+// tour starts.
+const TOUR_STEPS = [
+  { tab: "overview", selector: '[data-tab="overview"]', title: "Overview", text: "Your at-a-glance dashboard - player count, server stats, and entity-count history. This is what loads first every time." },
+  { tab: "console", selector: '[data-tab="console"]', title: "Console", text: "A live feed of everything your server logs, a command box, broadcast messages, and quick kick/give-item actions for whoever's online." },
+  { tab: "players", selector: '[data-tab="players"]', title: "Players", text: "Online, offline, and banned players - kick, ban, bulk actions on multiple players at once, notes, and a filter box to find someone fast." },
+  { tab: "map", selector: '[data-tab="map"]', title: "Live Map", text: "Real-time player positions, world events, and the map's oil rigs, overlaid on your actual map image." },
+  { tab: "amap", selector: '[data-tab="amap"]', title: "AMAP", text: "Run your server's backup, wipe, update, and log-cleaning scripts with one click - no SSH or memorized commands needed." },
+  { tab: "settings", selector: "#settings-gear-btn", title: "Settings", text: "RCON, API keys, theme, wipe schedule, and notification preferences (including turning this tour off for good) all live here." },
+];
+let tourStepIndex = 0;
+
+function positionTourHighlight(el) {
+  const rect = el.getBoundingClientRect();
+  const pad = 6;
+  const highlight = $("#tour-highlight");
+  highlight.style.top = (rect.top - pad) + "px";
+  highlight.style.left = (rect.left - pad) + "px";
+  highlight.style.width = (rect.width + pad * 2) + "px";
+  highlight.style.height = (rect.height + pad * 2) + "px";
+
+  const caption = $("#tour-caption");
+  const captionWidth = 320;
+  const fitsBelow = rect.bottom + 220 < window.innerHeight;
+  if (fitsBelow) {
+    caption.style.top = (rect.bottom + 16) + "px";
+    caption.style.bottom = "";
+  } else {
+    caption.style.bottom = (window.innerHeight - rect.top + 16) + "px";
+    caption.style.top = "";
+  }
+  caption.style.left = Math.max(16, Math.min(rect.left, window.innerWidth - captionWidth - 16)) + "px";
+}
+
+function showTourStep(index) {
+  const step = TOUR_STEPS[index];
+  if (!step) {
+    endTour($("#tour-dont-show-again").checked);
+    return;
+  }
+  activateTab(step.tab);
+  // Tab switching can change layout (e.g. content height) - wait a frame
+  // so getBoundingClientRect() below reflects the post-switch layout.
+  requestAnimationFrame(() => {
+    const el = document.querySelector(step.selector);
+    if (!el) {
+      tourStepIndex++;
+      showTourStep(tourStepIndex);
+      return;
+    }
+    positionTourHighlight(el);
+    $("#tour-caption-title").textContent = step.title;
+    $("#tour-caption-text").textContent = step.text;
+    $("#tour-step-counter").textContent = `Step ${index + 1} of ${TOUR_STEPS.length}`;
+    $("#tour-next-btn").textContent = index === TOUR_STEPS.length - 1 ? "Finish" : "Next";
+  });
+}
+
+function startTour() {
+  tourStepIndex = 0;
+  $("#tour-overlay").hidden = false;
+  $("#tour-dont-show-again").checked = false;
+  showTourStep(0);
+}
+
+async function endTour(dismissPermanently) {
+  $("#tour-overlay").hidden = true;
+  if (dismissPermanently && !notificationSettings.tour_dismissed) {
+    notificationSettings.tour_dismissed = true;
+    $("#notifications-setting-tour-dismissed").checked = true;
+    await postJson("/api/settings/notifications", notificationSettings);
+  }
+}
+
+$("#tour-next-btn").addEventListener("click", () => {
+  tourStepIndex++;
+  showTourStep(tourStepIndex);
+});
+$("#tour-skip-btn").addEventListener("click", () => endTour($("#tour-dont-show-again").checked));
+window.addEventListener("resize", () => {
+  if (!$("#tour-overlay").hidden) showTourStep(tourStepIndex);
+});
+
 const STAT_LABELS = {
   Hostname: "Hostname",
   Map: "Map",

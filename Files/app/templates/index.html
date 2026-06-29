@@ -544,6 +544,7 @@
       <button class="settings-subnav-btn" data-settings-section="theme">Theme</button>
       <button class="settings-subnav-btn" data-settings-section="wipe">Wipe Schedule</button>
       <button class="settings-subnav-btn" data-settings-section="plugin-deploy">Plugin Deploy</button>
+      <button class="settings-subnav-btn" data-settings-section="notifications">Notifications</button>
       <button class="settings-subnav-btn" data-settings-section="update">Update</button>
     </nav>
 
@@ -679,6 +680,27 @@
       </div>
     </div>
 
+    <div id="settings-section-notifications" class="settings-section">
+      <div class="panel settings-panel">
+        <h2>Notifications</h2>
+        <p class="muted">Saved per install, just like Theme and Wipe Schedule - applies immediately, no restart needed.</p>
+        <form class="stacked-form" id="notifications-settings-form" onsubmit="return false;">
+          <label class="checkbox-label">
+            <input type="checkbox" id="notifications-setting-tour-dismissed">
+            Don't show the guided tour on startup
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="notifications-setting-sound-alerts">
+            Play a sound when a player with notes reconnects
+          </label>
+          <div class="btn-row">
+            <button type="submit" class="btn btn-primary" id="notifications-settings-save">Save</button>
+            <button type="button" id="replay-tour-btn" class="btn btn-outline has-tooltip" data-tooltip="Shows the guided tour again, even if you've dismissed it before.">Replay Tour</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <div id="settings-section-update" class="settings-section">
       <div class="panel settings-panel">
         <h2>Update</h2>
@@ -711,6 +733,23 @@
 </div>
 
 <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+<div id="tour-overlay" class="tour-overlay" hidden>
+  <div id="tour-highlight" class="tour-highlight"></div>
+  <div id="tour-caption" class="tour-caption">
+    <p id="tour-step-counter" class="eyebrow"></p>
+    <h3 id="tour-caption-title"></h3>
+    <p id="tour-caption-text" class="muted"></p>
+    <label class="checkbox-label">
+      <input type="checkbox" id="tour-dont-show-again">
+      Don't show this again
+    </label>
+    <div class="btn-row">
+      <button type="button" id="tour-skip-btn" class="btn btn-outline">Skip Tour</button>
+      <button type="button" id="tour-next-btn" class="btn btn-primary">Next</button>
+    </div>
+  </div>
+</div>
 
 <script src="{{ url_for('static', filename='js/vendor/xterm.js') }}"></script>
 <script src="{{ url_for('static', filename='js/vendor/xterm-addon-fit.js') }}"></script>

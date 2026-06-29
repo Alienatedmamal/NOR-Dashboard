@@ -206,6 +206,26 @@ def api_settings_theme_set():
     return jsonify({"ok": True})
 
 
+@app.route("/api/settings/notifications")
+def api_settings_notifications_get():
+    cfg = load_config()
+    return jsonify({
+        "tour_dismissed": cfg.get("tour_dismissed", False),
+        "sound_alerts_enabled": cfg.get("sound_alerts_enabled", True),
+    })
+
+
+@app.route("/api/settings/notifications", methods=["POST"])
+def api_settings_notifications_set():
+    body = request.get_json(force=True) or {}
+    save_config_fields({
+        "tour_dismissed": bool(body.get("tour_dismissed")),
+        "sound_alerts_enabled": bool(body.get("sound_alerts_enabled")),
+    })
+    logger.info("Settings: notifications saved")
+    return jsonify({"ok": True})
+
+
 @app.route("/api/settings/rcon")
 def api_settings_rcon_get():
     cfg = load_config()
