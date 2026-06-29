@@ -680,6 +680,15 @@ def api_players_sync_now():
     return jsonify(result)
 
 
+@app.route("/api/players/join-alerts")
+def api_players_join_alerts():
+    """Drains and returns whatever join alerts _player_tracker_loop has
+    queued since the last time this was called - no replay/history like
+    the console log's after=seq scheme, since the frontend only ever
+    needs "what's new since I last checked"."""
+    return jsonify({"alerts": _drain_join_alerts()})
+
+
 @app.route("/api/players/offline")
 def api_players_offline():
     """Recently-seen players who aren't currently connected, most recent
@@ -1076,10 +1085,40 @@ def api_steam_lookup(steamid):
         return jsonify({"error": str(exc)}), 502
 
 
+# Pending "a player with existing notes just reconnected" alerts, drained
+# by the frontend's periodic /api/players/join-alerts poll (piggybacked
+# onto refreshStatus() in app.js, not its own fast poll - this is sourced
+# from a 60s-interval background tick, so polling it any faster wouldn't
+# surface anything sooner). Capped so a long stretch with no one looking
+# at the dashboard can't grow this unbounded.
+_join_alerts_lock = threading.Lock()
+_pending_join_alerts = []
+MAX_PENDING_JOIN_ALERTS = 50
+
+
+def _queue_join_alert(steamid, name, note_count):
+    with _join_alerts_lock:
+        _pending_join_alerts.append({"steamid": steamid, "name": name, "note_count": note_count})
+        del _pending_join_alerts[:-MAX_PENDING_JOIN_ALERTS]
+
+
+def _drain_join_alerts():
+    with _join_alerts_lock:
+        alerts = list(_pending_join_alerts)
+        _pending_join_alerts.clear()
+    return alerts
+
+
 def _player_tracker_loop():
     """Runs for the life of the process, independent of whether a browser
     tab is open, so 'last connected' / 'total time on server' keep building
-    up even if nobody's looking at the dashboard."""
+    up even if nobody's looking at the dashboard. Also flags a join alert
+    for anyone with existing notes who shows up newly online this tick -
+    previously_online_ids starts as None (not an empty set) specifically
+    so the very first tick after a restart establishes a baseline instead
+    of treating every already-connected noted player as a fresh "just
+    reconnected" event."""
+    previously_online_ids = None
     while True:
         try:
             players, _raw, ok = get_players(get_rcon_client())
@@ -1092,6 +1131,18 @@ def _player_tracker_loop():
                     if steamid:
                         snapshot.append({"steamid": steamid, "name": name, "ip": ip})
                 record_snapshot(snapshot)
+
+                current_ids = {p["steamid"] for p in snapshot}
+                if previously_online_ids is not None:
+                    for steamid in current_ids - previously_online_ids:
+                        name = next((p["name"] for p in snapshot if p["steamid"] == steamid), steamid)
+                        try:
+                            notes, _error = get_notes(get_rcon_client(), steamid)
+                        except Exception:
+                            notes = []
+                        if notes:
+                            _queue_join_alert(steamid, name, len(notes))
+                previously_online_ids = current_ids
         except RconError as exc:
             logger.info("Player tracker: RCON unreachable this cycle: %s", exc)
         except Exception:

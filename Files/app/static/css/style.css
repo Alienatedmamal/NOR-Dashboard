@@ -610,6 +610,8 @@ input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:foc
   position: relative;
   font-size: 13px;
 }
+.toast-clickable { cursor: pointer; }
+.toast-clickable:hover { filter: brightness(1.15); }
 .toast-title { font-family: var(--font-heading); font-weight: 700; margin-bottom: 4px; padding-right: 22px; }
 .toast-message { color: var(--text); }
 .toast-fix { margin-top: 8px; color: var(--text-muted); font-size: 12px; }

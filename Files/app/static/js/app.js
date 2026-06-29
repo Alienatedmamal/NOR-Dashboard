@@ -282,17 +282,25 @@ loadWipeConfig();
 // until manually closed (no auto-dismiss) and stack rather than replace
 // each other, since e.g. an RCON-lost toast and an unrelated JS error toast
 // could plausibly both fire around the same time.
-function showToast({ title, message, fix, variant }) {
+function showToast({ title, message, fix, variant, onClick }) {
   const container = $("#toast-container");
   const el = document.createElement("div");
   el.className = `toast toast-${variant === "error" ? "error" : "info"}`;
+  if (onClick) el.classList.add("toast-clickable");
   el.innerHTML = `
     <button type="button" class="toast-close" aria-label="Dismiss">&times;</button>
     <div class="toast-title">${escapeHtml(title)}</div>
     <div class="toast-message">${escapeHtml(message)}</div>
     ${fix ? `<div class="toast-fix">Suggested fix: ${escapeHtml(fix)}</div>` : ""}
   `;
-  el.querySelector(".toast-close").addEventListener("click", () => el.remove());
+  el.querySelector(".toast-close").addEventListener("click", (e) => {
+    e.stopPropagation();
+    el.remove();
+  });
+  // Optional - lets a caller (e.g. the join-alert toast) make the whole
+  // toast clickable to jump elsewhere, without every other showToast()
+  // call site needing to know or care that this exists.
+  if (onClick) el.addEventListener("click", onClick);
   container.appendChild(el);
 
   if (variant === "error") {
@@ -384,9 +392,67 @@ async function refreshStatus() {
   } catch (err) {
     // leave the last known count showing rather than blank it on a hiccup
   }
+
+  checkJoinAlerts();
 }
 refreshStatus();
 setInterval(refreshStatus, 15000);
+
+// Two-tone alert beep via the Web Audio API - no audio file/asset needed
+// at all, sidesteps having to source/vendor one. Lazily creates the
+// AudioContext on first use rather than at page load, since some
+// browsers block audio output until a user gesture has happened on the
+// page anyway (which will already be true by the time a real admin is
+// clicking around the dashboard).
+let audioCtx = null;
+function playAlertTone() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = audioCtx.currentTime;
+    [880, 660].forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.15, now + i * 0.15);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.15 + 0.14);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now + i * 0.15);
+      osc.stop(now + i * 0.15 + 0.15);
+    });
+  } catch (err) {
+    // Web Audio unavailable/blocked - the toast itself still shows.
+  }
+}
+
+// Piggybacked on refreshStatus()'s existing 15s poll rather than its own
+// faster one - this is sourced from a 60s-interval background tick (see
+// _player_tracker_loop in app.py), so polling more often than that
+// wouldn't surface anything sooner.
+async function checkJoinAlerts() {
+  try {
+    const data = await fetch("/api/players/join-alerts").then((res) => res.json());
+    const alerts = data.alerts || [];
+    if (alerts.length === 0) return;
+    alerts.forEach((a) => {
+      showToast({
+        title: "Noted player reconnected",
+        message: `${a.name || a.steamid} has ${a.note_count} note${a.note_count === 1 ? "" : "s"} on file. Click to view.`,
+        variant: "info",
+        onClick: () => {
+          activateTab("players");
+          $("#notes-steamid").value = a.steamid;
+          loadNotes(a.steamid);
+          $("#notes-list").scrollIntoView({ behavior: "smooth", block: "center" });
+        },
+      });
+    });
+    if (notificationSettings.sound_alerts_enabled !== false) playAlertTone();
+  } catch (err) {
+    // next poll will catch up
+  }
+}
 
 // ---- Console ----
 const consoleOutput = $("#console-output");
