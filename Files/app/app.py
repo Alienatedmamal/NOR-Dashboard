@@ -113,11 +113,24 @@ _rcon_client_lock = threading.Lock()
 # closing it. 90s tolerates that throttling while still shutting down
 # within about a minute and a half of a real close.
 _last_heartbeat = time.time()
+_process_start = time.time()
 HEARTBEAT_TIMEOUT_SECONDS = 90
 HEARTBEAT_GRACE_SECONDS = 30
 WATCHDOG_CHECK_INTERVAL_SECONDS = 10
 PLAYER_STATS_SYNC_INTERVAL_SECONDS = 300
 ENTITY_HISTORY_INTERVAL_SECONDS = 300
+
+# Background task last-run tracking — updated by each loop, read by DevTools.
+_task_heartbeats_lock = threading.Lock()
+_task_heartbeats = {}
+
+def _record_task_run(name, status="ok", detail=""):
+    with _task_heartbeats_lock:
+        _task_heartbeats[name] = {"last_run": time.time(), "status": status, "detail": detail}
+
+def _get_task_heartbeats():
+    with _task_heartbeats_lock:
+        return dict(_task_heartbeats)
 
 # Cooldown for the Players tab's manual Force Sync button - protects the
 # Rust server's SSH connection from being hammered if someone double-clicks
@@ -177,9 +190,14 @@ core = types.SimpleNamespace(
     get_rcon_client=get_rcon_client,
     reset_rcon_client=reset_rcon_client,
     RconError=RconError,
+    queue_join_alert=_queue_join_alert,
+    get_task_heartbeats=_get_task_heartbeats,
+    process_start=_process_start,
 )
 
 loaded_modules, skipped_modules = module_loader.discover(VERSION)
+core.loaded_modules = loaded_modules
+core.skipped_modules = skipped_modules
 for _mod in loaded_modules:
     _mod.package.register(app, core)
     logger.info("Module loaded: %s (%s)", _mod.key, _mod.label)
@@ -1125,13 +1143,16 @@ def _player_tracker_loop():
                         if notes:
                             _queue_join_alert(steamid, name, len(notes))
                 previously_online_ids = current_ids
+            _record_task_run("player_tracker")
         except RconError as exc:
             logger.info("Player tracker: RCON unreachable this cycle: %s", exc)
+            _record_task_run("player_tracker", "error", f"RCON unreachable: {exc}")
         except Exception:
             # Never let an unexpected error kill this background thread, but
             # do record it - this loop runs silently for the life of the
             # process otherwise, so a bug here would be invisible.
             logger.exception("Player tracker: unexpected error")
+            _record_task_run("player_tracker", "error", "unexpected error (see log)")
         time.sleep(60)
 
 
@@ -1153,8 +1174,12 @@ def _player_stats_sync_loop():
             ok, error = sync_with_remote(get_rcon_client())
             if not ok:
                 logger.info("Player stats sync: %s", error)
+                _record_task_run("player_stats_sync", "error", error or "sync failed")
+            else:
+                _record_task_run("player_stats_sync")
         except Exception:
             logger.exception("Player stats sync: unexpected error")
+            _record_task_run("player_stats_sync", "error", "unexpected error (see log)")
         time.sleep(PLAYER_STATS_SYNC_INTERVAL_SECONDS)
 
 
@@ -1169,10 +1194,13 @@ def _entity_history_loop():
             entity_count = info.get("EntityCount")
             if entity_count is not None:
                 record_entity_sample(entity_count)
+            _record_task_run("entity_history")
         except RconError as exc:
             logger.info("Entity history: RCON unreachable this cycle: %s", exc)
+            _record_task_run("entity_history", "error", f"RCON unreachable: {exc}")
         except Exception:
             logger.exception("Entity history: unexpected error")
+            _record_task_run("entity_history", "error", "unexpected error (see log)")
         time.sleep(ENTITY_HISTORY_INTERVAL_SECONDS)
 
 

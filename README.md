@@ -1,21 +1,16 @@
-# NOR Dashboard v1.6.3
+# NOR Dashboard v1.6.4
 
-A simple admin dashboard for your Rust server: an at-a-glance overview (player count, queue, BattleMetrics rank, and more), a live console feed, server info/settings, online/offline/banned player management with notes, permission management, player ban/Steam history lookups, a live map with player and world-event tracking, and a wipe countdown. Same black-and-neon-green look as AMAP and nor.workisboring.com. AMAP scripts and an embedded SSH Terminal are available as optional modules - see "Modules" below.
+A simple admin dashboard for your Rust server: an at-a-glance overview (player count, queue, BattleMetrics rank, and more), a live console feed, server info/settings, online/offline/banned player management with notes, permission management, player ban/Steam history lookups, a live map with player and world-event tracking, and a wipe countdown. Same black-and-neon-green look as nor.workisboring.com. Optional modules add extra tabs - see "Modules" below.
 
 This doc covers one-time setup. Once it's running, see `ADMIN-GUIDE.md` for how to actually use each tab day-to-day.
 
 ## Prerequisites
 
-Core itself only needs RCON access to your Rust server - nothing extra to install for Overview, Console, Players, Player Lookup, Permissions, Server Info, or Live Map. The **AMAP module** specifically (backups, wipes, updates, log cleaning) has two extra requirements on the Rust server side - see "Modules" below for AMAP/Terminal, which aren't part of core:
-
-- **LinuxGSM (LGSM)** - the AMAP scripts are built to call LGSM's own management functions directly, so they currently only work on a Rust server managed by LGSM. Support for a standard (non-LGSM) Steam Rust server is planned but not available yet.
-- **Oxide** - `AmapBridge.cs` (the plugin that lets RCON commands actually trigger the AMAP scripts) is an Oxide plugin, so Oxide is currently the only supported modding framework. Support for other frameworks may be added in the future.
-
-If your server doesn't run LGSM + Oxide, every other tab still works fully - just skip "Setting up AMAP on your Rust server" below.
+Core only needs RCON access to your Rust server - nothing extra to install for Overview, Console, Players, Player Lookup, Permissions, Server Info, or Live Map. Optional modules may have their own prerequisites (documented with each module separately).
 
 ## Modules (v1.6+)
 
-Core covers Overview, Console, Players, Player Lookup, Live Map, Permissions, and Server Info - everything else (AMAP, Terminal) is an optional module, distributed separately from this repo. Drop a module's folder into `app/modules/` and relaunch the dashboard to pick it up; its tab, settings, and any dependencies it needs were already shipped with this release (run.bat's `pip install` covers whatever any known module needs, every launch, regardless of whether you've actually installed that module). A module that needs a newer core than what you're running gets skipped with a clear reason in Settings > Module Settings, rather than failing silently.
+Core covers Overview, Console, Players, Player Lookup, Live Map, Permissions, and Server Info - everything else is an optional module, distributed separately from this repo. Drop a module's folder into `app/modules/` and relaunch the dashboard to pick it up; its tab, settings, and any dependencies it needs were already shipped with this release (run.bat's `pip install` covers whatever any known module needs, every launch, regardless of whether you've actually installed that module). A module that needs a newer core than what you're running gets skipped with a clear reason in Settings > Module Settings, rather than failing silently.
 
 ## One-time setup
 
@@ -32,62 +27,6 @@ Core covers Overview, Console, Players, Player Lookup, Live Map, Permissions, an
    - `rustmaps_api_key` - a free key from https://rustmaps.com/dashboard (Live Map tab's background image - the rest of the Live Map tab works without it)
    - `battlemetrics_id` - your server's ID from its BattleMetrics page (the number in the URL, e.g. `battlemetrics.com/servers/rust/39370730` → `39370730`). No account or API key needed - just the ID. Powers the Overview tab's Rank stat.
 3. Make sure this PC can actually reach your Rust server's RCON port (same network, or whatever your firewall/router allows).
-
-## Setting up AMAP on your Rust server
-
-The AMAP tab needs two things installed directly on the **Rust server itself** (not this PC) - the AMAP scripts, and the AmapBridge plugin that lets RCON commands actually run them. Do this once per Rust server you want the AMAP tab to control.
-
-On the Rust server (SSH in, or open a terminal on the box):
-
-1. Clone this repo:
-   ```bash
-   git clone https://github.com/Alienatedmamal/NOR-RCON-Dashboard.git
-   ```
-2. Move the `AMAP` folder into your home directory - replace `USERNAME` with the Linux user your Rust server actually runs as:
-   ```bash
-   mv NOR-RCON-Dashboard/AMAP /home/USERNAME/
-   ```
-3. The rest of the cloned repo isn't needed on the Rust server - clean it up:
-   ```bash
-   rm -rf NOR-RCON-Dashboard/
-   ```
-4. Deploy the plugin into Oxide's plugins folder - adjust the `serverfiles` path if yours differs:
-   ```bash
-   cd /home/USERNAME/AMAP/Plugins
-   mv AmapBridge.cs /home/USERNAME/serverfiles/oxide/plugins/AmapBridge.cs
-   ```
-   Oxide compiles and loads it automatically within a few seconds - check the server console for `Loaded plugin AmapBridge` to confirm.
-5. Make the scripts executable - this is needed for AMAP and the dashboard to actually be able to run them:
-   ```bash
-   chmod +x /home/USERNAME/AMAP/Files/Scripts/*
-   ```
-
-That's it - the AMAP tab will now work against this server. The plugin figures out file paths from whatever Linux account it's actually running under, so there's nothing to edit inside `AmapBridge.cs` itself, even across different servers with different usernames.
-
-## Setting up SSH keys for the Plugin Upload feature
-
-The AMAP tab's **Upload Plugin** panel sends files to your Rust server over SFTP using a regular SSH key - the same kind you'd use to SSH into the box by hand - rather than a password. If you can already SSH into your Rust server without being asked for a password, you can skip this section; otherwise, from this Windows PC:
-
-1. Open PowerShell and check whether you already have a key:
-   ```powershell
-   dir $env:USERPROFILE\.ssh\id_ed25519.pub
-   ```
-   If that shows a file, skip to step 3. If it says the path doesn't exist, continue to step 2.
-2. Generate a new key (press Enter at every prompt to accept the defaults, including an empty passphrase - a passphrase would mean typing it in every time the dashboard tries to upload a plugin):
-   ```powershell
-   ssh-keygen -t ed25519
-   ```
-3. Copy the public key over to the Rust server - replace `USERNAME` and `SERVER_IP` with the real values (the same ones you'll enter in Settings > Plugin Deploy):
-   ```powershell
-   type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh USERNAME@SERVER_IP "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
-   ```
-   (If your Windows PC has `ssh-copy-id` available, `ssh-copy-id USERNAME@SERVER_IP` does the same thing in one step.)
-4. Test it - this should log you in with no password prompt:
-   ```powershell
-   ssh USERNAME@SERVER_IP
-   ```
-
-Once that works, fill in the same host/username and the path to your `oxide/plugins` folder (e.g. `/home/USERNAME/serverfiles/oxide/plugins`) in the dashboard's Settings > Plugin Deploy section.
 
 ## Running it
 
@@ -109,7 +48,7 @@ Or double-click **`update.bat`**. It downloads the latest version straight from 
 
 Three show up in this same folder once you've run the dashboard, each for a different purpose:
 
-- **`dashboard-events.log`** - check this one first. A small, plain-English running history: RCON connects/drops, AMAP actions run, settings changes, and anything unexpected, each with a timestamp. Persists across restarts (it rotates instead of growing forever once it gets large), so it's still there to check even if the dashboard's been restarted since whatever you're investigating happened.
+- **`dashboard-events.log`** - check this one first. A small, plain-English running history: RCON connects/drops, actions run, settings changes, and anything unexpected, each with a timestamp. Persists across restarts (it rotates instead of growing forever once it gets large), so it's still there to check even if the dashboard's been restarted since whatever you're investigating happened.
 - **`dashboard.log`** - the Flask server's raw output: every request it handles, plus a full Python traceback for anything that crashes. More detailed than `dashboard-events.log`, but only holds the *latest* run - it's overwritten fresh every time `run.bat` starts the dashboard, so it's only useful to check right after something goes wrong, not after a restart.
 - **`dashboard-startup.log`** - just two boilerplate lines. Rarely useful; only worth a look if the other two are empty too.
 
@@ -117,28 +56,16 @@ Three show up in this same folder once you've run the dashboard, each for a diff
 
 - **Overview** - the landing page: hostname/description straight from RCON over your server's own header image (`server.headerimage`, set in the Server Info tab - falls back to a default background if it's not set), stat cards (players, queued, BattleMetrics rank, framerate, game time, uptime, map, entity count), an entity count history graph (sampled every 5 minutes, local to this install - see below), and the live connected-players list.
 - **Console** - a live feed of everything your server logs (plugin loads, warnings, chat, command output...), same idea as RustAdmin's console. Type a command and its response shows up in the same feed within a second or two, interleaved with everything else. Below it, **Broadcast Message** sends a chat message to everyone connected. The Online Players sidebar has a one-click **Kick** per player, and above it, **Give Item** gives a chosen item/quantity to a currently-connected player from a curated list of common items.
-- **Players** - online players (name, SteamID, IP, ping, session/total time, last connected, Rust hours, VAC/game ban status) with one-click kick, ban/unban (reason required and logged), and Look up; plus recently-seen offline players (with their last-known IP) and currently-banned players, each with a filter box to find someone by name or SteamID without scrolling. Select multiple players with the checkboxes for bulk kick/ban (online) or bulk unban (banned). A per-player notes log (kick and ban reasons are both added automatically), with a search box to find a keyword across every player's notes at once instead of needing a SteamID first - if a player with existing notes reconnects, you'll get a toast (and optionally a sound, see Settings > Notifications) right when it happens. Notes and stats (total time, last connected, last IP) are automatically shared with any other admin running their own copy of this dashboard against the same server - see "Shared player data" below.
+- **Players** - online players (name, SteamID, IP, ping, session/total time, last connected, Rust hours, VAC/game ban status) with one-click kick, ban/unban (reason required and logged), and Look up; plus recently-seen offline players (with their last-known IP) and currently-banned players, each with a filter box to find someone by name or SteamID without scrolling. Select multiple players with the checkboxes for bulk kick/ban (online) or bulk unban (banned). A per-player notes log (kick and ban reasons are both added automatically), with a search box to find a keyword across every player's notes at once instead of needing a SteamID first - if a player with existing notes reconnects, you'll get a toast (and optionally a sound, see Settings > Notifications) right when it happens.
 - **Player Lookup** - paste a SteamID64 to see their Steam profile, account age, VAC/game ban counts, and community/economy ban status.
 - **Live Map** - your actual map image (via RustMaps.com) with live-updating icon markers for online players (avatar + name), world events (cargo ship, patrol helicopter, Bradley APC, CH47, cargo plane), and the map's small/large oil rigs (fixed monument locations, shown as soon as the map loads). No plugin required; built entirely on vanilla RCON commands and RustMaps' own monument data (the seed/world size come straight from `server.seed`/`server.worldsize`, so it always matches the live map).
 - **Permissions** - grant/revoke an Oxide permission on a player or group, add/remove a player from a group (picked from a dropdown of your server's actual groups, not typed blind), create a new group, and check what permissions/groups a player or group currently has.
 - **Server Info** - live stats (players, map, framerate, uptime, entity count, etc.) and editable server settings (hostname, URL, description, header image), pre-filled with the current values.
-- **AMAP** - runs a fixed set of your AMAP server-management scripts (backup, log cleaner, server checker, wipe configurator, updater, map/full wipe, and a read-only backup listing) over RCON - no SSH needed. Each is shown as a card with a description and a Critical/Noncritical tag (hover the tag for what that actually means); Critical actions require typing the action's name to confirm. Also has an **Upload Plugin** panel that sends a `.cs` file straight to your server's `oxide/plugins` folder over SFTP (set the destination once in Settings > Plugin Deploy) and picks up any permissions it declares automatically. See "AMAP tab setup" below for how this actually works, and `ADMIN-GUIDE.md` for what each one does.
-- **Terminal** - a real interactive SSH terminal embedded in the page (via `xterm.js`), for when you need an actual shell instead of AMAP's fixed action list. Type a host/port/username/password and connect - nothing typed there is ever saved to disk.
 - **Help** - a Show FAQ / Troubleshooting button for quick answers without leaving the dashboard, and a link out to this project's GitHub repo; more in-app guidance is planned for this tab later.
-- **Settings** (gear icon, top right of the tab bar) - core sub-pages: **RCON** (edit host/port/password without touching `config.json` by hand, reconnects immediately); **API Keys** (Steam Web, RustMaps, and BattleMetrics ID - the same three optional fields from one-time setup above, editable here instead of by hand in `config.json`; the Steam Web and RustMaps fields are masked like a password box, since they're real secrets - BattleMetrics ID isn't, it's just a public server ID); **Theme** (a dropdown of five presets, or your own accent/background/text/alert colors - changes preview instantly, but click **Save** to keep it for next time); **Wipe Countdown** (Daily, Bi-weekly, or Monthly, plus time/timezone); **Notifications** (turn the startup guided tour off for good, or bring it back with Replay Tour; toggle the sound that plays alongside the noted-player-reconnected toast); **Update** (check for and install the latest version without leaving the browser - see "Checking for updates" below); plus **Module Settings**, shown whenever at least one module is installed - each loaded module's own settings live here (e.g. AMAP's Plugin Deploy SSH target). All of these are saved in *this install's* `config.json` - not synced to the Rust server like the player notes/stats described below, so a different admin's own separate copy of the dashboard keeps its own independent settings.
+- **Settings** (gear icon, top right of the tab bar) - core sub-pages: **RCON** (edit host/port/password without touching `config.json` by hand, reconnects immediately); **API Keys** (Steam Web, RustMaps, and BattleMetrics ID - the same three optional fields from one-time setup above, editable here instead of by hand in `config.json`; the Steam Web and RustMaps fields are masked like a password box, since they're real secrets - BattleMetrics ID isn't, it's just a public server ID); **Theme** (a dropdown of five presets, or your own accent/background/text/alert colors - changes preview instantly, but click **Save** to keep it for next time); **Wipe Countdown** (Daily, Bi-weekly, or Monthly, plus time/timezone); **Notifications** (turn the startup guided tour off for good, or bring it back with Replay Tour; toggle the sound that plays alongside the noted-player-reconnected toast); **Update** (check for and install the latest version without leaving the browser - see "Checking for updates" below); plus **Module Settings**, shown whenever at least one module is installed - each loaded module's own settings live here. All of these are saved in *this install's* `config.json` - not synced, so a different admin's own separate copy of the dashboard keeps its own independent settings.
 - **Wipe countdown** - in the header, counting down based on whatever's set in Settings > Wipe Countdown (defaults to 2pm Central on the first Thursday of the month), DST-aware, auto-advancing to the next occurrence once it passes.
 
 The window opens maximized and the whole layout scales to fill it - it's no longer capped to a narrow centered column.
-
-## AMAP tab setup
-
-The AMAP tab is a module (see "Modules" above), not part of core - it only appears once the AMAP module folder is in `app/modules/`. It needs a small custom Oxide plugin, `AMAP/Plugins/AmapBridge.cs`, installed on the server - it's what lets an RCON command actually run a shell script on the box. See "Setting up AMAP on your Rust server" above for the first-time install; `AMAP/Plugins/AmapBridge.cs` in this repo is the source of truth if you ever need to redeploy it later (e.g. after a fresh Oxide install) - just copy it back into `oxide/plugins/` and the server will compile and load it automatically within a few seconds. The dashboard checks for this plugin on startup (Settings > Module Settings will show a warning if it's missing) but doesn't gate the tab on it - the warning is a heads-up, not a block.
-
-The plugin only recognizes a fixed, hardcoded list of action keywords (see the `Actions` dictionary at the top of the file) - it never accepts or runs arbitrary shell text from RCON. Adding a new dashboard button means adding a new line to both that dictionary and the AMAP module's `amap_commands.py`'s `AMAP_ACTIONS`, not changing what kind of input is accepted.
-
-There's no password on this tab - Critical actions (Updater, Map Wipe, Full Wipe) require typing the action's exact name into the confirmation popup before they'll run, which is the actual protection against a stray click. Anyone with the dashboard open can see the tab and its options, same as everything else in the dashboard.
-
-The rest of `AMAP/` in this repo is a sanitized backup copy of the actual AMAP scripts running on the server, in case the live ones on the server ever need to be restored - real secrets (Discord webhooks, the RCON password) are replaced with `CHANGE_ME` placeholders.
 
 ## Giving this to other admins
 
@@ -146,15 +73,7 @@ Copy the whole `NOR-Dashboard` folder to their PC (or zip it up).
 
 - **`app/config.json`** holds your RCON password and API keys. If this admin already has (or should have) full RCON access anyway, it's fine to include as-is so they're up and running immediately. If not, delete it before sharing (or just don't include it) - `app/config.example.json` is the safe template that ships instead, and `install.bat` will recreate `app/config.json` from it.
 - **`.pyexe`** and the **`app/__pycache__`** folder are machine-specific and safe to delete before sharing - both get regenerated automatically (`.pyexe` by `install.bat`, `app/__pycache__` the first time Python runs).
-- **`app/player_notes.json`, `app/player_stats.json`, `app/map_cache.json`** hold this server's accumulated notes/ban reasons, player history, and cached map data. Leave them in if you want the other admin to see the same history immediately; delete them for a clean slate. **This barely matters either way** - notes and stats sync to the Rust server itself automatically, so a new admin picks up everyone else's history within a few minutes regardless of whether these files were copied over.
-
-### Shared player data
-
-Player notes and stats are never purely local - they sync to the Rust server itself over the same RCON connection the rest of the dashboard already uses, so there's nothing extra to set up. Notes sync to the server immediately on every add/delete; stats (total time, last connected) merge in the background every few minutes, since that updates too often locally to sync on every single change without hammering RCON. Either way, every admin running their own copy of this dashboard against the same Rust server ends up seeing the same notes and history, stored in `AMAP/Files/Config/DB-player_notes.json` and `DB-player_stats.json` on the server (read and written by `AmapBridge.cs`, not over SSH/SFTP). If the server's briefly unreachable, the dashboard falls back to whatever it has cached locally rather than failing outright, and says so - a sync failure shows up as a warning next to the notes/stats it couldn't confirm, with the actual reason, instead of silently doing nothing.
-
-`AMAP/Files/Config/DB-player_notes.json` and `DB-player_stats.json` ship in this repo as seed files (each with one placeholder "Test Player" entry, SteamID `76561198000000000`) - they land in the right place automatically when you follow "Setting up AMAP on your Rust server" above, so the very first sync has a real file to read instead of needing the dashboard to create one from scratch. The test entry will show up in the Players tab (Offline Players, Search All Notes) until you delete it the normal way - through the dashboard itself, same as any other player's notes/history.
-
-The Player Notes panel also has a **Force Sync** button, for when you don't want to wait for the next automatic background merge - it pulls and pushes both notes and stats immediately. It's limited to once every 10 seconds (enforced on the server, not just disabled in the browser) so repeated clicks can't hammer the RCON connection; clicking again too soon shows a small bubble saying so, which clears itself after 5 seconds.
+- **`app/player_notes.json`, `app/player_stats.json`, `app/map_cache.json`** hold this server's accumulated notes/ban reasons, player history, and cached map data. Leave them in if you want the other admin to see the same history immediately; delete them for a clean slate.
 
 Each admin then:
 
@@ -168,9 +87,8 @@ Each admin then:
 - This only binds to `127.0.0.1` (your own PC) - it's deliberately not reachable over your network, since `app/config.json` holds your RCON password.
 - The dashboard now runs windowless - no console, just the browser window. It shuts itself down automatically within about a minute and a half of you closing that window (not while it's merely in the background - see "Running it" above). See "Log files" above if you ever need to check what it's been doing.
 - If the RCON connection drops or the server restarts, the dashboard reconnects automatically next time it needs to talk to it.
-- It's normal to see `NOR Dashboard connected` show up periodically (every 15 seconds) in the server's own console/logs - that's just the dashboard's connection health-check, confirming RCON is reachable and everything (including the AMAP tab) is working. It's hidden from the dashboard's own Console tab feed on purpose, but still visible to anyone watching the raw server console directly.
+- It's normal to see `NOR Dashboard connected` show up periodically (every 15 seconds) in the server's own console/logs - that's just the dashboard's connection health-check, confirming RCON is reachable and everything is working. It's hidden from the dashboard's own Console tab feed on purpose, but still visible to anyone watching the raw server console directly.
 - The Players list parses your server's `playerlist` RCON response into a table; the Server Info tab uses the built-in `serverinfo` command; the Live Map's event markers use the built-in `find_entity` command - all tested against your actual server and working.
 - Without a `rustmaps_api_key`, the Live Map tab still shows live player/event markers - just without the background map image or the oil rig markers, since both of those come from RustMaps' own data, not RCON. The very first time RustMaps sees a given seed/world size, generating the image (and the oil rig positions, fetched the same trip) can take a couple minutes; the tab shows a "generating" message and a Refresh button until it's ready.
 - Without a `battlemetrics_id`, the Overview tab still shows everything else - Rank just stays blank.
 - The Overview tab's background image normally comes from `server.headerimage` (see "What's in here" above) - `app/static/img/bg.jpg` is only a fallback, shown if `headerimage` isn't set on your server (or hasn't loaded yet). Swap that file for your own image (same filename) if you want a different fallback.
-- Several AMAP tab actions (Updater, Map Wipe, Full Wipe) stop the live Rust server, which is the very process the AmapBridge plugin runs inside - expect the RCON connection to drop right after using one of those, same as it would if you stopped the server any other way. The dashboard reconnects automatically once the server's back up.
