@@ -146,7 +146,10 @@
   <section id="tab-console" class="tab-panel">
     <div class="console-layout">
       <div class="panel">
-        <h2>RCON Console</h2>
+        <div class="panel-title-row">
+          <h2>RCON Console</h2>
+          <button type="button" id="console-autoscroll-btn" class="btn btn-outline btn-small has-tooltip" data-tooltip="Pause autoscroll so you can scroll up to read">Pause</button>
+        </div>
         <p class="muted">Send any command to server.</p>
         <div id="console-output" class="console-output"></div>
         <form id="console-form" class="inline-form">

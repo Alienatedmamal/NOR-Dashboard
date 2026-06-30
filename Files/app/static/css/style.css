@@ -834,6 +834,9 @@ input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:foc
    fill the page width. */
 .settings-panel { max-width: 460px; padding: 18px 22px; }
 
+.panel-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.panel-title-row h2 { margin: 0; }
+
 .panel-subheading { margin-top: 22px; font-size: 16px; }
 
 .help-faq { margin: 16px 0; }

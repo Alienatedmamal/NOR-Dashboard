@@ -493,6 +493,19 @@ function playAlertTone() {
   }
 }
 
+// Deduplication guard for alert toasts — prevents the same title+message
+// from showing more than once within a 60-second window, which can happen
+// when an alert is queued twice in quick succession (e.g. a threshold right
+// on the boundary between two consecutive samples).
+const _recentToasts = new Map();
+function _isDupeToast(title, message) {
+  const key = `${title}|${message}`;
+  const last = _recentToasts.get(key) || 0;
+  if (Date.now() - last < 60_000) return true;
+  _recentToasts.set(key, Date.now());
+  return false;
+}
+
 // Piggybacked on refreshStatus()'s existing 15s poll rather than its own
 // faster one - this is sourced from a 60s-interval background tick (see
 // _player_tracker_loop in app.py), so polling more often than that
@@ -503,9 +516,12 @@ async function checkJoinAlerts() {
     const alerts = data.alerts || [];
     if (alerts.length === 0) return;
     alerts.forEach((a) => {
+      const title = "Noted player reconnected";
+      const message = `${a.name || a.steamid} has ${a.note_count} note${a.note_count === 1 ? "" : "s"} on file. Click to view.`;
+      if (_isDupeToast(title, message)) return;
       showToast({
-        title: "Noted player reconnected",
-        message: `${a.name || a.steamid} has ${a.note_count} note${a.note_count === 1 ? "" : "s"} on file. Click to view.`,
+        title,
+        message,
         variant: "info",
         onClick: () => {
           activateTab("players");
@@ -523,6 +539,26 @@ async function checkJoinAlerts() {
 
 // ---- Console ----
 const consoleOutput = $("#console-output");
+let _consoleAutoscroll = true;
+
+function _setAutoscroll(enabled) {
+  _consoleAutoscroll = enabled;
+  const btn = $("#console-autoscroll-btn");
+  if (!btn) return;
+  btn.textContent = enabled ? "Pause" : "Resume";
+  btn.dataset.tooltip = enabled ? "Pause autoscroll so you can scroll up to read" : "Resume autoscroll";
+  btn.classList.toggle("btn-primary", !enabled);
+  btn.classList.toggle("btn-outline", enabled);
+}
+
+$("#console-autoscroll-btn").addEventListener("click", () => _setAutoscroll(!_consoleAutoscroll));
+
+// Resume autoscroll automatically when the user scrolls back to the bottom.
+consoleOutput.addEventListener("scroll", () => {
+  const atBottom = consoleOutput.scrollHeight - consoleOutput.scrollTop - consoleOutput.clientHeight < 8;
+  if (atBottom && !_consoleAutoscroll) _setAutoscroll(true);
+});
+
 function logToConsole(line, cls, timestamp) {
   const row = document.createElement("div");
   row.className = "console-line " + (cls || "");
@@ -536,7 +572,7 @@ function logToConsole(line, cls, timestamp) {
     row.textContent = line;
   }
   consoleOutput.appendChild(row);
-  consoleOutput.scrollTop = consoleOutput.scrollHeight;
+  if (_consoleAutoscroll) consoleOutput.scrollTop = consoleOutput.scrollHeight;
 }
 function nowTimestamp() {
   return new Date().toTimeString().slice(0, 8);
@@ -2312,6 +2348,7 @@ async function checkSystemAlerts() {
     if (alerts.length === 0) return;
     let playSound = false;
     alerts.forEach((a) => {
+      if (_isDupeToast(a.title, a.message)) return;
       showToast({ title: a.title, message: a.message, variant: a.variant || "error" });
       if (a.play_sound) playSound = true;
     });
