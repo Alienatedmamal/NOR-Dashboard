@@ -570,20 +570,75 @@ function populateGiveItemPlayerSelect(players) {
   select._syncCustomSelectTrigger && select._syncCustomSelectTrigger();
 }
 
+let itemCatalog = [];
+
 async function loadItemCatalog() {
-  const select = $("#give-item-shortname");
   try {
     const data = await fetch("/api/items/catalog").then((res) => res.json());
-    const items = data.items || [];
-    select.innerHTML = items
-      .map((item) => `<option value="${escapeHtml(item.shortname)}" data-icon="/static/img/items/${escapeHtml(item.shortname)}.png">${escapeHtml(item.category)} - ${escapeHtml(item.name)}</option>`)
-      .join("");
-  } catch (err) {
-    select.innerHTML = '<option value="">(could not load item list)</option>';
-  }
-  select._syncCustomSelectTrigger && select._syncCustomSelectTrigger();
+    itemCatalog = data.items || [];
+  } catch {}
+  initGiveItemCombo();
 }
 loadItemCatalog();
+
+function initGiveItemCombo() {
+  const searchInput = $("#give-item-search");
+  const hiddenInput = $("#give-item-shortname");
+  if (!searchInput) return;
+
+  const wrap = document.createElement("div");
+  wrap.className = "combo-wrap";
+  searchInput.parentNode.insertBefore(wrap, searchInput);
+  wrap.appendChild(searchInput);
+  wrap.appendChild(hiddenInput);
+
+  const list = document.createElement("div");
+  list.className = "combo-list";
+  list.hidden = true;
+  wrap.appendChild(list);
+
+  function renderOptions() {
+    const q = searchInput.value.trim().toLowerCase();
+    const matches = q
+      ? itemCatalog.filter(
+          (i) =>
+            i.name.toLowerCase().includes(q) ||
+            i.shortname.toLowerCase().includes(q) ||
+            i.category.toLowerCase().includes(q)
+        )
+      : itemCatalog;
+    list.innerHTML = matches.length
+      ? matches
+          .slice(0, 80)
+          .map(
+            (i) =>
+              `<div class="combo-option" data-value="${escapeHtml(i.shortname)}">` +
+              `<img class="combo-option-icon" src="/static/img/items/${escapeHtml(i.shortname)}.png" alt="">` +
+              `${escapeHtml(i.category)} - ${escapeHtml(i.name)}</div>`
+          )
+          .join("")
+      : '<div class="combo-option combo-empty muted">No items found</div>';
+    list.hidden = false;
+  }
+
+  searchInput.addEventListener("focus", renderOptions);
+  searchInput.addEventListener("input", () => {
+    hiddenInput.value = "";
+    renderOptions();
+  });
+  searchInput.addEventListener("blur", () => {
+    setTimeout(() => { list.hidden = true; }, 150);
+  });
+  list.addEventListener("mousedown", (e) => {
+    const opt = e.target.closest(".combo-option");
+    if (!opt || !opt.dataset.value) return;
+    const shortname = opt.dataset.value;
+    hiddenInput.value = shortname;
+    const item = itemCatalog.find((i) => i.shortname === shortname);
+    searchInput.value = item ? `${item.category} - ${item.name}` : shortname;
+    list.hidden = true;
+  });
+}
 
 $("#give-item-form").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -1001,6 +1056,7 @@ loadPermissionsCatalog();
 // ---- Players ----
 $("#refresh-players").addEventListener("click", loadPlayers);
 loadPlayers();
+onTabActivated("players", refreshAllPlayerTables);
 
 function formatSeconds(s) {
   s = Number(s) || 0;
@@ -1562,12 +1618,28 @@ $("#notes-add-form").addEventListener("submit", async (e) => {
 });
 
 // ---- Permissions ----
+function syncPermTargetFields() {
+  const isGroup = $("#perm-target-type").value === "group";
+  $("#perm-target-user-wrap").hidden = isGroup;
+  $("#perm-target-group-wrap").hidden = !isGroup;
+}
+$("#perm-target-type").addEventListener("change", syncPermTargetFields);
+
+function syncShowTargetFields() {
+  const isGroup = $("#show-target-type").value === "group";
+  $("#show-target-user-wrap").hidden = isGroup;
+  $("#show-target-group-wrap").hidden = !isGroup;
+}
+$("#show-target-type").addEventListener("change", syncShowTargetFields);
+
 $("#perm-grant").addEventListener("click", () => doPermAction("/api/permissions/grant"));
 $("#perm-revoke").addEventListener("click", () => doPermAction("/api/permissions/revoke"));
 
 async function doPermAction(url) {
   const target_type = $("#perm-target-type").value;
-  const target = $("#perm-target").value.trim();
+  const target = target_type === "group"
+    ? $("#perm-target-group").value
+    : $("#perm-target").value.trim();
   const permission = $("#perm-permission").value.trim();
   if (!target || !permission) {
     alert("Please fill in both the target and permission fields.");
@@ -1641,7 +1713,9 @@ $("#group-remove-submit").addEventListener("click", async () => {
 
 $("#show-submit").addEventListener("click", async () => {
   const type = $("#show-target-type").value;
-  const target = $("#show-target").value.trim();
+  const target = type === "group"
+    ? $("#show-target-group").value
+    : $("#show-target").value.trim();
   const out = $("#show-output");
   if (!target) {
     out.textContent = "Enter a player or group name first.";
@@ -1785,9 +1859,7 @@ $("#rcon-settings-form").addEventListener("submit", async (e) => {
   if (!data.error) refreshStatus();
 });
 
-// ---- Settings tab: Wipe Schedule ----
-const COMMON_TIMEZONES = ["America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles"];
-
+// ---- Settings tab: Wipe Countdown ----
 function syncWipeFormVisibility() {
   const frequency = $("#wipe-setting-frequency").value;
   $("#wipe-setting-anchor-wrap").hidden = frequency !== "biweekly";
@@ -1804,16 +1876,16 @@ async function loadWipeSettingsForm() {
     $("#wipe-setting-frequency").value = data.wipe_frequency || "monthly";
     $("#wipe-setting-time").value = data.wipe_time || "14:00";
     const tz = data.wipe_timezone || "America/Chicago";
-    if (COMMON_TIMEZONES.includes(tz)) {
-      $("#wipe-setting-timezone").value = tz;
-    } else {
-      $("#wipe-setting-timezone").value = "other";
+    const tzSelect = $("#wipe-setting-timezone");
+    tzSelect.value = tz;
+    if (tzSelect.value !== tz) {
+      tzSelect.value = "other";
       $("#wipe-setting-timezone-other").value = tz;
     }
     $("#wipe-setting-anchor").value = data.wipe_anchor_date || "";
     syncWipeFormVisibility();
     $("#wipe-setting-frequency")._syncCustomSelectTrigger && $("#wipe-setting-frequency")._syncCustomSelectTrigger();
-    $("#wipe-setting-timezone")._syncCustomSelectTrigger && $("#wipe-setting-timezone")._syncCustomSelectTrigger();
+    tzSelect._syncCustomSelectTrigger && tzSelect._syncCustomSelectTrigger();
   } catch (err) {
     // form just keeps its defaults - Save will surface any real problem
   }
@@ -2209,6 +2281,7 @@ function showTourStep(index) {
     $("#tour-caption-text").textContent = step.text;
     $("#tour-step-counter").textContent = `Step ${index + 1} of ${TOUR_STEPS.length}`;
     $("#tour-next-btn").textContent = index === TOUR_STEPS.length - 1 ? "Finish" : "Next";
+    $("#tour-back-btn").disabled = index === 0;
   });
 }
 
@@ -2216,11 +2289,13 @@ function startTour() {
   tourStepIndex = 0;
   $("#tour-overlay").hidden = false;
   $("#tour-dont-show-again").checked = false;
+  document.body.style.overflow = "hidden";
   showTourStep(0);
 }
 
 async function endTour(dismissPermanently) {
   $("#tour-overlay").hidden = true;
+  document.body.style.overflow = "";
   if (dismissPermanently && !notificationSettings.tour_dismissed) {
     notificationSettings.tour_dismissed = true;
     $("#notifications-setting-tour-dismissed").checked = true;
@@ -2231,6 +2306,12 @@ async function endTour(dismissPermanently) {
 $("#tour-next-btn").addEventListener("click", () => {
   tourStepIndex++;
   showTourStep(tourStepIndex);
+});
+$("#tour-back-btn").addEventListener("click", () => {
+  if (tourStepIndex > 0) {
+    tourStepIndex--;
+    showTourStep(tourStepIndex);
+  }
 });
 $("#tour-skip-btn").addEventListener("click", () => endTour($("#tour-dont-show-again").checked));
 window.addEventListener("resize", () => {
@@ -2304,6 +2385,97 @@ const OIL_RIG_SLUGS = {
 let mapWorldSize = null;
 let mapOilRigs = [];
 let mapPollTimer = null;
+const hiddenMapTypes = new Set();
+let selectedMapSteamid = null;
+let mapZoom = 1;
+let mapPanX = 0;
+let mapPanY = 0;
+let mapDragging = false;
+let mapDragStartX = 0, mapDragStartY = 0;
+let mapDragPanStartX = 0, mapDragPanStartY = 0;
+
+function applyMapTransform() {
+  $("#map-canvas").style.transform = `translate(${mapPanX}px,${mapPanY}px) scale(${mapZoom})`;
+}
+
+function clampMapPan() {
+  const wrap = $("#map-wrap");
+  const wrapW = wrap.offsetWidth;
+  const wrapH = wrap.offsetHeight;
+  const scaledW = 900 * mapZoom;
+  const scaledH = 900 * mapZoom;
+  mapPanX = scaledW > wrapW ? Math.max(wrapW - scaledW, Math.min(0, mapPanX)) : 0;
+  mapPanY = scaledH > wrapH ? Math.max(wrapH - scaledH, Math.min(0, mapPanY)) : 0;
+}
+
+function followSelectedPlayer(players) {
+  if (!selectedMapSteamid || mapZoom <= 1) return;
+  const p = players.find((pl) => pl.steamid === selectedMapSteamid);
+  if (!p) return;
+  const pos = mapPosition(p.x, p.z);
+  if (!pos) return;
+  const wrap = $("#map-wrap");
+  const wrapW = wrap.offsetWidth;
+  const wrapH = wrap.offsetHeight;
+  mapPanX = wrapW / 2 - (pos.left / 100) * 900 * mapZoom;
+  mapPanY = wrapH / 2 - (pos.top / 100) * 900 * mapZoom;
+  clampMapPan();
+  applyMapTransform();
+}
+
+// Map toggle buttons
+$all(".map-toggle").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const type = btn.dataset.mapType;
+    if (hiddenMapTypes.has(type)) {
+      hiddenMapTypes.delete(type);
+      btn.classList.add("active");
+    } else {
+      hiddenMapTypes.add(type);
+      btn.classList.remove("active");
+    }
+    loadMapEntities();
+  });
+});
+
+// Map zoom via mouse wheel
+$("#map-wrap").addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const rect = $("#map-wrap").getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+  const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+  const newZoom = Math.max(1, Math.min(4, mapZoom * factor));
+  mapPanX = mouseX - (mouseX - mapPanX) * (newZoom / mapZoom);
+  mapPanY = mouseY - (mouseY - mapPanY) * (newZoom / mapZoom);
+  mapZoom = newZoom;
+  clampMapPan();
+  applyMapTransform();
+}, { passive: false });
+
+// Map pan via drag
+$("#map-wrap").addEventListener("mousedown", (e) => {
+  if (mapZoom <= 1) return;
+  mapDragging = true;
+  mapDragStartX = e.clientX;
+  mapDragStartY = e.clientY;
+  mapDragPanStartX = mapPanX;
+  mapDragPanStartY = mapPanY;
+  $("#map-wrap").classList.add("panning");
+});
+document.addEventListener("mousemove", (e) => {
+  if (!mapDragging) return;
+  mapPanX = mapDragPanStartX + (e.clientX - mapDragStartX);
+  mapPanY = mapDragPanStartY + (e.clientY - mapDragStartY);
+  clampMapPan();
+  applyMapTransform();
+});
+document.addEventListener("mouseup", () => {
+  if (mapDragging) {
+    mapDragging = false;
+    $("#map-wrap").classList.remove("panning");
+  }
+});
 
 async function loadMapImage() {
   const status = $("#map-status");
@@ -2369,7 +2541,7 @@ function playerMapMarker(p) {
   const pos = mapPosition(p.x, p.z);
   if (!pos) return null;
   const el = document.createElement("div");
-  el.className = "map-player-marker";
+  el.className = "map-player-marker" + (selectedMapSteamid === p.steamid ? " map-player-selected" : "");
   el.style.left = pos.left + "%";
   el.style.top = pos.top + "%";
   el.title = p.name;
@@ -2377,6 +2549,11 @@ function playerMapMarker(p) {
     ? `<img class="map-player-avatar" src="${escapeHtml(p.avatar)}" alt="">`
     : '<div class="map-player-avatar map-player-avatar-blank"></div>';
   el.innerHTML = `${avatarHtml}<span class="map-player-name">${escapeHtml(p.name)}</span>`;
+  el.addEventListener("click", (e) => {
+    e.stopPropagation();
+    selectedMapSteamid = selectedMapSteamid === p.steamid ? null : p.steamid;
+    loadMapEntities();
+  });
   return el;
 }
 
@@ -2388,20 +2565,26 @@ async function loadMapEntities() {
     const data = await res.json();
     if (data.error) return;
     overlay.innerHTML = "";
-    (data.players || []).forEach((p) => {
-      const el = playerMapMarker(p);
-      if (el) overlay.appendChild(el);
-    });
+    if (!hiddenMapTypes.has("players")) {
+      (data.players || []).forEach((p) => {
+        const el = playerMapMarker(p);
+        if (el) overlay.appendChild(el);
+      });
+    }
     (data.events || []).forEach((e) => {
       const slug = EVENT_LABEL_SLUGS[e.label] || "";
+      if (slug && hiddenMapTypes.has(slug)) return;
       const el = mapMarker(e.x, e.z, `map-marker-icon map-icon-${slug}`, e.label);
       if (el) overlay.appendChild(el);
     });
-    mapOilRigs.forEach((r) => {
-      const slug = OIL_RIG_SLUGS[r.type] || "";
-      const el = mapMarker(r.x, r.z, `map-marker-icon map-icon-${slug}`, r.type);
-      if (el) overlay.appendChild(el);
-    });
+    if (!hiddenMapTypes.has("oilrigs")) {
+      mapOilRigs.forEach((r) => {
+        const slug = OIL_RIG_SLUGS[r.type] || "";
+        const el = mapMarker(r.x, r.z, `map-marker-icon map-icon-${slug}`, r.type);
+        if (el) overlay.appendChild(el);
+      });
+    }
+    followSelectedPlayer(data.players || []);
   } catch (err) {
     // next poll will catch up
   }

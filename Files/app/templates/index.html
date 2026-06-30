@@ -155,7 +155,8 @@
               <select class="custom-select" id="give-item-player"></select>
             </label>
             <label>Item
-              <select class="custom-select" id="give-item-shortname"></select>
+              <input type="text" id="give-item-search" placeholder="Search items..." autocomplete="off">
+              <input type="hidden" id="give-item-shortname">
             </label>
             <label>Quantity
               <input type="number" id="give-item-amount" value="1" min="1" autocomplete="off">
@@ -297,15 +298,15 @@
       </div>
       <p id="map-status" class="muted">Loading...</p>
       <div class="map-legend">
-        <span class="map-legend-item"><span class="map-dot map-dot-player"></span>Player</span>
-        <span class="map-legend-item"><span class="map-legend-icon map-icon-cargoship"></span>Cargo Ship</span>
-        <span class="map-legend-item"><span class="map-legend-icon map-icon-patrolhelicopter"></span>Patrol Heli</span>
-        <span class="map-legend-item"><span class="map-legend-icon map-icon-bradleyapc"></span>Bradley APC</span>
-        <span class="map-legend-item"><span class="map-legend-icon map-icon-ch47"></span>CH47</span>
-        <span class="map-legend-item"><span class="map-legend-icon map-icon-cargoplane"></span>Cargo Plane</span>
-        <span class="map-legend-item"><span class="map-legend-icon map-icon-oilrig-small"></span>Small Oil Rig</span>
-        <span class="map-legend-item"><span class="map-legend-icon map-icon-oilrig-large"></span>Large Oil Rig</span>
+        <button class="map-toggle active" data-map-type="players"><span class="map-dot map-dot-player"></span>Players</button>
+        <button class="map-toggle active" data-map-type="cargoship"><span class="map-legend-icon map-icon-cargoship"></span>Cargo Ship</button>
+        <button class="map-toggle active" data-map-type="patrolhelicopter"><span class="map-legend-icon map-icon-patrolhelicopter"></span>Patrol Heli</button>
+        <button class="map-toggle active" data-map-type="bradleyapc"><span class="map-legend-icon map-icon-bradleyapc"></span>Bradley APC</button>
+        <button class="map-toggle active" data-map-type="ch47"><span class="map-legend-icon map-icon-ch47"></span>CH47</button>
+        <button class="map-toggle active" data-map-type="cargoplane"><span class="map-legend-icon map-icon-cargoplane"></span>Cargo Plane</button>
+        <button class="map-toggle active" data-map-type="oilrigs"><span class="map-legend-icon map-icon-oilrig-small"></span>Oil Rigs</button>
       </div>
+      <p class="muted" style="font-size:12px; margin: 0 0 8px;">Scroll to zoom &bull; Drag to pan when zoomed &bull; Click a player to track them</p>
       <div class="map-wrap" id="map-wrap">
         <div class="map-canvas" id="map-canvas">
           <img id="map-image" class="map-image" alt="Server map" hidden>
@@ -326,8 +327,11 @@
               <option value="group">Group</option>
             </select>
           </label>
-          <label>Player name / SteamID or group name
-            <input type="text" id="perm-target" class="player-combo" placeholder="e.g. 76561198000000000 or admin" autocomplete="off">
+          <label id="perm-target-user-wrap">Player name / SteamID
+            <input type="text" id="perm-target" class="player-combo" placeholder="e.g. 76561198000000000" autocomplete="off">
+          </label>
+          <label id="perm-target-group-wrap" hidden>Group
+            <select class="custom-select group-select" id="perm-target-group"></select>
           </label>
           <label>Permission
             <input type="text" id="perm-permission" list="permission-list" placeholder="e.g. kits.use">
@@ -387,8 +391,11 @@
               <option value="group">Group</option>
             </select>
           </label>
-          <label>Name / SteamID
-            <input type="text" id="show-target" class="player-combo" placeholder="e.g. 76561198000000000 or admin" autocomplete="off">
+          <label id="show-target-user-wrap">Name / SteamID
+            <input type="text" id="show-target" class="player-combo" placeholder="e.g. 76561198000000000" autocomplete="off">
+          </label>
+          <label id="show-target-group-wrap" hidden>Group
+            <select class="custom-select group-select" id="show-target-group"></select>
           </label>
           <button type="button" id="show-submit" class="btn btn-primary">Show</button>
         </form>
@@ -485,7 +492,7 @@
       <button class="settings-subnav-btn active" data-settings-section="rcon">RCON</button>
       <button class="settings-subnav-btn" data-settings-section="api-keys">API Keys</button>
       <button class="settings-subnav-btn" data-settings-section="theme">Theme</button>
-      <button class="settings-subnav-btn" data-settings-section="wipe">Wipe Schedule</button>
+      <button class="settings-subnav-btn" data-settings-section="wipe">Wipe Countdown</button>
       <button class="settings-subnav-btn" data-settings-section="notifications">Notifications</button>
       {% if show_module_settings %}<button class="settings-subnav-btn" data-settings-section="modules">Module Settings</button>{% endif %}
       <button class="settings-subnav-btn" data-settings-section="update">Update</button>
@@ -567,7 +574,7 @@
 
     <div id="settings-section-wipe" class="settings-section">
       <div class="panel settings-panel">
-        <h2>Wipe Schedule</h2>
+        <h2>Wipe Countdown</h2>
         <p class="muted">Controls the countdown shown in the header. Saved for everyone who opens this dashboard.</p>
         <form class="stacked-form" id="wipe-settings-form" onsubmit="return false;">
           <label>Frequency
@@ -582,10 +589,56 @@
           </label>
           <label>Timezone
             <select class="custom-select" id="wipe-setting-timezone">
-              <option value="America/New_York">Eastern</option>
-              <option value="America/Chicago">Central</option>
-              <option value="America/Denver">Mountain</option>
-              <option value="America/Los_Angeles">Pacific</option>
+              <option value="America/New_York">Eastern Time (US)</option>
+              <option value="America/Chicago">Central Time (US)</option>
+              <option value="America/Denver">Mountain Time (US)</option>
+              <option value="America/Los_Angeles">Pacific Time (US)</option>
+              <option value="America/Phoenix">Arizona (no DST)</option>
+              <option value="America/Anchorage">Alaska</option>
+              <option value="Pacific/Honolulu">Hawaii</option>
+              <option value="America/Vancouver">Vancouver / Pacific Canada</option>
+              <option value="America/Edmonton">Edmonton / Mountain Canada</option>
+              <option value="America/Winnipeg">Winnipeg / Central Canada</option>
+              <option value="America/Toronto">Toronto / Eastern Canada</option>
+              <option value="America/Halifax">Halifax / Atlantic Canada</option>
+              <option value="America/St_Johns">St. John's (Newfoundland)</option>
+              <option value="Europe/London">London (GMT/BST)</option>
+              <option value="Europe/Dublin">Dublin</option>
+              <option value="Europe/Paris">Paris / Berlin / Madrid / Rome</option>
+              <option value="Europe/Amsterdam">Amsterdam / Brussels</option>
+              <option value="Europe/Stockholm">Stockholm / Oslo / Copenhagen</option>
+              <option value="Europe/Helsinki">Helsinki / Tallinn / Riga / Vilnius</option>
+              <option value="Europe/Warsaw">Warsaw / Prague / Budapest</option>
+              <option value="Europe/Bucharest">Bucharest / Athens / Sofia</option>
+              <option value="Europe/Istanbul">Istanbul</option>
+              <option value="Europe/Moscow">Moscow</option>
+              <option value="Europe/Kiev">Kyiv</option>
+              <option value="Australia/Sydney">Sydney / Melbourne / Canberra</option>
+              <option value="Australia/Brisbane">Brisbane</option>
+              <option value="Australia/Adelaide">Adelaide</option>
+              <option value="Australia/Perth">Perth</option>
+              <option value="Pacific/Auckland">Auckland (New Zealand)</option>
+              <option value="Asia/Tokyo">Tokyo (JST)</option>
+              <option value="Asia/Seoul">Seoul (KST)</option>
+              <option value="Asia/Shanghai">Shanghai / Beijing</option>
+              <option value="Asia/Hong_Kong">Hong Kong</option>
+              <option value="Asia/Singapore">Singapore</option>
+              <option value="Asia/Bangkok">Bangkok / Jakarta</option>
+              <option value="Asia/Kolkata">India (IST)</option>
+              <option value="Asia/Karachi">Karachi (PKT)</option>
+              <option value="Asia/Dubai">Dubai / Abu Dhabi</option>
+              <option value="Asia/Tehran">Tehran (IRST)</option>
+              <option value="Asia/Riyadh">Riyadh / Saudi Arabia</option>
+              <option value="America/Sao_Paulo">São Paulo (BRT)</option>
+              <option value="America/Argentina/Buenos_Aires">Buenos Aires</option>
+              <option value="America/Lima">Lima / Bogotá</option>
+              <option value="America/Santiago">Santiago</option>
+              <option value="America/Caracas">Caracas</option>
+              <option value="Africa/Cairo">Cairo (EET)</option>
+              <option value="Africa/Johannesburg">Johannesburg (SAST)</option>
+              <option value="Africa/Lagos">Lagos / West Africa</option>
+              <option value="Africa/Nairobi">Nairobi (EAT)</option>
+              <option value="UTC">UTC</option>
               <option value="other">Other (type below)</option>
             </select>
           </label>
@@ -679,6 +732,7 @@
     </label>
     <div class="btn-row">
       <button type="button" id="tour-skip-btn" class="btn btn-outline">Skip Tour</button>
+      <button type="button" id="tour-back-btn" class="btn btn-outline" disabled>Back</button>
       <button type="button" id="tour-next-btn" class="btn btn-primary">Next</button>
     </div>
   </div>
