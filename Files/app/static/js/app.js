@@ -46,6 +46,11 @@ function revealPage() {
   if (overlay) overlay.hidden = true;
 }
 
+function setLoadingStatus(text) {
+  const el = $("#loading-screen-status");
+  if (el) el.textContent = text;
+}
+
 // /api/status's own RCON call can legitimately take much longer than this
 // gate's whole 15s budget against a genuinely bad host (rcon_client.py's
 // retry loop: up to ~8s connect + 8s send + 8s response-wait, x2 attempts).
@@ -69,11 +74,44 @@ async function checkServerReachable() {
   }
 }
 
+// Run after the RCON gate resolves (success or timeout) and before the
+// page reveals - one more thing for the loading screen's progress bar/
+// status line to report on, same UI as the RCON wait above. A module
+// failing its check doesn't block startup; it's a heads-up, not a gate -
+// the AMAP tab (etc.) will keep showing the same problem on its own if
+// the admin tries to use it anyway.
+async function runModulePreflightChecks() {
+  let modules = [];
+  try {
+    const data = await fetch("/api/modules").then((res) => res.json());
+    modules = (data.loaded || []).filter((m) => m.has_preflight);
+  } catch (err) {
+    return; // /api/modules itself failing isn't worth blocking startup over
+  }
+  for (const mod of modules) {
+    setLoadingStatus(`Checking module: ${mod.label}...`);
+    let result;
+    try {
+      result = await fetch(`/api/modules/${mod.key}/preflight`).then((res) => res.json());
+    } catch (err) {
+      result = { ok: false, message: "Preflight check failed to run." };
+    }
+    if (!result.ok) {
+      await showConfirmModal({
+        title: `${mod.label} module`,
+        message: result.message || `${mod.label} couldn't confirm its requirements are met.`,
+        confirmLabel: "Continue anyway",
+      });
+    }
+  }
+}
+
 async function runLoadingGate() {
   const startedAt = Date.now();
   const deadline = startedAt + LOADING_TIMEOUT_MS;
+  setLoadingStatus("Connecting to your Rust server...");
   const progressTimer = setInterval(() => {
-    setLoadingProgress(Math.round(((Date.now() - startedAt) / LOADING_TIMEOUT_MS) * 100));
+    setLoadingProgress(Math.round(((Date.now() - startedAt) / LOADING_TIMEOUT_MS) * 90));
   }, 200);
 
   let reachable = false;
@@ -87,8 +125,11 @@ async function runLoadingGate() {
   if (!reachable) {
     reachable = await checkServerReachable(); // one last try right at the deadline
   }
-
   clearInterval(progressTimer);
+  setLoadingProgress(90);
+
+  await runModulePreflightChecks();
+
   setLoadingProgress(100);
   revealPage();
 
@@ -133,12 +174,21 @@ $all(".tab-btn").forEach((btn) => {
 });
 $("#settings-gear-btn").addEventListener("click", () => activateTab("settings"));
 
+// Lets a module react to its own tab becoming active without core needing
+// to know that module exists (e.g. Terminal's xterm.js instance needs a
+// fit() call once its container is actually visible and sized) - core
+// just calls whatever's registered for the activated tab, if anything.
+const tabActivationHooks = {};
+function onTabActivated(tab, fn) {
+  (tabActivationHooks[tab] = tabActivationHooks[tab] || []).push(fn);
+}
+
 function activateTab(tab) {
   $all(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
   $("#settings-gear-btn").classList.toggle("active", tab === "settings");
   $all(".tab-panel").forEach((p) => p.classList.toggle("active", p.id === "tab-" + tab));
   if (tab === "map") startMapPolling(); else stopMapPolling();
-  if (tab === "terminal") fitTerminal();
+  (tabActivationHooks[tab] || []).forEach((fn) => fn());
 }
 
 // ---- Settings sub-nav (RCON / Theme / Wipe Schedule) ----
@@ -520,20 +570,75 @@ function populateGiveItemPlayerSelect(players) {
   select._syncCustomSelectTrigger && select._syncCustomSelectTrigger();
 }
 
+let itemCatalog = [];
+
 async function loadItemCatalog() {
-  const select = $("#give-item-shortname");
   try {
     const data = await fetch("/api/items/catalog").then((res) => res.json());
-    const items = data.items || [];
-    select.innerHTML = items
-      .map((item) => `<option value="${escapeHtml(item.shortname)}" data-icon="/static/img/items/${escapeHtml(item.shortname)}.png">${escapeHtml(item.category)} - ${escapeHtml(item.name)}</option>`)
-      .join("");
-  } catch (err) {
-    select.innerHTML = '<option value="">(could not load item list)</option>';
-  }
-  select._syncCustomSelectTrigger && select._syncCustomSelectTrigger();
+    itemCatalog = data.items || [];
+  } catch {}
+  initGiveItemCombo();
 }
 loadItemCatalog();
+
+function initGiveItemCombo() {
+  const searchInput = $("#give-item-search");
+  const hiddenInput = $("#give-item-shortname");
+  if (!searchInput) return;
+
+  const wrap = document.createElement("div");
+  wrap.className = "combo-wrap";
+  searchInput.parentNode.insertBefore(wrap, searchInput);
+  wrap.appendChild(searchInput);
+  wrap.appendChild(hiddenInput);
+
+  const list = document.createElement("div");
+  list.className = "combo-list";
+  list.hidden = true;
+  wrap.appendChild(list);
+
+  function renderOptions() {
+    const q = searchInput.value.trim().toLowerCase();
+    const matches = q
+      ? itemCatalog.filter(
+          (i) =>
+            i.name.toLowerCase().includes(q) ||
+            i.shortname.toLowerCase().includes(q) ||
+            i.category.toLowerCase().includes(q)
+        )
+      : itemCatalog;
+    list.innerHTML = matches.length
+      ? matches
+          .slice(0, 80)
+          .map(
+            (i) =>
+              `<div class="combo-option" data-value="${escapeHtml(i.shortname)}">` +
+              `<img class="combo-option-icon" src="/static/img/items/${escapeHtml(i.shortname)}.png" alt="">` +
+              `${escapeHtml(i.category)} - ${escapeHtml(i.name)}</div>`
+          )
+          .join("")
+      : '<div class="combo-option combo-empty muted">No items found</div>';
+    list.hidden = false;
+  }
+
+  searchInput.addEventListener("focus", renderOptions);
+  searchInput.addEventListener("input", () => {
+    hiddenInput.value = "";
+    renderOptions();
+  });
+  searchInput.addEventListener("blur", () => {
+    setTimeout(() => { list.hidden = true; }, 150);
+  });
+  list.addEventListener("mousedown", (e) => {
+    const opt = e.target.closest(".combo-option");
+    if (!opt || !opt.dataset.value) return;
+    const shortname = opt.dataset.value;
+    hiddenInput.value = shortname;
+    const item = itemCatalog.find((i) => i.shortname === shortname);
+    searchInput.value = item ? `${item.category} - ${item.name}` : shortname;
+    list.hidden = true;
+  });
+}
 
 $("#give-item-form").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -951,6 +1056,7 @@ loadPermissionsCatalog();
 // ---- Players ----
 $("#refresh-players").addEventListener("click", loadPlayers);
 loadPlayers();
+onTabActivated("players", refreshAllPlayerTables);
 
 function formatSeconds(s) {
   s = Number(s) || 0;
@@ -1512,12 +1618,28 @@ $("#notes-add-form").addEventListener("submit", async (e) => {
 });
 
 // ---- Permissions ----
+function syncPermTargetFields() {
+  const isGroup = $("#perm-target-type").value === "group";
+  $("#perm-target-user-wrap").hidden = isGroup;
+  $("#perm-target-group-wrap").hidden = !isGroup;
+}
+$("#perm-target-type").addEventListener("change", syncPermTargetFields);
+
+function syncShowTargetFields() {
+  const isGroup = $("#show-target-type").value === "group";
+  $("#show-target-user-wrap").hidden = isGroup;
+  $("#show-target-group-wrap").hidden = !isGroup;
+}
+$("#show-target-type").addEventListener("change", syncShowTargetFields);
+
 $("#perm-grant").addEventListener("click", () => doPermAction("/api/permissions/grant"));
 $("#perm-revoke").addEventListener("click", () => doPermAction("/api/permissions/revoke"));
 
 async function doPermAction(url) {
   const target_type = $("#perm-target-type").value;
-  const target = $("#perm-target").value.trim();
+  const target = target_type === "group"
+    ? $("#perm-target-group").value
+    : $("#perm-target").value.trim();
   const permission = $("#perm-permission").value.trim();
   if (!target || !permission) {
     alert("Please fill in both the target and permission fields.");
@@ -1591,7 +1713,9 @@ $("#group-remove-submit").addEventListener("click", async () => {
 
 $("#show-submit").addEventListener("click", async () => {
   const type = $("#show-target-type").value;
-  const target = $("#show-target").value.trim();
+  const target = type === "group"
+    ? $("#show-target-group").value
+    : $("#show-target").value.trim();
   const out = $("#show-output");
   if (!target) {
     out.textContent = "Enter a player or group name first.";
@@ -1735,9 +1859,7 @@ $("#rcon-settings-form").addEventListener("submit", async (e) => {
   if (!data.error) refreshStatus();
 });
 
-// ---- Settings tab: Wipe Schedule ----
-const COMMON_TIMEZONES = ["America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles"];
-
+// ---- Settings tab: Wipe Countdown ----
 function syncWipeFormVisibility() {
   const frequency = $("#wipe-setting-frequency").value;
   $("#wipe-setting-anchor-wrap").hidden = frequency !== "biweekly";
@@ -1754,16 +1876,16 @@ async function loadWipeSettingsForm() {
     $("#wipe-setting-frequency").value = data.wipe_frequency || "monthly";
     $("#wipe-setting-time").value = data.wipe_time || "14:00";
     const tz = data.wipe_timezone || "America/Chicago";
-    if (COMMON_TIMEZONES.includes(tz)) {
-      $("#wipe-setting-timezone").value = tz;
-    } else {
-      $("#wipe-setting-timezone").value = "other";
+    const tzSelect = $("#wipe-setting-timezone");
+    tzSelect.value = tz;
+    if (tzSelect.value !== tz) {
+      tzSelect.value = "other";
       $("#wipe-setting-timezone-other").value = tz;
     }
     $("#wipe-setting-anchor").value = data.wipe_anchor_date || "";
     syncWipeFormVisibility();
     $("#wipe-setting-frequency")._syncCustomSelectTrigger && $("#wipe-setting-frequency")._syncCustomSelectTrigger();
-    $("#wipe-setting-timezone")._syncCustomSelectTrigger && $("#wipe-setting-timezone")._syncCustomSelectTrigger();
+    tzSelect._syncCustomSelectTrigger && tzSelect._syncCustomSelectTrigger();
   } catch (err) {
     // form just keeps its defaults - Save will surface any real problem
   }
@@ -1793,32 +1915,6 @@ $("#wipe-settings-form").addEventListener("submit", async (e) => {
   }
   alert("Saved.");
   loadWipeConfig();
-});
-
-// ---- Settings tab: Plugin Deploy ----
-async function loadPluginDeploySettings() {
-  try {
-    const data = await fetch("/api/settings/plugin-deploy").then((res) => res.json());
-    $("#plugin-deploy-setting-host").value = data.plugin_deploy_host || "";
-    $("#plugin-deploy-setting-username").value = data.plugin_deploy_username || "";
-    $("#plugin-deploy-setting-path").value = data.plugin_deploy_path || "";
-  } catch (err) {
-    // fields stay blank - Save will surface any real problem
-  }
-}
-loadPluginDeploySettings();
-
-$("#plugin-deploy-settings-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const plugin_deploy_host = $("#plugin-deploy-setting-host").value.trim();
-  const plugin_deploy_username = $("#plugin-deploy-setting-username").value.trim();
-  const plugin_deploy_path = $("#plugin-deploy-setting-path").value.trim();
-  if (!plugin_deploy_host || !plugin_deploy_username || !plugin_deploy_path) {
-    alert("Host, username, and path are all required.");
-    return;
-  }
-  const data = await postJson("/api/settings/plugin-deploy", { plugin_deploy_host, plugin_deploy_username, plugin_deploy_path });
-  alert(data.error ? "Error: " + data.error : "Saved.");
 });
 
 // ---- Settings tab: API Keys ----
@@ -1909,6 +2005,30 @@ $("#update-apply-btn").addEventListener("click", async () => {
   if (versionLabel) versionLabel.textContent = "v" + newVersion;
   alert('Update installed. Close this window and relaunch the dashboard (e.g. the "Launch NOR Dashboard" shortcut) to start using the new version.');
 });
+
+// ---- Settings tab: Module Settings ----
+// Each loaded module's own settings form (if it has one) is already
+// server-rendered into the page - this just shows what's installed and
+// flags anything that was found but skipped (e.g. needs a newer core
+// version), since that'd otherwise fail silently.
+async function loadModuleStatusList() {
+  const box = $("#module-status-list");
+  if (!box) return;
+  try {
+    const data = await fetch("/api/modules").then((res) => res.json());
+    const rows = [];
+    (data.loaded || []).forEach((m) => {
+      rows.push(`<div class="stat-row"><span class="stat-label">${escapeHtml(m.label)}</span><span class="stat-value">Loaded</span></div>`);
+    });
+    (data.skipped || []).forEach((s) => {
+      rows.push(`<div class="stat-row"><span class="stat-label">${escapeHtml(s.key)}</span><span class="stat-value">Skipped - ${escapeHtml(s.reason)}</span></div>`);
+    });
+    box.innerHTML = rows.join("") || '<p class="muted">No modules found in the modules folder.</p>';
+  } catch (err) {
+    box.innerHTML = `<p class="muted">Error loading module status: ${escapeHtml(err.message)}</p>`;
+  }
+}
+loadModuleStatusList();
 
 // ---- Settings tab: Theme ----
 // Themes only ever touch color custom properties (never --radius or the
@@ -2161,6 +2281,7 @@ function showTourStep(index) {
     $("#tour-caption-text").textContent = step.text;
     $("#tour-step-counter").textContent = `Step ${index + 1} of ${TOUR_STEPS.length}`;
     $("#tour-next-btn").textContent = index === TOUR_STEPS.length - 1 ? "Finish" : "Next";
+    $("#tour-back-btn").disabled = index === 0;
   });
 }
 
@@ -2168,11 +2289,13 @@ function startTour() {
   tourStepIndex = 0;
   $("#tour-overlay").hidden = false;
   $("#tour-dont-show-again").checked = false;
+  document.body.style.overflow = "hidden";
   showTourStep(0);
 }
 
 async function endTour(dismissPermanently) {
   $("#tour-overlay").hidden = true;
+  document.body.style.overflow = "";
   if (dismissPermanently && !notificationSettings.tour_dismissed) {
     notificationSettings.tour_dismissed = true;
     $("#notifications-setting-tour-dismissed").checked = true;
@@ -2183,6 +2306,12 @@ async function endTour(dismissPermanently) {
 $("#tour-next-btn").addEventListener("click", () => {
   tourStepIndex++;
   showTourStep(tourStepIndex);
+});
+$("#tour-back-btn").addEventListener("click", () => {
+  if (tourStepIndex > 0) {
+    tourStepIndex--;
+    showTourStep(tourStepIndex);
+  }
 });
 $("#tour-skip-btn").addEventListener("click", () => endTour($("#tour-dont-show-again").checked));
 window.addEventListener("resize", () => {
@@ -2256,6 +2385,97 @@ const OIL_RIG_SLUGS = {
 let mapWorldSize = null;
 let mapOilRigs = [];
 let mapPollTimer = null;
+const hiddenMapTypes = new Set();
+let selectedMapSteamid = null;
+let mapZoom = 1;
+let mapPanX = 0;
+let mapPanY = 0;
+let mapDragging = false;
+let mapDragStartX = 0, mapDragStartY = 0;
+let mapDragPanStartX = 0, mapDragPanStartY = 0;
+
+function applyMapTransform() {
+  $("#map-canvas").style.transform = `translate(${mapPanX}px,${mapPanY}px) scale(${mapZoom})`;
+}
+
+function clampMapPan() {
+  const wrap = $("#map-wrap");
+  const wrapW = wrap.offsetWidth;
+  const wrapH = wrap.offsetHeight;
+  const scaledW = 900 * mapZoom;
+  const scaledH = 900 * mapZoom;
+  mapPanX = scaledW > wrapW ? Math.max(wrapW - scaledW, Math.min(0, mapPanX)) : 0;
+  mapPanY = scaledH > wrapH ? Math.max(wrapH - scaledH, Math.min(0, mapPanY)) : 0;
+}
+
+function followSelectedPlayer(players) {
+  if (!selectedMapSteamid || mapZoom <= 1) return;
+  const p = players.find((pl) => pl.steamid === selectedMapSteamid);
+  if (!p) return;
+  const pos = mapPosition(p.x, p.z);
+  if (!pos) return;
+  const wrap = $("#map-wrap");
+  const wrapW = wrap.offsetWidth;
+  const wrapH = wrap.offsetHeight;
+  mapPanX = wrapW / 2 - (pos.left / 100) * 900 * mapZoom;
+  mapPanY = wrapH / 2 - (pos.top / 100) * 900 * mapZoom;
+  clampMapPan();
+  applyMapTransform();
+}
+
+// Map toggle buttons
+$all(".map-toggle").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const type = btn.dataset.mapType;
+    if (hiddenMapTypes.has(type)) {
+      hiddenMapTypes.delete(type);
+      btn.classList.add("active");
+    } else {
+      hiddenMapTypes.add(type);
+      btn.classList.remove("active");
+    }
+    loadMapEntities();
+  });
+});
+
+// Map zoom via mouse wheel
+$("#map-wrap").addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const rect = $("#map-wrap").getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+  const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+  const newZoom = Math.max(1, Math.min(4, mapZoom * factor));
+  mapPanX = mouseX - (mouseX - mapPanX) * (newZoom / mapZoom);
+  mapPanY = mouseY - (mouseY - mapPanY) * (newZoom / mapZoom);
+  mapZoom = newZoom;
+  clampMapPan();
+  applyMapTransform();
+}, { passive: false });
+
+// Map pan via drag
+$("#map-wrap").addEventListener("mousedown", (e) => {
+  if (mapZoom <= 1) return;
+  mapDragging = true;
+  mapDragStartX = e.clientX;
+  mapDragStartY = e.clientY;
+  mapDragPanStartX = mapPanX;
+  mapDragPanStartY = mapPanY;
+  $("#map-wrap").classList.add("panning");
+});
+document.addEventListener("mousemove", (e) => {
+  if (!mapDragging) return;
+  mapPanX = mapDragPanStartX + (e.clientX - mapDragStartX);
+  mapPanY = mapDragPanStartY + (e.clientY - mapDragStartY);
+  clampMapPan();
+  applyMapTransform();
+});
+document.addEventListener("mouseup", () => {
+  if (mapDragging) {
+    mapDragging = false;
+    $("#map-wrap").classList.remove("panning");
+  }
+});
 
 async function loadMapImage() {
   const status = $("#map-status");
@@ -2321,7 +2541,7 @@ function playerMapMarker(p) {
   const pos = mapPosition(p.x, p.z);
   if (!pos) return null;
   const el = document.createElement("div");
-  el.className = "map-player-marker";
+  el.className = "map-player-marker" + (selectedMapSteamid === p.steamid ? " map-player-selected" : "");
   el.style.left = pos.left + "%";
   el.style.top = pos.top + "%";
   el.title = p.name;
@@ -2329,6 +2549,11 @@ function playerMapMarker(p) {
     ? `<img class="map-player-avatar" src="${escapeHtml(p.avatar)}" alt="">`
     : '<div class="map-player-avatar map-player-avatar-blank"></div>';
   el.innerHTML = `${avatarHtml}<span class="map-player-name">${escapeHtml(p.name)}</span>`;
+  el.addEventListener("click", (e) => {
+    e.stopPropagation();
+    selectedMapSteamid = selectedMapSteamid === p.steamid ? null : p.steamid;
+    loadMapEntities();
+  });
   return el;
 }
 
@@ -2340,20 +2565,26 @@ async function loadMapEntities() {
     const data = await res.json();
     if (data.error) return;
     overlay.innerHTML = "";
-    (data.players || []).forEach((p) => {
-      const el = playerMapMarker(p);
-      if (el) overlay.appendChild(el);
-    });
+    if (!hiddenMapTypes.has("players")) {
+      (data.players || []).forEach((p) => {
+        const el = playerMapMarker(p);
+        if (el) overlay.appendChild(el);
+      });
+    }
     (data.events || []).forEach((e) => {
       const slug = EVENT_LABEL_SLUGS[e.label] || "";
+      if (slug && hiddenMapTypes.has(slug)) return;
       const el = mapMarker(e.x, e.z, `map-marker-icon map-icon-${slug}`, e.label);
       if (el) overlay.appendChild(el);
     });
-    mapOilRigs.forEach((r) => {
-      const slug = OIL_RIG_SLUGS[r.type] || "";
-      const el = mapMarker(r.x, r.z, `map-marker-icon map-icon-${slug}`, r.type);
-      if (el) overlay.appendChild(el);
-    });
+    if (!hiddenMapTypes.has("oilrigs")) {
+      mapOilRigs.forEach((r) => {
+        const slug = OIL_RIG_SLUGS[r.type] || "";
+        const el = mapMarker(r.x, r.z, `map-marker-icon map-icon-${slug}`, r.type);
+        if (el) overlay.appendChild(el);
+      });
+    }
+    followSelectedPlayer(data.players || []);
   } catch (err) {
     // next poll will catch up
   }
@@ -2428,298 +2659,12 @@ function showConfirmModal({ title, message, requiredText, confirmLabel, confirmC
   });
 }
 
-// ---- AMAP Scripts ----
-// No password gate here - Critical actions already require typing the
-// action's exact name into the confirmation modal before they'll run,
-// which is the real protection against a stray click. The backend's own
-// fixed action whitelist is what stops anything other than these specific
-// scripts from ever being reachable at all.
-let amapActions = [];
-
-async function loadAmapCards() {
-  try {
-    const data = await fetch("/api/amap/actions").then((res) => res.json());
-    amapActions = data.actions || [];
-    renderAmapCards();
-  } catch (err) {
-    $("#amap-cards").innerHTML = `<p class="muted">Error loading actions: ${escapeHtml(err.message)}</p>`;
-  }
-}
-loadAmapCards();
-
-function renderAmapCards() {
-  const box = $("#amap-cards");
-  // Upload Plugin is a static card (its own upload logic, not a generic
-  // RCON action) living in this same grid - detach it before wiping the
-  // dynamic ones, then re-append the *same* node so its already-bound
-  // event listeners and custom-select wrapper survive the rebuild.
-  const uploadCard = $("#amap-upload-card");
-  box.innerHTML = "";
-  amapActions.forEach((a) => {
-    const isCritical = a.category === "critical";
-    const card = document.createElement("div");
-    card.className = "amap-card amap-card-" + a.category;
-
-    const fieldsHtml = (a.fields || [])
-      .map((f) => `<input type="text" data-field="${escapeHtml(f.key)}" placeholder="${escapeHtml(f.placeholder || f.label)}">`)
-      .join("");
-    // Wipe Configurator only - lets you check what's currently saved for
-    // the next wipe before deciding whether to overwrite it.
-    const viewButtonHtml = a.key === "wipe_configure"
-      ? '<button type="button" class="btn btn-outline btn-small" data-view-wipe-config>View Current Config</button>'
-      : "";
-
-    const categoryTooltip = isCritical
-      ? "Destructive or hard to undo - requires typing the action name to confirm."
-      : "Safe to run - just needs a quick Confirm click.";
-    card.innerHTML = `
-      <div class="amap-card-header">
-        <span class="amap-card-title">${escapeHtml(a.label)}</span>
-        <span class="amap-tag amap-tag-${a.category} has-tooltip" data-tooltip="${escapeHtml(categoryTooltip)}">${isCritical ? "Critical" : "Noncritical"}</span>
-      </div>
-      <p class="amap-card-desc">${escapeHtml(a.description || "")}</p>
-      ${fieldsHtml ? `<div class="amap-card-fields">${fieldsHtml}</div>` : ""}
-      ${viewButtonHtml}
-      <button type="button" class="btn btn-small ${isCritical ? "btn-danger" : "btn-outline"}">Run</button>
-    `;
-    card.querySelector("button:not([data-view-wipe-config])").addEventListener("click", () => runAmapAction(a, card));
-    const viewBtn = card.querySelector("[data-view-wipe-config]");
-    if (viewBtn) viewBtn.addEventListener("click", viewWipeConfig);
-    box.appendChild(card);
-  });
-  if (uploadCard) box.appendChild(uploadCard);
-}
-
-async function viewWipeConfig() {
-  amapLog("Checking current wipe config...");
-  try {
-    const data = await fetch("/api/amap/wipe-config").then((res) => res.json());
-    amapLog(data.error ? `View Current Config: Error - ${data.error}` : `Current wipe config:\n${data.response}`);
-  } catch (err) {
-    amapLog(`View Current Config: Error - ${err.message}`);
-  }
-}
-
-function amapLog(line) {
-  const box = $("#amap-result-log");
-  const row = document.createElement("div");
-  row.className = "console-line";
-  row.textContent = `[${nowTimestamp()}] ${line}`;
-  box.appendChild(row);
-  box.scrollTop = box.scrollHeight;
-}
-
-// ---- AMAP: Upload Plugin ----
-async function loadInstalledPlugins() {
-  try {
-    const data = await fetch("/api/amap/plugins").then((res) => res.json());
-    const select = $("#amap-installed-plugins");
-    select.innerHTML = (data.plugins || [])
-      .map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`)
-      .join("") || '<option value="">(none found)</option>';
-    select._syncCustomSelectTrigger && select._syncCustomSelectTrigger();
-  } catch (err) {
-    // dropdown just stays empty - it's informational only
-  }
-}
-loadInstalledPlugins();
-
-$("#amap-plugin-upload").addEventListener("click", async () => {
-  const fileInput = $("#amap-plugin-file");
-  const file = fileInput.files[0];
-  if (!file) {
-    alert("Choose a .cs file first.");
-    return;
-  }
-  const confirmed = await showConfirmModal({
-    title: "Upload Plugin",
-    message: `Upload "${file.name}" to the configured oxide/plugins folder? This will overwrite an existing file with the same name.`,
-    confirmLabel: "Upload",
-  });
-  if (!confirmed) return;
-
-  amapLog(`Upload Plugin: sending ${file.name}...`);
-  try {
-    const formData = new FormData();
-    formData.append("plugin", file);
-    const res = await fetch("/api/amap/upload-plugin", { method: "POST", body: formData });
-    const data = await res.json();
-    if (data.error) {
-      amapLog(`Upload Plugin: Error - ${data.error}`);
-      return;
-    }
-    amapLog(`Upload Plugin: ${data.message}`);
-    if (data.added_permissions && data.added_permissions.length) {
-      amapLog(`Upload Plugin: added new permissions - ${data.added_permissions.join(", ")}`);
-    }
-    fileInput.value = "";
-    loadInstalledPlugins();
-    loadPermissionsCatalog();
-  } catch (err) {
-    amapLog(`Upload Plugin: Error - ${err.message}`);
-  }
-});
-
-// ---- Terminal ----
-// The dashboard's only WebSocket feature - everything else above is plain
-// HTTP polling. One xterm.js instance is created lazily on first Connect and
-// reused across reconnects; ws_terminal on the backend (app/ssh_ws.py) backs
-// it with a real paramiko SSH session, one per WebSocket connection.
-let terminalWs = null;
-let terminalTerm = null;
-let terminalFit = null;
-let terminalConnected = false;
-
-function terminalWsUrl() {
-  const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  return `${proto}//${location.host}/ws/terminal`;
-}
-
-function ensureTerminal() {
-  if (terminalTerm) return;
-  terminalTerm = new Terminal({
-    cursorBlink: true,
-    fontFamily: "'Consolas', 'Courier New', monospace",
-    fontSize: 14,
-    theme: {
-      background: "#000000",
-      foreground: "#39ff14",
-      cursor: "#39ff14",
-      selectionBackground: "rgba(57, 255, 20, .3)",
-    },
-  });
-  terminalFit = new FitAddon.FitAddon();
-  terminalTerm.loadAddon(terminalFit);
-  terminalTerm.open($("#terminal-container"));
-  terminalTerm.onData((data) => {
-    if (terminalWs && terminalConnected) {
-      terminalWs.send(JSON.stringify({ type: "data", data }));
-    }
-  });
-}
-
-function fitTerminal() {
-  if (!terminalTerm || !terminalFit) return;
-  terminalFit.fit();
-  if (terminalWs && terminalConnected) {
-    terminalWs.send(JSON.stringify({ type: "resize", cols: terminalTerm.cols, rows: terminalTerm.rows }));
-  }
-}
-
-function setTerminalStatus(text) {
-  $("#terminal-status").textContent = text;
-}
-
-function showTerminalConnectedUi(connected) {
-  $("#terminal-connect-form").hidden = connected;
-  $("#terminal-wrap").hidden = !connected;
-}
-
-$("#terminal-connect-form").addEventListener("submit", (e) => {
-  e.preventDefault();
-  const host = $("#terminal-host").value.trim();
-  const port = parseInt($("#terminal-port").value, 10) || 22;
-  const username = $("#terminal-username").value.trim();
-  const password = $("#terminal-password").value;
-  if (!host || !username) return;
-
-  showTerminalConnectedUi(true);
-  ensureTerminal();
-  terminalTerm.reset();
-  setTerminalStatus("Connecting...");
-  terminalConnected = false;
-
-  terminalWs = new WebSocket(terminalWsUrl());
-  terminalWs.onopen = () => {
-    terminalFit.fit();
-    terminalWs.send(JSON.stringify({
-      type: "connect", host, port, username, password,
-      cols: terminalTerm.cols, rows: terminalTerm.rows,
-    }));
-  };
-  terminalWs.onmessage = (event) => {
-    const msg = JSON.parse(event.data);
-    if (msg.type === "data") {
-      terminalTerm.write(msg.data);
-    } else if (msg.type === "status" && msg.state === "connected") {
-      terminalConnected = true;
-      setTerminalStatus("Connected");
-    } else if (msg.type === "status" && (msg.state === "error" || msg.state === "closed")) {
-      terminalConnected = false;
-      setTerminalStatus(msg.state === "error" ? `Error: ${msg.message}` : "Not connected");
-      const color = msg.state === "error" ? "31" : "33";
-      terminalTerm.writeln(`\r\n\x1b[${color}m[${msg.message || "Connection closed."}]\x1b[0m`);
-      terminalWs.close();
-      showTerminalConnectedUi(false);
-    }
-  };
-  terminalWs.onclose = () => {
-    if (terminalConnected) {
-      terminalConnected = false;
-      setTerminalStatus("Not connected");
-      showTerminalConnectedUi(false);
-    }
-  };
-
-  $("#terminal-password").value = "";
-});
-
-$("#terminal-disconnect").addEventListener("click", () => {
-  if (terminalWs) terminalWs.close();
-  terminalConnected = false;
-  setTerminalStatus("Not connected");
-  showTerminalConnectedUi(false);
-});
-
-window.addEventListener("resize", () => {
-  if ($("#tab-terminal").classList.contains("active")) fitTerminal();
-});
-
 // ---- Help tab ----
 $("#help-faq-toggle").addEventListener("click", () => {
   const content = $("#help-faq-content");
   content.hidden = !content.hidden;
   $("#help-faq-toggle").textContent = content.hidden ? "Show FAQ / Troubleshooting" : "Hide FAQ / Troubleshooting";
 });
-
-async function runAmapAction(a, card) {
-  const fields = {};
-  for (const f of a.fields || []) {
-    const input = card.querySelector(`[data-field="${f.key}"]`);
-    const value = (input.value || "").trim();
-    if (!value) {
-      alert(`Please fill in ${f.label}.`);
-      return;
-    }
-    fields[f.key] = value;
-  }
-
-  const isCritical = a.category === "critical";
-  const confirmed = await showConfirmModal({
-    title: a.label,
-    message: a.confirm || `Run ${a.label}?`,
-    requiredText: isCritical ? a.label : null,
-    confirmLabel: isCritical ? "Run (Critical)" : "Run",
-    confirmClass: isCritical ? "btn-danger" : "btn-primary",
-  });
-  if (!confirmed) {
-    amapLog(`${a.label}: cancelled.`);
-    return;
-  }
-  // Critical actions (Updater, Nightly Restart, Map/Full Wipe) intentionally
-  // stop the server - that expected disconnect shouldn't trigger the
-  // "RCON connection lost" toast with its (wrong, in this case) suggestion
-  // to check config.json. Resetting to null means the next status poll
-  // can't see it as a transition; it picks back up once reconnected.
-  if (isCritical) wasConnected = null;
-  amapLog(`${a.label}: sending...`);
-  try {
-    const data = await postJson("/api/amap/run", { action: a.key, fields });
-    amapLog(data.error ? `${a.label}: Error - ${data.error}` : `${a.label}: ${data.response}`);
-  } catch (err) {
-    amapLog(`${a.label}: Error - ${err.message}`);
-  }
-}
 
 // Runs last so every .custom-select's <option>s (including the Theme
 // preset dropdown, populated synchronously above) already exist.

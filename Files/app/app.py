@@ -9,14 +9,14 @@ import os
 import re
 import threading
 import time
+import types
 from logging.handlers import RotatingFileHandler
 
 from flask import Flask, jsonify, render_template, request
 from flask_sock import Sock
 from werkzeug.exceptions import HTTPException
 
-import ssh_ws
-from amap_commands import AMAP_ACTIONS, run_amap_action
+import modules as module_loader
 from ban_commands import ban_player, broadcast_message, get_banned_steamids, give_item, kick_player, unban_player
 from battlemetrics import get_server_stats
 from entity_history import get_history as get_entity_history, record_sample as record_entity_sample
@@ -36,7 +36,6 @@ from oxide_commands import (
 from permissions_catalog import KNOWN_PERMISSIONS
 from player_notes import add_note, delete_note, force_full_sync, get_notes, search_notes
 from player_stats import get_all_stats, get_stats, record_snapshot, sync_with_remote
-from plugin_deploy import list_known_plugin_names, upload_plugin
 from rcon_client import RconClient, RconError, get_log_since, get_log_tail, get_players
 from server_info import SETTING_CONVARS, get_server_info, get_server_settings, set_convar
 from steam_api import get_player_bans_cached, get_player_summary, get_rust_playtime_hours, lookup_player
@@ -81,8 +80,11 @@ app.config["TEMPLATES_AUTO_RELOAD"] = True
 # running the old version" rather than an outright error.
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 
+# Always created, even if no loaded module ends up using it - flask-sock
+# ships as a core dependency regardless of which modules are installed
+# (see requirements.txt's own note), so there's no real cost to having
+# this ready for whichever module wants it (currently just Terminal).
 sock = Sock(app)
-ssh_ws.register(sock)
 
 _rcon_client = None
 # Guards the check-then-create in get_rcon_client()/reset_rcon_client() -
@@ -163,6 +165,56 @@ def reset_rcon_client():
         _rcon_client = None
 
 
+# The surface a module's register(app, core)/preflight(core) gets handed -
+# deliberately a small, explicit set rather than "here's the whole app.py
+# module," so it's obvious at a glance what a module can and can't touch.
+core = types.SimpleNamespace(
+    app=app,
+    sock=sock,
+    logger=logger,
+    load_config=load_config,
+    save_config_fields=save_config_fields,
+    get_rcon_client=get_rcon_client,
+    reset_rcon_client=reset_rcon_client,
+    RconError=RconError,
+)
+
+loaded_modules, skipped_modules = module_loader.discover(VERSION)
+for _mod in loaded_modules:
+    _mod.package.register(app, core)
+    logger.info("Module loaded: %s (%s)", _mod.key, _mod.label)
+for _key, _reason in skipped_modules:
+    logger.warning("Module skipped: %s - %s", _key, _reason)
+module_loader.register_static_route(app)
+
+
+@app.route("/api/modules")
+def api_modules():
+    """Powers Settings > Module Settings - what's installed, plus a status
+    string for anything that didn't load (e.g. needs a newer core version)."""
+    return jsonify({
+        "loaded": [
+            {
+                "key": m.key,
+                "label": m.label,
+                "description": m.description,
+                "has_settings": bool(m.manifest.get("settings_panel")),
+                "has_preflight": m.has_preflight(),
+            }
+            for m in loaded_modules
+        ],
+        "skipped": [{"key": key, "reason": reason} for key, reason in skipped_modules],
+    })
+
+
+@app.route("/api/modules/<module_key>/preflight")
+def api_module_preflight(module_key):
+    module = next((m for m in loaded_modules if m.key == module_key), None)
+    if module is None:
+        return jsonify({"error": "Unknown module"}), 404
+    return jsonify(module.run_preflight(core))
+
+
 @app.errorhandler(Exception)
 def handle_unhandled_exception(exc):
     # Let Flask's normal 404/405/etc. handling through unchanged - only log
@@ -181,7 +233,35 @@ def index():
     # with no flash of the default theme and no dependency on localStorage -
     # this is what makes a saved theme survive a relaunch in any browser.
     theme_vars_json = json.dumps(cfg.get("theme_vars") or {})
-    return render_template("index.html", version=VERSION, theme_vars_json=theme_vars_json)
+
+    # Each loaded module contributes its own tab button/panel/settings-panel
+    # markup (rendered through Flask's own Jinja env, so url_for etc. work
+    # inside them) plus a <script> tag for its JS - assembled here instead
+    # of core's templates/JS needing to know which modules exist.
+    module_tab_buttons = [m.render_fragment("tab_button") for m in loaded_modules]
+    module_tab_panels = [m.render_fragment("tab_panel") for m in loaded_modules]
+    module_settings_panels = [
+        {"key": m.key, "label": m.label, "html": m.render_fragment("settings_panel")}
+        for m in loaded_modules if m.manifest.get("settings_panel")
+    ]
+    module_scripts = [url for m in loaded_modules for url in m.script_urls()]
+    module_styles = [url for m in loaded_modules for url in m.style_urls()]
+    # Module Settings is worth showing even for a module with no settings
+    # form of its own (e.g. Terminal) - it's still the only place an admin
+    # can see "this module is actually loaded" or "this one was skipped."
+    show_module_settings = bool(loaded_modules or skipped_modules)
+
+    return render_template(
+        "index.html",
+        version=VERSION,
+        theme_vars_json=theme_vars_json,
+        show_module_settings=show_module_settings,
+        module_tab_buttons=module_tab_buttons,
+        module_tab_panels=module_tab_panels,
+        module_settings_panels=module_settings_panels,
+        module_scripts=module_scripts,
+        module_styles=module_styles,
+    )
 
 
 @app.route("/api/settings/theme")
@@ -357,34 +437,6 @@ def api_settings_wipe_set():
         "wipe_anchor_date": anchor_date,
     })
     logger.info("Settings: wipe schedule changed to %s %s %s", frequency, time_str, timezone)
-    return jsonify({"ok": True})
-
-
-@app.route("/api/settings/plugin-deploy")
-def api_settings_plugin_deploy_get():
-    cfg = load_config()
-    return jsonify({
-        "plugin_deploy_host": cfg.get("plugin_deploy_host", ""),
-        "plugin_deploy_username": cfg.get("plugin_deploy_username", ""),
-        "plugin_deploy_path": cfg.get("plugin_deploy_path", ""),
-    })
-
-
-@app.route("/api/settings/plugin-deploy", methods=["POST"])
-def api_settings_plugin_deploy_set():
-    body = request.get_json(force=True) or {}
-    host = (body.get("plugin_deploy_host") or "").strip()
-    username = (body.get("plugin_deploy_username") or "").strip()
-    path = (body.get("plugin_deploy_path") or "").strip()
-    if not host or not username or not path:
-        return jsonify({"error": "Host, username, and path are all required"}), 400
-
-    save_config_fields({
-        "plugin_deploy_host": host,
-        "plugin_deploy_username": username,
-        "plugin_deploy_path": path,
-    })
-    logger.info("Settings: Plugin Deploy target changed to %s@%s:%s", username, host, path)
     return jsonify({"ok": True})
 
 
@@ -995,76 +1047,6 @@ def api_map_entities():
 
     event_markers = [{"label": e["label"], "name": e["name"], "x": e["x"], "z": e["z"]} for e in events]
     return jsonify({"players": player_markers, "events": event_markers})
-
-
-@app.route("/api/amap/actions")
-def api_amap_actions():
-    actions = [{"key": key, **info} for key, info in AMAP_ACTIONS.items()]
-    return jsonify({"actions": actions})
-
-
-@app.route("/api/amap/run", methods=["POST"])
-def api_amap_run():
-    body = request.get_json(force=True) or {}
-    action = body.get("action", "")
-    fields = body.get("fields") or {}
-    if action not in AMAP_ACTIONS:
-        return jsonify({"error": f"Unknown action: {action}"}), 400
-    try:
-        response = run_amap_action(get_rcon_client(), action, fields)
-        logger.info("AMAP: ran '%s'", action)
-        return jsonify({"response": response})
-    except RconError as exc:
-        logger.warning("AMAP: '%s' failed: %s", action, exc)
-        reset_rcon_client()
-        return jsonify({"error": str(exc)}), 502
-
-
-@app.route("/api/amap/wipe-config")
-def api_amap_wipe_config():
-    """Read-only peek at the next wipe's configured seed/size/type/date -
-    separate from the regular whitelist since it's tied to one specific
-    card (Wipe Configurator) rather than being its own button."""
-    try:
-        response = get_rcon_client().send_command("amap.run wipe_configure_view")
-        return jsonify({"response": response})
-    except RconError as exc:
-        reset_rcon_client()
-        return jsonify({"error": str(exc)}), 502
-
-
-@app.route("/api/amap/plugins")
-def api_amap_plugins():
-    """Currently-installed plugin names, for the upload panel's informational
-    dropdown - parsed from RCON's own oxide.plugins output rather than an
-    SFTP directory listing, since that's already proven reliable here."""
-    try:
-        raw = get_rcon_client().send_command("oxide.plugins", quiet=True)
-    except RconError as exc:
-        reset_rcon_client()
-        return jsonify({"error": str(exc)}), 502
-    return jsonify({"plugins": list_known_plugin_names(raw)})
-
-
-@app.route("/api/amap/upload-plugin", methods=["POST"])
-def api_amap_upload_plugin():
-    cfg = load_config()
-    host = cfg.get("plugin_deploy_host", "")
-    username = cfg.get("plugin_deploy_username", "")
-    path = cfg.get("plugin_deploy_path", "")
-    if not host or host == "CHANGE_ME" or not username or username == "CHANGE_ME" or not path or path == "CHANGE_ME":
-        return jsonify({"error": "Set up Plugin Deploy in Settings first"}), 400
-
-    file = request.files.get("plugin")
-    if not file or not file.filename:
-        return jsonify({"error": "No file selected"}), 400
-
-    ok, message, added = upload_plugin(host, username, path, file.filename, file.read())
-    if not ok:
-        logger.warning("AMAP: plugin upload of '%s' failed: %s", file.filename, message)
-        return jsonify({"error": message}), 502
-    logger.info("AMAP: uploaded plugin '%s'%s", file.filename, f" (new permissions: {', '.join(added)})" if added else "")
-    return jsonify({"ok": True, "message": message, "added_permissions": added})
 
 
 @app.route("/api/battlemetrics/stats")
