@@ -444,33 +444,50 @@ async function refreshStatus() {
   }
 
   checkJoinAlerts();
+  checkSystemAlerts();
 }
 refreshStatus();
 setInterval(refreshStatus, 15000);
 
-// Two-tone alert beep via the Web Audio API - no audio file/asset needed
-// at all, sidesteps having to source/vendor one. Lazily creates the
-// AudioContext on first use rather than at page load, since some
-// browsers block audio output until a user gesture has happened on the
-// page anyway (which will already be true by the time a real admin is
-// clicking around the dashboard).
+// Two-tone alert beep via the Web Audio API - no audio file/asset needed.
+// Chrome suspends new AudioContexts until a user gesture has occurred and
+// won't allow resume() from inside a fetch/timer callback — only from a
+// synchronous gesture handler. So we create and unlock the context on the
+// first click anywhere on the page; by the time an alert fires from a poll,
+// the context is already running and playAlertTone() can schedule notes
+// without needing to resume.
 let audioCtx = null;
+function _unlockAudio() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+  } catch (err) {}
+}
+document.addEventListener("click", _unlockAudio);
+
 function playAlertTone() {
   try {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const now = audioCtx.currentTime;
-    [880, 660].forEach((freq, i) => {
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.15, now + i * 0.15);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.15 + 0.14);
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start(now + i * 0.15);
-      osc.stop(now + i * 0.15 + 0.15);
-    });
+    const schedule = () => {
+      const now = audioCtx.currentTime;
+      [880, 660].forEach((freq, i) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.15, now + i * 0.15);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.15 + 0.14);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now + i * 0.15);
+        osc.stop(now + i * 0.15 + 0.15);
+      });
+    };
+    if (audioCtx.state === "suspended") {
+      audioCtx.resume().then(schedule).catch(() => {});
+    } else {
+      schedule();
+    }
   } catch (err) {
     // Web Audio unavailable/blocked - the toast itself still shows.
   }
@@ -2182,6 +2199,138 @@ async function loadThemeSettingsForm() {
   setActiveTheme(activeVars, presetKey);
 }
 loadThemeSettingsForm();
+
+// ---- Alerts settings ----
+
+let _alertsWatchlist = [];
+
+function _renderWatchlist() {
+  const container = $("#alert-watchlist-list");
+  if (!container) return;
+  container.innerHTML = "";
+  if (_alertsWatchlist.length === 0) {
+    container.innerHTML = '<p class="muted" style="font-size: 12px; margin: 0 0 6px;">No players on watchlist yet.</p>';
+    return;
+  }
+  _alertsWatchlist.forEach((entry, idx) => {
+    const row = document.createElement("div");
+    row.className = "inline-form";
+    row.style.cssText = "gap: 8px; margin-bottom: 4px; align-items: center;";
+    row.innerHTML = `
+      <span style="flex: 1; font-family: monospace; font-size: 13px;">${_esc(entry.steamid)}</span>
+      <span style="flex: 1; font-size: 13px; color: var(--text-muted);">${_esc(entry.label || "")}</span>
+      <button class="btn btn-outline btn-small" style="color: var(--danger); border-color: var(--danger);" data-wl-idx="${idx}">Remove</button>
+    `;
+    row.querySelector("button").addEventListener("click", () => {
+      _alertsWatchlist.splice(idx, 1);
+      _renderWatchlist();
+    });
+    container.appendChild(row);
+  });
+}
+
+function _esc(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+async function loadAlertsSettings() {
+  try {
+    const [data, modules] = await Promise.all([
+      fetch("/api/settings/alerts").then((r) => r.json()),
+      fetch("/api/modules").then((r) => r.json()),
+    ]);
+    _alertsWatchlist = Array.isArray(data.watchlist) ? data.watchlist : [];
+    $("#alert-fps-enabled").checked = !!data.fps_enabled;
+    $("#alert-fps-threshold").value = data.fps_threshold ?? 15;
+    $("#alert-fps-consecutive").value = data.fps_consecutive ?? 3;
+    $("#alert-player-count-enabled").checked = !!data.player_count_enabled;
+    $("#alert-player-count-threshold").value = data.player_count_threshold ?? 100;
+    $("#alert-entity-spike-enabled").checked = !!data.entity_spike_enabled;
+    $("#alert-entity-spike-pct").value = data.entity_spike_pct ?? 25;
+    $("#alert-rcon-offline-enabled").checked = !!data.rcon_offline_enabled;
+    $("#alert-rcon-offline-minutes").value = data.rcon_offline_minutes ?? 5;
+    $("#alert-sound-enabled").checked = data.sound_enabled !== false;
+    $("#alert-discord-webhook").value = data.discord_webhook || "";
+    const devtoolsLoaded = (modules.loaded || []).some((m) => m.key === "devtools");
+    const broadcastWrap = $("#alert-devtools-broadcast-wrap");
+    broadcastWrap.hidden = !devtoolsLoaded;
+    if (devtoolsLoaded) $("#alert-devtools-broadcast").checked = !!data.devtools_broadcast;
+    _renderWatchlist();
+  } catch (err) {
+    // keep defaults
+  }
+}
+
+async function saveAlertsSettings() {
+  const payload = {
+    watchlist: _alertsWatchlist,
+    fps_enabled: $("#alert-fps-enabled").checked,
+    fps_threshold: parseInt($("#alert-fps-threshold").value) || 15,
+    fps_consecutive: parseInt($("#alert-fps-consecutive").value) || 3,
+    player_count_enabled: $("#alert-player-count-enabled").checked,
+    player_count_threshold: parseInt($("#alert-player-count-threshold").value) || 100,
+    entity_spike_enabled: $("#alert-entity-spike-enabled").checked,
+    entity_spike_pct: parseInt($("#alert-entity-spike-pct").value) || 25,
+    rcon_offline_enabled: $("#alert-rcon-offline-enabled").checked,
+    rcon_offline_minutes: parseInt($("#alert-rcon-offline-minutes").value) || 5,
+    sound_enabled: $("#alert-sound-enabled").checked,
+    discord_webhook: ($("#alert-discord-webhook").value || "").trim(),
+    devtools_broadcast: !$("#alert-devtools-broadcast-wrap").hidden && $("#alert-devtools-broadcast").checked,
+  };
+  const result = await postJson("/api/settings/alerts", payload);
+  if (result.error) {
+    showToast({ title: "Save failed", message: result.error, variant: "error" });
+  } else {
+    showToast({ title: "Alerts saved", message: "Alert configuration updated.", variant: "info" });
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const addBtn = document.getElementById("alert-watchlist-add");
+  if (addBtn) {
+    addBtn.addEventListener("click", () => {
+      const sidInput = $("#alert-watchlist-steamid");
+      const labelInput = $("#alert-watchlist-label");
+      const sid = (sidInput.value || "").trim();
+      if (!sid) { sidInput.focus(); return; }
+      if (!_alertsWatchlist.find((e) => e.steamid === sid)) {
+        _alertsWatchlist.push({ steamid: sid, label: (labelInput.value || "").trim() });
+        _renderWatchlist();
+      }
+      sidInput.value = "";
+      labelInput.value = "";
+    });
+  }
+  const saveBtn = document.getElementById("alert-settings-save");
+  if (saveBtn) saveBtn.addEventListener("click", saveAlertsSettings);
+});
+
+async function checkSystemAlerts() {
+  try {
+    const data = await fetch("/api/alerts/pending").then((r) => r.json());
+    const alerts = data.alerts || [];
+    if (alerts.length === 0) return;
+    let playSound = false;
+    alerts.forEach((a) => {
+      showToast({ title: a.title, message: a.message, variant: a.variant || "error" });
+      if (a.play_sound) playSound = true;
+    });
+    if (playSound) playAlertTone();
+  } catch (err) {
+    // next poll will catch up
+  }
+}
+
+// Load alerts settings when the Alerts subnav is activated
+(function () {
+  let _alertsLoaded = false;
+  document.addEventListener("click", (e) => {
+    if (e.target.matches && e.target.matches('[data-settings-section="alerts"]') && !_alertsLoaded) {
+      _alertsLoaded = true;
+      loadAlertsSettings();
+    }
+  });
+})();
 
 // ---- Notifications settings (tour dismissal + sound alerts) ----
 // Kept in one module-level object since both the guided tour and the

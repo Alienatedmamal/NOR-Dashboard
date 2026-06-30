@@ -514,6 +514,7 @@
       <button class="settings-subnav-btn" data-settings-section="theme">Theme</button>
       <button class="settings-subnav-btn" data-settings-section="wipe">Wipe Countdown</button>
       <button class="settings-subnav-btn" data-settings-section="notifications">Notifications</button>
+      <button class="settings-subnav-btn" data-settings-section="alerts">Alerts</button>
       {% if show_module_settings %}<button class="settings-subnav-btn" data-settings-section="modules">Module Settings</button>{% endif %}
       <button class="settings-subnav-btn" data-settings-section="update">Update</button>
     </nav>
@@ -687,6 +688,91 @@
           <div class="btn-row">
             <button type="submit" class="btn btn-primary" id="notifications-settings-save">Save</button>
             <button type="button" id="replay-tour-btn" class="btn btn-outline has-tooltip" data-tooltip="Shows the guided tour again, even if you've dismissed it before.">Replay Tour</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="settings-section-alerts" class="settings-section">
+      <div class="panel settings-panel">
+        <h2>Alerts</h2>
+        <p class="muted">Configure in-dashboard alert toasts. Alerts appear in the bottom-right corner and optionally play a sound, post to Discord, and broadcast to all open dashboard sessions (if DevTools is installed). All thresholds are checked by the server's background loops — no page needs to be open for the check to run, only for the toast to appear.</p>
+
+        <h3 class="panel-subheading">Player Watchlist</h3>
+        <p class="muted">Alert whenever a specific player connects, regardless of their note history.</p>
+        <div id="alert-watchlist-list" style="margin-bottom: 10px;"></div>
+        <div class="inline-form" style="gap: 8px;">
+          <input type="text" id="alert-watchlist-steamid" placeholder="SteamID64" autocomplete="off" style="flex: 1; min-width: 0;">
+          <input type="text" id="alert-watchlist-label" placeholder="Label (optional)" autocomplete="off" style="flex: 1; min-width: 0;">
+          <button type="button" id="alert-watchlist-add" class="btn btn-outline btn-small">Add</button>
+        </div>
+
+        <h3 class="panel-subheading">FPS Alert</h3>
+        <form class="stacked-form" onsubmit="return false;">
+          <label class="checkbox-label">
+            <input type="checkbox" id="alert-fps-enabled">
+            Alert when server FPS drops below threshold
+          </label>
+          <div class="inline-form" style="gap: 16px; align-items: flex-end;">
+            <label style="flex: 1;">Threshold (FPS)
+              <input type="number" id="alert-fps-threshold" min="1" max="60" value="15">
+            </label>
+            <label style="flex: 1;">Consecutive samples before alerting
+              <input type="number" id="alert-fps-consecutive" min="1" max="10" value="3">
+              <span class="muted" style="font-size: 11px;">Each sample is ~5 minutes apart.</span>
+            </label>
+          </div>
+        </form>
+
+        <h3 class="panel-subheading">High Player Count</h3>
+        <form class="stacked-form" onsubmit="return false;">
+          <label class="checkbox-label">
+            <input type="checkbox" id="alert-player-count-enabled">
+            Alert when connected player count reaches threshold
+          </label>
+          <label>Player threshold
+            <input type="number" id="alert-player-count-threshold" min="1" value="100">
+          </label>
+        </form>
+
+        <h3 class="panel-subheading">Entity Count Spike</h3>
+        <form class="stacked-form" onsubmit="return false;">
+          <label class="checkbox-label">
+            <input type="checkbox" id="alert-entity-spike-enabled">
+            Alert on sudden entity count spike between samples
+          </label>
+          <label>Spike threshold (%)
+            <input type="number" id="alert-entity-spike-pct" min="5" max="200" value="25">
+            <span class="muted" style="font-size: 11px;">Percent jump in one ~5 min sample.</span>
+          </label>
+        </form>
+
+        <h3 class="panel-subheading">Server Offline</h3>
+        <form class="stacked-form" onsubmit="return false;">
+          <label class="checkbox-label">
+            <input type="checkbox" id="alert-rcon-offline-enabled">
+            Alert when RCON is unreachable for too long
+          </label>
+          <label>Alert after (minutes)
+            <input type="number" id="alert-rcon-offline-minutes" min="1" max="60" value="5">
+          </label>
+        </form>
+
+        <h3 class="panel-subheading">Delivery</h3>
+        <form class="stacked-form" onsubmit="return false;">
+          <label class="checkbox-label">
+            <input type="checkbox" id="alert-sound-enabled" checked>
+            Play alert sound when an alert fires
+          </label>
+          <label>Discord Webhook URL <span class="muted">(optional, leave blank to disable)</span>
+            <input type="text" id="alert-discord-webhook" placeholder="https://discord.com/api/webhooks/..." autocomplete="off">
+          </label>
+          <label class="checkbox-label" id="alert-devtools-broadcast-wrap" hidden>
+            <input type="checkbox" id="alert-devtools-broadcast">
+            Broadcast alerts to all connected dashboard sessions
+          </label>
+          <div class="btn-row">
+            <button type="button" id="alert-settings-save" class="btn btn-primary">Save</button>
           </div>
         </form>
       </div>

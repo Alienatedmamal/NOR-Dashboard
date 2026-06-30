@@ -202,6 +202,69 @@ def _drain_join_alerts():
     return alerts
 
 
+# ---- Configurable system alerts (watchlist joins, FPS, player count, etc.) ----
+_sys_alerts_lock = threading.Lock()
+_pending_sys_alerts = []
+MAX_PENDING_SYS_ALERTS = 50
+
+# Per-loop counters/flags so sustained bad conditions only fire one alert,
+# not a storm of them every sample.
+_alert_state = {
+    "fps_below_count":          0,
+    "last_entity_count":        None,
+    "player_threshold_alerted": False,
+    "rcon_offline_since":       None,
+    "rcon_offline_alerted":     False,
+}
+
+
+def _queue_sys_alert(title, message, variant="error", play_sound=True):
+    """Enqueue an alert for the browser's /api/alerts/pending drain.
+    Also fires Discord webhook and DevTools broadcast if configured.
+    References `core` by name — only called from background loops that
+    start after core is defined, so the forward reference is safe."""
+    with _sys_alerts_lock:
+        _pending_sys_alerts.append({
+            "title": title, "message": message,
+            "variant": variant, "play_sound": play_sound,
+        })
+        del _pending_sys_alerts[:-MAX_PENDING_SYS_ALERTS]
+    logger.warning("Alert fired: %s — %s", title, message)
+
+    try:
+        alerts_cfg = load_config().get("alerts", {})
+        webhook = alerts_cfg.get("discord_webhook", "").strip()
+        if webhook:
+            threading.Thread(
+                target=_send_discord_alert,
+                args=(webhook, title, message),
+                daemon=True,
+            ).start()
+        if alerts_cfg.get("devtools_broadcast") and getattr(core, "broadcast_alert", None):
+            core.broadcast_alert(title, message, variant=variant, play_sound=play_sound)
+    except Exception:
+        logger.exception("Alert: delivery side-effect failed")
+
+
+def _drain_sys_alerts():
+    with _sys_alerts_lock:
+        alerts = list(_pending_sys_alerts)
+        _pending_sys_alerts.clear()
+    return alerts
+
+
+def _send_discord_alert(webhook_url, title, message):
+    try:
+        import requests as _req
+        _req.post(
+            webhook_url,
+            json={"embeds": [{"title": title, "description": message, "color": 0xFF4D4D}]},
+            timeout=10,
+        )
+    except Exception:
+        logger.warning("Discord webhook delivery failed for alert: %s", title)
+
+
 # The surface a module's register(app, core)/preflight(core) gets handed -
 # deliberately a small, explicit set rather than "here's the whole app.py
 # module," so it's obvious at a glance what a module can and can't touch.
@@ -217,6 +280,7 @@ core = types.SimpleNamespace(
     queue_join_alert=_queue_join_alert,
     get_task_heartbeats=_get_task_heartbeats,
     process_start=_process_start,
+    broadcast_alert=None,
 )
 
 loaded_modules, skipped_modules = module_loader.discover(VERSION)
@@ -346,6 +410,25 @@ def api_settings_notifications_set():
     })
     logger.info("Settings: notifications saved")
     return jsonify({"ok": True})
+
+
+@app.route("/api/settings/alerts")
+def api_settings_alerts_get():
+    cfg = load_config()
+    return jsonify(cfg.get("alerts", {}))
+
+
+@app.route("/api/settings/alerts", methods=["POST"])
+def api_settings_alerts_set():
+    data = request.get_json(force=True) or {}
+    save_config_fields({"alerts": data})
+    logger.info("Settings: alerts saved")
+    return jsonify({"ok": True})
+
+
+@app.route("/api/alerts/pending")
+def api_alerts_pending():
+    return jsonify({"alerts": _drain_sys_alerts()})
 
 
 @app.route("/api/settings/rcon")
@@ -1134,14 +1217,29 @@ def _player_tracker_loop():
 
                 current_ids = {p["steamid"] for p in snapshot}
                 if previously_online_ids is not None:
-                    for steamid in current_ids - previously_online_ids:
-                        name = next((p["name"] for p in snapshot if p["steamid"] == steamid), steamid)
-                        try:
-                            notes, _error = get_notes(get_rcon_client(), steamid)
-                        except Exception:
-                            notes = []
-                        if notes:
-                            _queue_join_alert(steamid, name, len(notes))
+                    newly_online = current_ids - previously_online_ids
+                    if newly_online:
+                        alerts_cfg = load_config().get("alerts", {})
+                        wl_ids = {e["steamid"] for e in alerts_cfg.get("watchlist", [])}
+                        wl_labels = {e["steamid"]: e.get("label", "") for e in alerts_cfg.get("watchlist", [])}
+                        alert_sound = alerts_cfg.get("sound_enabled", True)
+                        for steamid in newly_online:
+                            name = next((p["name"] for p in snapshot if p["steamid"] == steamid), steamid)
+                            if steamid in wl_ids:
+                                label = wl_labels.get(steamid, "")
+                                display = f"{label} ({name})" if label and label.lower() != name.lower() else name
+                                _queue_sys_alert(
+                                    "Watched player joined",
+                                    f"{display} just connected to the server. (SteamID: {steamid})",
+                                    variant="info",
+                                    play_sound=alert_sound,
+                                )
+                            try:
+                                notes, _error = get_notes(get_rcon_client(), steamid)
+                            except Exception:
+                                notes = []
+                            if notes:
+                                _queue_join_alert(steamid, name, len(notes))
                 previously_online_ids = current_ids
             _record_task_run("player_tracker")
         except RconError as exc:
@@ -1192,17 +1290,98 @@ def _entity_history_loop():
         try:
             info = get_server_info(get_rcon_client())
             entity_count = info.get("EntityCount")
+            player_count = info.get("Players")
+            framerate = info.get("Framerate")
             if entity_count is not None:
                 record_entity_sample(
                     entity_count,
-                    player_count=info.get("Players"),
+                    player_count=player_count,
                     queue_count=info.get("Queued"),
-                    framerate=info.get("Framerate"),
+                    framerate=framerate,
                 )
             _record_task_run("entity_history")
+
+            # Configurable threshold checks (wrapped so a bug here can't kill the loop)
+            try:
+                alerts_cfg = load_config().get("alerts", {})
+                _snd = alerts_cfg.get("sound_enabled", True)
+
+                # FPS threshold — consecutive-sample guard avoids alerting on a single hiccup
+                if framerate is not None and alerts_cfg.get("fps_enabled"):
+                    fps_val = float(framerate)
+                    fps_thresh = int(alerts_cfg.get("fps_threshold") or 15)
+                    fps_consec = int(alerts_cfg.get("fps_consecutive") or 3)
+                    if fps_val < fps_thresh:
+                        _alert_state["fps_below_count"] += 1
+                        if _alert_state["fps_below_count"] >= fps_consec:
+                            _alert_state["fps_below_count"] = 0
+                            _queue_sys_alert(
+                                "Low server FPS",
+                                f"Server FPS has been below {fps_thresh} for {fps_consec} consecutive samples "
+                                f"(currently {fps_val:.1f} FPS; each sample is ~5 min).",
+                                variant="error", play_sound=_snd,
+                            )
+                    else:
+                        _alert_state["fps_below_count"] = 0
+                else:
+                    _alert_state["fps_below_count"] = 0
+
+                # Player count threshold — fires once when crossed, resets when it drops back
+                if player_count is not None and alerts_cfg.get("player_count_enabled"):
+                    pc = int(player_count)
+                    pc_thresh = int(alerts_cfg.get("player_count_threshold") or 100)
+                    if pc >= pc_thresh:
+                        if not _alert_state["player_threshold_alerted"]:
+                            _queue_sys_alert(
+                                "High player count",
+                                f"Server has reached {pc} players (threshold: {pc_thresh}).",
+                                variant="info", play_sound=_snd,
+                            )
+                            _alert_state["player_threshold_alerted"] = True
+                    else:
+                        _alert_state["player_threshold_alerted"] = False
+
+                # Entity spike — percent jump from last sample
+                prev_ec = _alert_state["last_entity_count"]
+                if entity_count is not None and prev_ec is not None and alerts_cfg.get("entity_spike_enabled"):
+                    spike_pct = int(alerts_cfg.get("entity_spike_pct") or 25)
+                    if prev_ec > 0:
+                        change_pct = ((entity_count - prev_ec) / prev_ec) * 100
+                        if change_pct >= spike_pct:
+                            _queue_sys_alert(
+                                "Entity count spike",
+                                f"Entity count jumped {change_pct:.0f}% in one sample "
+                                f"({prev_ec:,} → {entity_count:,}). Possible mass entity dump.",
+                                variant="error", play_sound=_snd,
+                            )
+                _alert_state["last_entity_count"] = entity_count
+
+                # Reset RCON offline tracking on a successful cycle
+                _alert_state["rcon_offline_since"] = None
+                _alert_state["rcon_offline_alerted"] = False
+            except Exception:
+                logger.exception("Entity history: alert check failed")
+
         except RconError as exc:
             logger.info("Entity history: RCON unreachable this cycle: %s", exc)
             _record_task_run("entity_history", "error", f"RCON unreachable: {exc}")
+            try:
+                alerts_cfg = load_config().get("alerts", {})
+                if alerts_cfg.get("rcon_offline_enabled") and not _alert_state["rcon_offline_alerted"]:
+                    if _alert_state["rcon_offline_since"] is None:
+                        _alert_state["rcon_offline_since"] = time.time()
+                    else:
+                        mins = int(alerts_cfg.get("rcon_offline_minutes") or 5)
+                        if time.time() - _alert_state["rcon_offline_since"] >= mins * 60:
+                            _queue_sys_alert(
+                                "Server offline",
+                                f"RCON has been unreachable for over {mins} minute(s).",
+                                variant="error",
+                                play_sound=alerts_cfg.get("sound_enabled", True),
+                            )
+                            _alert_state["rcon_offline_alerted"] = True
+            except Exception:
+                logger.exception("Entity history: offline alert check failed")
         except Exception:
             logger.exception("Entity history: unexpected error")
             _record_task_run("entity_history", "error", "unexpected error (see log)")
