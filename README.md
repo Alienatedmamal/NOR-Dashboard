@@ -12,9 +12,6 @@ Core only needs RCON access to your Rust server - nothing extra to install for O
 
 Core covers Overview, Console, Players, Player Lookup, Live Map, Permissions, and Server Info - everything else is an optional module, distributed separately from this repo. Drop a module's folder into `app/modules/` and relaunch the dashboard to pick it up; its tab, settings, and any dependencies it needs were already shipped with this release (run.bat's `pip install` covers whatever any known module needs, every launch, regardless of whether you've actually installed that module). A module that needs a newer core than what you're running gets skipped with a clear reason in Settings > Module Settings, rather than failing silently.
 
-**Available modules:**
-- **Payback3** — Apply and remove Payback3 punishments on connected players directly from the dashboard. Pick a target from the online player dropdown, browse punishments by category (Combat, Damage, Movement, Spawns, Inventory, Effects, Misc, Admin), and hit Apply. Toggle punishments (marked with a badge) can be stopped by sending the same command again via the Stop button; one-shot punishments have no Stop button.
-
 ## One-time setup
 
 1. **Double-click `install.bat`.** (Everything else in the download is tucked inside the `Files` folder - that's expected, `install.bat` unpacks it into place on first run.) It checks for Python and installs it automatically (via `winget`) if it's missing, then installs the small set of packages this needs (`app/requirements.txt`: Flask, flask-sock, websocket-client, requests, paramiko), and creates `app/config.json` from the template if it doesn't already exist.
