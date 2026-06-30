@@ -12,8 +12,8 @@ import zipfile
 
 import requests
 
-REPO_ZIP_URL = "https://github.com/Alienatedmamal/NOR-RCON-Dashboard/archive/refs/heads/main.zip"
-REPO_VERSION_URL = "https://raw.githubusercontent.com/Alienatedmamal/NOR-RCON-Dashboard/main/VERSION"
+REPO_ZIP_URL = "https://github.com/Alienatedmamal/NOR-Dashboard/archive/refs/heads/main.zip"
+REPO_VERSION_URL = "https://raw.githubusercontent.com/Alienatedmamal/NOR-Dashboard/main/VERSION"
 
 
 def _parse_version(text):
