@@ -153,6 +153,12 @@ def discover(core_version):
 
         loaded.append(LoadedModule(key, manifest, module_dir, package))
 
+    # Optional "order" field in module.json controls tab position.
+    # Modules without it default to 0 and sort alphabetically among
+    # themselves; higher numbers go later (DevTools uses 100 to land
+    # after all standard modules but still before Help).
+    loaded.sort(key=lambda m: (m.manifest.get("order", 0), m.key))
+
     return loaded, skipped
 
 

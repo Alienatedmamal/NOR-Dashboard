@@ -1865,8 +1865,6 @@ $("#rcon-settings-form").addEventListener("submit", async (e) => {
 function syncWipeFormVisibility() {
   const frequency = $("#wipe-setting-frequency").value;
   $("#wipe-setting-anchor-wrap").hidden = frequency !== "biweekly";
-  const tzSelect = $("#wipe-setting-timezone").value;
-  $("#wipe-setting-timezone-other-wrap").hidden = tzSelect !== "other";
 }
 $("#wipe-setting-frequency").addEventListener("change", syncWipeFormVisibility);
 $("#wipe-setting-timezone").addEventListener("change", syncWipeFormVisibility);
@@ -1880,10 +1878,6 @@ async function loadWipeSettingsForm() {
     const tz = data.wipe_timezone || "America/Chicago";
     const tzSelect = $("#wipe-setting-timezone");
     tzSelect.value = tz;
-    if (tzSelect.value !== tz) {
-      tzSelect.value = "other";
-      $("#wipe-setting-timezone-other").value = tz;
-    }
     $("#wipe-setting-anchor").value = data.wipe_anchor_date || "";
     syncWipeFormVisibility();
     $("#wipe-setting-frequency")._syncCustomSelectTrigger && $("#wipe-setting-frequency")._syncCustomSelectTrigger();
@@ -1898,8 +1892,7 @@ $("#wipe-settings-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const wipe_frequency = $("#wipe-setting-frequency").value;
   const wipe_time = $("#wipe-setting-time").value;
-  const tzSelect = $("#wipe-setting-timezone").value;
-  const wipe_timezone = tzSelect === "other" ? $("#wipe-setting-timezone-other").value.trim() : tzSelect;
+  const wipe_timezone = $("#wipe-setting-timezone").value;
   const wipe_anchor_date = $("#wipe-setting-anchor").value;
 
   if (!wipe_time || !wipe_timezone) {
