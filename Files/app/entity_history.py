@@ -42,13 +42,20 @@ def _save(data):
     os.replace(tmp_path, HISTORY_PATH)
 
 
-def record_sample(entity_count):
+def record_sample(entity_count, player_count=None, queue_count=None, framerate=None):
     with _lock:
         data = _load()
-        data.append({
+        sample = {
             "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "entity_count": entity_count,
-        })
+        }
+        if player_count is not None:
+            sample["player_count"] = int(player_count)
+        if queue_count is not None:
+            sample["queue_count"] = int(queue_count)
+        if framerate is not None:
+            sample["framerate"] = round(float(framerate), 1)
+        data.append(sample)
         if len(data) > MAX_SAMPLES:
             data = data[-MAX_SAMPLES:]
         _save(data)

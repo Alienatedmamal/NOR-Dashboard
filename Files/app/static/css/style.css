@@ -180,7 +180,69 @@ a { color: var(--accent); }
   text-shadow: 0 0 8px rgba(57, 255, 20, .4);
 }
 
-.overview-player-list { max-height: none; }
+.overview-player-list { max-height: none; overflow-y: auto; flex: 1; min-height: 0; }
+
+/* ---- Overview: no-scroll viewport layout ---- */
+#tab-overview.active { display: flex; flex-direction: column; }
+
+/* Tighter hero so it doesn't eat the vertical budget */
+.overview-hero { padding: 20px 32px; }
+
+/* Stats row: tighter bottom margin */
+#tab-overview .overview-stats-grid { margin-bottom: 14px; }
+
+/* Main content area: charts left, players right */
+.overview-body {
+  display: flex;
+  gap: 16px;
+  height: calc(100vh - 410px);
+  min-height: 360px;
+  overflow: hidden;
+}
+
+/* Left column: stacks entity chart on top, player+fps side-by-side below */
+.overview-charts-col {
+  flex: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+}
+
+/* Side-by-side row for player count + framerate */
+.overview-chart-row {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  min-height: 0;
+}
+
+/* Each chart panel stretches to fill its flex slot */
+.overview-chart-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  margin-bottom: 0;
+}
+.overview-chart-panel h2 { margin: 0 0 4px; flex-shrink: 0; }
+.overview-chart-panel p.muted { margin: 0 0 4px; flex-shrink: 0; font-size: 12px; }
+.overview-chart-panel .entity-history-canvas { flex: 1; min-height: 0; height: auto; }
+.overview-chart-range { font-size: 11px !important; margin-top: 2px !important; }
+
+/* Right column: connected players fills full height, scrolls internally */
+.overview-players-col {
+  flex: 1 1 260px;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  margin-bottom: 0;
+}
+.overview-players-col h2 { flex-shrink: 0; margin: 0 0 10px; }
 
 .dashboard-footer {
   text-align: center;

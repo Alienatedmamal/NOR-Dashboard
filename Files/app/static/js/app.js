@@ -930,29 +930,13 @@ async function loadOverviewExtras() {
 loadOverviewExtras();
 setInterval(loadOverviewExtras, 30000);
 
-// ---- Overview tab: Entity Count History chart ----
-// A small dependency-free canvas line chart - no charting library, same
-// vanilla-JS approach as the rest of this app. Refetched every 5 minutes
-// to match the backend's own sampling interval (see entity_history.py /
-// app.py's _entity_history_loop) - polling faster wouldn't surface new
-// data any sooner.
-async function loadEntityHistory() {
-  const canvas = $("#entity-history-chart");
-  if (!canvas) return;
-  try {
-    const data = await fetch("/api/server/entity-history").then((res) => res.json());
-    drawEntityHistoryChart(canvas, data.history || []);
-  } catch (err) {
-    // leave whatever was last drawn rather than blanking it on a hiccup
-  }
-}
-loadEntityHistory();
-setInterval(loadEntityHistory, 300000);
+// ---- Overview tab: performance history charts ----
+// Dependency-free canvas line charts. One fetch every 5 minutes drives all
+// three charts (entity count, player count, framerate) from the same
+// /api/server/entity-history response - no extra polling overhead.
 
-function drawEntityHistoryChart(canvas, history) {
-  const rangeLabel = $("#entity-history-range");
-  // Match the canvas's drawing buffer to its rendered CSS size so the line
-  // stays crisp instead of blurring when a fixed-size buffer gets scaled.
+function _drawPerfChart(canvas, history, field, color, rangeLabelId, valueFormatter) {
+  const rangeLabel = $("#" + rangeLabelId);
   const rect = canvas.getBoundingClientRect();
   canvas.width = Math.max(Math.round(rect.width), 1);
   canvas.height = Math.max(Math.round(rect.height), 1);
@@ -961,55 +945,70 @@ function drawEntityHistoryChart(canvas, history) {
   const h = canvas.height;
   ctx.clearRect(0, 0, w, h);
 
-  const styles = getComputedStyle(document.documentElement);
-  const accent = (styles.getPropertyValue("--accent") || "#39ff14").trim();
-  const muted = (styles.getPropertyValue("--text-muted") || "#a6b0a3").trim();
+  const muted = (getComputedStyle(document.documentElement).getPropertyValue("--text-muted") || "#a6b0a3").trim();
 
-  if (!history || history.length < 2) {
+  const points = (history || []).filter((p) => p[field] != null);
+  if (points.length < 2) {
     ctx.fillStyle = muted;
     ctx.font = "13px sans-serif";
-    ctx.fillText("Not enough data yet - check back in a few minutes.", 12, h / 2);
+    ctx.fillText("Not enough data yet — check back after the next sample (5 min).", 12, h / 2);
     if (rangeLabel) rangeLabel.textContent = "";
     return;
   }
 
-  const counts = history.map((p) => p.entity_count);
-  const minVal = Math.min(...counts);
-  const maxVal = Math.max(...counts);
+  const fmt = valueFormatter || ((v) => String(v));
+  const values = points.map((p) => p[field]);
+  const minVal = Math.min(...values);
+  const maxVal = Math.max(...values);
   const range = Math.max(maxVal - minVal, 1);
-  const padX = 12;
-  const padTop = 20;
-  const padBottom = 20;
+  const padX = 12, padTop = 20, padBottom = 20;
 
   ctx.beginPath();
-  history.forEach((point, i) => {
-    const x = padX + (i / (history.length - 1)) * (w - padX * 2);
-    const y = padTop + (1 - (point.entity_count - minVal) / range) * (h - padTop - padBottom);
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
+  points.forEach((point, i) => {
+    const x = padX + (i / (points.length - 1)) * (w - padX * 2);
+    const y = padTop + (1 - (point[field] - minVal) / range) * (h - padTop - padBottom);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   });
-  ctx.strokeStyle = accent;
+  ctx.strokeStyle = color;
   ctx.lineWidth = 2;
   ctx.stroke();
 
   ctx.fillStyle = muted;
   ctx.font = "12px sans-serif";
   ctx.textAlign = "left";
-  ctx.fillText(`Max: ${maxVal}`, padX, 14);
+  ctx.fillText(`Max: ${fmt(maxVal)}`, padX, 14);
   ctx.textAlign = "right";
-  ctx.fillText(`Now: ${counts[counts.length - 1]}`, w - padX, 14);
+  ctx.fillText(`Now: ${fmt(values[values.length - 1])}`, w - padX, 14);
   ctx.textAlign = "left";
-  ctx.fillText(`Min: ${minVal}`, padX, h - 6);
+  ctx.fillText(`Min: ${fmt(minVal)}`, padX, h - 6);
 
   if (rangeLabel) {
-    const start = new Date(history[0].timestamp);
-    const end = new Date(history[history.length - 1].timestamp);
+    const start = new Date(points[0].timestamp);
+    const end = new Date(points[points.length - 1].timestamp);
     rangeLabel.textContent = isNaN(start.getTime()) || isNaN(end.getTime())
       ? ""
-      : `Showing ${start.toLocaleString()} → ${end.toLocaleString()}`;
+      : `${start.toLocaleString()} → ${end.toLocaleString()}`;
   }
 }
-window.addEventListener("resize", () => loadEntityHistory());
+
+async function loadPerformanceHistory() {
+  try {
+    const data = await fetch("/api/server/entity-history").then((r) => r.json());
+    const history = data.history || [];
+    const accent = (getComputedStyle(document.documentElement).getPropertyValue("--accent") || "#39ff14").trim();
+    const entityCanvas = $("#entity-history-chart");
+    const playerCanvas = $("#player-history-chart");
+    const fpsCanvas    = $("#fps-history-chart");
+    if (entityCanvas) _drawPerfChart(entityCanvas, history, "entity_count", accent,       "entity-history-range");
+    if (playerCanvas) _drawPerfChart(playerCanvas, history, "player_count", "#33aaff",    "player-history-range");
+    if (fpsCanvas)    _drawPerfChart(fpsCanvas,    history, "framerate",    "#ffaa00",     "fps-history-range", (v) => `${v} FPS`);
+  } catch (_) {
+    // leave whatever was last drawn on a transient fetch error
+  }
+}
+loadPerformanceHistory();
+setInterval(loadPerformanceHistory, 300000);
+window.addEventListener("resize", loadPerformanceHistory);
 
 // ---- Overview tab extras: description + header image, straight from RCON ----
 // Reuses /api/server/settings (same endpoint the Server Info tab edits

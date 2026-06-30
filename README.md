@@ -1,4 +1,4 @@
-# NOR Dashboard v1.6.5
+# NOR Dashboard v1.6.6
 
 A simple admin dashboard for your Rust server: an at-a-glance overview (player count, queue, BattleMetrics rank, and more), a live console feed, server info/settings, online/offline/banned player management with notes, permission management, player ban/Steam history lookups, a live map with player and world-event tracking, and a wipe countdown. Same black-and-neon-green look as nor.workisboring.com. Optional modules add extra tabs - see "Modules" below.
 
@@ -54,7 +54,12 @@ Three show up in this same folder once you've run the dashboard, each for a diff
 
 ## What's in here
 
-- **Overview** - the landing page: hostname/description straight from RCON over your server's own header image (`server.headerimage`, set in the Server Info tab - falls back to a default background if it's not set), stat cards (players, queued, BattleMetrics rank, framerate, game time, uptime, map, entity count), an entity count history graph (sampled every 5 minutes, local to this install - see below), and the live connected-players list.
+- **Overview** - the landing page: hostname/description straight from RCON over your server's own header image (`server.headerimage`, set in the Server Info tab - falls back to a default background if it's not set), stat cards (players, queued, BattleMetrics rank, framerate, game time, uptime, map, entity count), three performance history graphs, and the live connected-players list. All three graphs share the same 5-minute sampling interval (local to this install, no sync needed - each dashboard builds its own history from the moment it first ran):
+  - **Entity Count History** — tracks world entity count over time; watch for buildup between wipes since entity count drives server simulation cost more than player count does.
+  - **Player Count History** — players connected over time; useful for spotting peak hours and population trends across the wipe cycle.
+  - **Framerate History** — server FPS over time; a sustained drop below ~20 FPS typically means the server is under load. Pairs with entity count to help diagnose whether a slowdown is entity-driven or something else.
+  
+  The Overview layout fits a full-screen window without scrolling — stat cards across the top, all three charts filling the left side, connected players on the right.
 - **Console** - a live feed of everything your server logs (plugin loads, warnings, chat, command output...), same idea as RustAdmin's console. Type a command and its response shows up in the same feed within a second or two, interleaved with everything else. Below it, **Broadcast Message** sends a chat message to everyone connected. The Online Players sidebar has a one-click **Kick** per player, and above it, **Give Item** gives a chosen item/quantity to a currently-connected player from a curated list of common items.
 - **Players** - online players (name, SteamID, IP, ping, session/total time, last connected, Rust hours, VAC/game ban status) with one-click kick, ban/unban (reason required and logged), and Look up; plus recently-seen offline players (with their last-known IP) and currently-banned players, each with a filter box to find someone by name or SteamID without scrolling. Select multiple players with the checkboxes for bulk kick/ban (online) or bulk unban (banned). A per-player notes log (kick and ban reasons are both added automatically), with a search box to find a keyword across every player's notes at once instead of needing a SteamID first - if a player with existing notes reconnects, you'll get a toast (and optionally a sound, see Settings > Notifications) right when it happens.
 - **Player Lookup** - paste a SteamID64 to see their Steam profile, account age, VAC/game ban counts, and community/economy ban status.

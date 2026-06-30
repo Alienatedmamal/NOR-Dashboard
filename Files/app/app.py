@@ -1193,7 +1193,12 @@ def _entity_history_loop():
             info = get_server_info(get_rcon_client())
             entity_count = info.get("EntityCount")
             if entity_count is not None:
-                record_entity_sample(entity_count)
+                record_entity_sample(
+                    entity_count,
+                    player_count=info.get("Players"),
+                    queue_count=info.get("Queued"),
+                    framerate=info.get("Framerate"),
+                )
             _record_task_run("entity_history")
         except RconError as exc:
             logger.info("Entity history: RCON unreachable this cycle: %s", exc)
