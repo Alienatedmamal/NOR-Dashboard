@@ -21,3 +21,6 @@ dashboard-events.log*
 Files/app/modules/*
 !Files/app/modules/README.md
 !Files/app/modules/.gitkeep
+
+# AMAP server scripts are distributed as part of the AMAP module, not core.
+Files/AMAP/
