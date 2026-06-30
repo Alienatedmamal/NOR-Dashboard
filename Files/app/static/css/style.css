@@ -399,6 +399,7 @@ a { color: var(--accent); }
 
 .stacked-form { display: flex; flex-direction: column; gap: 14px; margin-top: 10px; }
 .stacked-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-muted); }
+.stacked-form input, .stacked-form select { width: 100%; }
 .stacked-form label[hidden] { display: none; }
 .stacked-form label.checkbox-label { flex-direction: row; align-items: center; gap: 8px; font-size: 14px; color: var(--text); cursor: pointer; }
 .stacked-form label.checkbox-label input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
@@ -887,3 +888,91 @@ input[type="color"] {
   transition: width .3s ease;
 }
 .loading-screen-status { color: var(--text-muted); font-family: var(--font-heading); letter-spacing: .5px; }
+
+/* ---- Payback3 module ---- */
+.pb3-category {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.pb3-cat-summary {
+  list-style: none;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: var(--bg-elevated);
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pb3-cat-summary::-webkit-details-marker { display: none; }
+.pb3-cat-summary::before {
+  content: "▶";
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform .15s;
+}
+.pb3-category[open] > .pb3-cat-summary::before { transform: rotate(90deg); }
+.pb3-cat-summary:hover { background: rgba(0,255,128,.06); }
+.pb3-cat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  padding: 10px;
+  background: var(--bg);
+}
+
+.pb3-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+.pb3-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .15s, background .15s;
+}
+.pb3-card:hover { border-color: var(--accent); background: rgba(0,255,128,.05); }
+.pb3-card.active { border-color: var(--accent); background: var(--accent-soft); }
+.pb3-card-name { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.3; }
+.pb3-card-badge {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(0,255,128,.12);
+  color: var(--accent);
+  border: 1px solid rgba(0,255,128,.3);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+
+.pb3-action-panel { min-width: 220px; max-width: 300px; }
+.pb3-sel-name { font-size: 16px; margin: 0 0 2px; }
+.pb3-sel-cat { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; margin: 0 0 8px; }
+.pb3-output {
+  margin-top: 14px;
+  padding: 10px;
+  border-radius: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text-muted);
+  max-height: 180px;
+  overflow-y: auto;
+}

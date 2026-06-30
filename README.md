@@ -1,4 +1,4 @@
-# NOR Dashboard v1.6.8
+# NOR Dashboard v1.6.9
 
 A simple admin dashboard for your Rust server: an at-a-glance overview (player count, queue, BattleMetrics rank, and more), a live console feed, server info/settings, online/offline/banned player management with notes, permission management, player ban/Steam history lookups, a live map with player and world-event tracking, and a wipe countdown. Same black-and-neon-green look as nor.workisboring.com. Optional modules add extra tabs - see "Modules" below.
 
@@ -11,6 +11,9 @@ Core only needs RCON access to your Rust server - nothing extra to install for O
 ## Modules (v1.6+)
 
 Core covers Overview, Console, Players, Player Lookup, Live Map, Permissions, and Server Info - everything else is an optional module, distributed separately from this repo. Drop a module's folder into `app/modules/` and relaunch the dashboard to pick it up; its tab, settings, and any dependencies it needs were already shipped with this release (run.bat's `pip install` covers whatever any known module needs, every launch, regardless of whether you've actually installed that module). A module that needs a newer core than what you're running gets skipped with a clear reason in Settings > Module Settings, rather than failing silently.
+
+**Available modules:**
+- **Payback3** — Apply and remove Payback3 punishments on connected players directly from the dashboard. Pick a target from the online player dropdown, browse punishments by category (Combat, Damage, Movement, Spawns, Inventory, Effects, Misc, Admin), and hit Apply. Toggle punishments (marked with a badge) can be stopped by sending the same command again via the Stop button; one-shot punishments have no Stop button.
 
 ## One-time setup
 
