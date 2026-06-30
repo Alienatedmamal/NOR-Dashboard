@@ -109,6 +109,3 @@ Each admin then:
 - Without a `rustmaps_api_key`, the Live Map tab still shows live player/event markers - just without the background map image or the oil rig markers, since both of those come from RustMaps' own data, not RCON. The very first time RustMaps sees a given seed/world size, generating the image (and the oil rig positions, fetched the same trip) can take a couple minutes; the tab shows a "generating" message and a Refresh button until it's ready.
 - Without a `battlemetrics_id`, the Overview tab still shows everything else - Rank just stays blank.
 - The Overview tab's background image normally comes from `server.headerimage` (see "What's in here" above) - `app/static/img/bg.jpg` is only a fallback, shown if `headerimage` isn't set on your server (or hasn't loaded yet). Swap that file for your own image (same filename) if you want a different fallback.
-
-
-![Noobs On The Run](https://nor.workisboring.com/image/banner.png)
