@@ -178,6 +178,30 @@ def reset_rcon_client():
         _rcon_client = None
 
 
+# Pending "a player with existing notes just reconnected" alerts, drained
+# by the frontend's periodic /api/players/join-alerts poll (piggybacked
+# onto refreshStatus() in app.js, not its own fast poll - this is sourced
+# from a 60s-interval background tick, so polling it any faster wouldn't
+# surface anything sooner). Capped so a long stretch with no one looking
+# at the dashboard can't grow this unbounded.
+_join_alerts_lock = threading.Lock()
+_pending_join_alerts = []
+MAX_PENDING_JOIN_ALERTS = 50
+
+
+def _queue_join_alert(steamid, name, note_count):
+    with _join_alerts_lock:
+        _pending_join_alerts.append({"steamid": steamid, "name": name, "note_count": note_count})
+        del _pending_join_alerts[:-MAX_PENDING_JOIN_ALERTS]
+
+
+def _drain_join_alerts():
+    with _join_alerts_lock:
+        alerts = list(_pending_join_alerts)
+        _pending_join_alerts.clear()
+    return alerts
+
+
 # The surface a module's register(app, core)/preflight(core) gets handed -
 # deliberately a small, explicit set rather than "here's the whole app.py
 # module," so it's obvious at a glance what a module can and can't touch.
@@ -1083,30 +1107,6 @@ def api_steam_lookup(steamid):
         return jsonify(lookup_player(api_key, steamid))
     except Exception as exc:  # network errors, bad API key, rate limits, etc.
         return jsonify({"error": str(exc)}), 502
-
-
-# Pending "a player with existing notes just reconnected" alerts, drained
-# by the frontend's periodic /api/players/join-alerts poll (piggybacked
-# onto refreshStatus() in app.js, not its own fast poll - this is sourced
-# from a 60s-interval background tick, so polling it any faster wouldn't
-# surface anything sooner). Capped so a long stretch with no one looking
-# at the dashboard can't grow this unbounded.
-_join_alerts_lock = threading.Lock()
-_pending_join_alerts = []
-MAX_PENDING_JOIN_ALERTS = 50
-
-
-def _queue_join_alert(steamid, name, note_count):
-    with _join_alerts_lock:
-        _pending_join_alerts.append({"steamid": steamid, "name": name, "note_count": note_count})
-        del _pending_join_alerts[:-MAX_PENDING_JOIN_ALERTS]
-
-
-def _drain_join_alerts():
-    with _join_alerts_lock:
-        alerts = list(_pending_join_alerts)
-        _pending_join_alerts.clear()
-    return alerts
 
 
 def _player_tracker_loop():
