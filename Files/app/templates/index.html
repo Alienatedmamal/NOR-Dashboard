@@ -254,7 +254,12 @@
     </div>
 
     <div class="panel">
-      <h2>Player Notes</h2>
+      <div class="panel-header-row">
+        <h2>Player Notes</h2>
+        <div class="btn-row">
+          <button type="button" id="notes-force-sync" class="btn btn-outline has-tooltip" data-tooltip="Pulls and merges the latest notes and stats from the Rust server right now, instead of waiting for the automatic sync.">Force Sync</button>
+        </div>
+      </div>
       <p class="muted">Ban reasons show up here automatically. You can also add your own notes for any player.</p>
 
       <h3 class="panel-subheading">Search All Notes</h3>
@@ -267,7 +272,6 @@
       <div class="inline-form">
         <input type="text" id="notes-steamid" class="player-combo" placeholder="SteamID" autocomplete="off">
         <button type="button" id="notes-load" class="btn btn-outline">Load Notes</button>
-        <button type="button" id="notes-force-sync" class="btn btn-outline has-tooltip" data-tooltip="Pulls and merges the latest notes and stats from the Rust server right now, instead of waiting for the automatic sync.">Force Sync</button>
       </div>
       <div id="notes-sync-bubble" class="sync-bubble hidden"></div>
       <div id="notes-list" class="console-output small"></div>
@@ -642,7 +646,7 @@
               <option value="other">Other (type below)</option>
             </select>
           </label>
-          <label id="wipe-setting-timezone-other-wrap" hidden>Timezone name (IANA, e.g. Europe/London)
+          <label id="wipe-setting-timezone-other-wrap" hidden>Custom timezone
             <input type="text" id="wipe-setting-timezone-other" placeholder="Europe/London" autocomplete="off">
           </label>
           <label id="wipe-setting-anchor-wrap" hidden>Anchor date (any past wipe date - counts every 14 days from here)

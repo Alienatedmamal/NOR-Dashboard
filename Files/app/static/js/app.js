@@ -1622,6 +1622,7 @@ function syncPermTargetFields() {
   const isGroup = $("#perm-target-type").value === "group";
   $("#perm-target-user-wrap").hidden = isGroup;
   $("#perm-target-group-wrap").hidden = !isGroup;
+  if (!isGroup) setTimeout(() => $("#perm-target").focus(), 0);
 }
 $("#perm-target-type").addEventListener("change", syncPermTargetFields);
 
@@ -1629,6 +1630,7 @@ function syncShowTargetFields() {
   const isGroup = $("#show-target-type").value === "group";
   $("#show-target-user-wrap").hidden = isGroup;
   $("#show-target-group-wrap").hidden = !isGroup;
+  if (!isGroup) setTimeout(() => $("#show-target").focus(), 0);
 }
 $("#show-target-type").addEventListener("change", syncShowTargetFields);
 
@@ -2290,12 +2292,14 @@ function startTour() {
   $("#tour-overlay").hidden = false;
   $("#tour-dont-show-again").checked = false;
   document.body.style.overflow = "hidden";
+  document.documentElement.style.overflow = "hidden";
   showTourStep(0);
 }
 
 async function endTour(dismissPermanently) {
   $("#tour-overlay").hidden = true;
   document.body.style.overflow = "";
+  document.documentElement.style.overflow = "";
   if (dismissPermanently && !notificationSettings.tour_dismissed) {
     notificationSettings.tour_dismissed = true;
     $("#notifications-setting-tour-dismissed").checked = true;
