@@ -875,12 +875,13 @@ def api_players_ban():
     added_by = (body.get("added_by") or "").strip()
     if not steamid:
         return jsonify({"error": "steamid is required"}), 400
+    client = get_rcon_client()
     try:
-        response = ban_player(get_rcon_client(), steamid, reason)
+        response = ban_player(client, steamid, reason)
     except RconError as exc:
         reset_rcon_client()
         return jsonify({"error": str(exc)}), 502
-    _note_ok, note_error = add_note(get_rcon_client(), steamid, reason, note_type="ban", added_by=added_by)
+    _note_ok, note_error = add_note(client, steamid, reason, note_type="ban", added_by=added_by)
     result = {"response": response}
     if note_error:
         result["note_warning"] = f"Ban succeeded, but the ban note couldn't be fully synced: {note_error}"
