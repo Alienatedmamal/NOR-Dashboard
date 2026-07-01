@@ -485,6 +485,27 @@ def api_settings_alerts_set():
     return jsonify({"ok": True})
 
 
+@app.route("/api/settings/quick-commands")
+def api_settings_quick_commands_get():
+    cfg = load_config()
+    return jsonify({"commands": cfg.get("quick_commands", [])})
+
+
+@app.route("/api/settings/quick-commands", methods=["POST"])
+def api_settings_quick_commands_set():
+    body = request.get_json(force=True) or {}
+    commands = body.get("commands", [])
+    cleaned = []
+    for c in commands[:12]:
+        label = str(c.get("label", "")).strip()[:30]
+        command = str(c.get("command", "")).strip()[:200]
+        if label and command:
+            cleaned.append({"label": label, "command": command})
+    save_config_fields({"quick_commands": cleaned})
+    logger.info("Settings: quick commands saved (%d entries)", len(cleaned))
+    return jsonify({"ok": True, "commands": cleaned})
+
+
 @app.route("/api/alerts/pending")
 def api_alerts_pending():
     return jsonify({"alerts": _drain_sys_alerts()})

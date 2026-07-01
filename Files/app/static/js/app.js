@@ -630,6 +630,102 @@ $("#console-form").addEventListener("submit", async (e) => {
   }
 });
 
+// ---- Quick Commands (Console tab) ----
+let _quickCommands = [];
+
+async function loadQuickCommands() {
+  try {
+    const data = await fetch("/api/settings/quick-commands").then((r) => r.json());
+    _quickCommands = data.commands || [];
+    renderQuickCommandBar();
+  } catch (_) {}
+}
+
+function renderQuickCommandBar() {
+  const bar = $("#quick-commands-bar");
+  if (!bar) return;
+  bar.innerHTML = "";
+  _quickCommands.forEach((c) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "quick-cmd-btn";
+    btn.textContent = c.label;
+    btn.title = c.command;
+    btn.addEventListener("click", () => sendQuickCommand(c));
+    bar.appendChild(btn);
+  });
+}
+
+async function sendQuickCommand(c) {
+  logToConsole("> " + c.command, "console-cmd", nowTimestamp());
+  try {
+    const data = await postJson("/api/command", { command: c.command });
+    if (data.error) logToConsole("Error: " + data.error, "console-error");
+  } catch (err) {
+    logToConsole("Error: " + err.message, "console-error");
+  }
+}
+
+loadQuickCommands();
+
+// ---- Quick Commands settings ----
+function renderQuickCommandSettings() {
+  const list = $("#qc-settings-list");
+  if (!list) return;
+  if (!_quickCommands.length) {
+    list.innerHTML = '<p class="muted">No quick commands yet — add one below.</p>';
+    return;
+  }
+  list.innerHTML = "";
+  _quickCommands.forEach((c, i) => {
+    const row = document.createElement("div");
+    row.className = "qc-settings-row";
+    row.innerHTML = `
+      <span class="qc-settings-label">${escapeHtml(c.label)}</span>
+      <span class="qc-settings-command has-tooltip" data-tooltip="${escapeHtml(c.command)}">${escapeHtml(c.command)}</span>
+      <button type="button" class="btn btn-small btn-danger" data-qc-delete="${i}">Delete</button>
+    `;
+    row.querySelector("[data-qc-delete]").addEventListener("click", () => deleteQuickCommand(i));
+    list.appendChild(row);
+  });
+}
+
+async function _saveQuickCommands() {
+  const data = await postJson("/api/settings/quick-commands", { commands: _quickCommands });
+  _quickCommands = data.commands || _quickCommands;
+  renderQuickCommandBar();
+  renderQuickCommandSettings();
+}
+
+async function deleteQuickCommand(i) {
+  _quickCommands.splice(i, 1);
+  await _saveQuickCommands();
+}
+
+(function () {
+  let _qcLoaded = false;
+  document.addEventListener("click", (e) => {
+    if (e.target.matches && e.target.matches('[data-settings-section="quick-commands"]') && !_qcLoaded) {
+      _qcLoaded = true;
+      renderQuickCommandSettings();
+    }
+  });
+})();
+
+const _qcAddForm = $("#qc-add-form");
+if (_qcAddForm) {
+  _qcAddForm.addEventListener("submit", async () => {
+    const label = $("#qc-label").value.trim();
+    const command = $("#qc-command").value.trim();
+    if (!label || !command) { showToast({ title: "Quick Commands", message: "Label and command are both required.", variant: "error" }); return; }
+    if (_quickCommands.length >= 12) { showToast({ title: "Quick Commands", message: "Maximum 12 quick commands reached.", variant: "error" }); return; }
+    _quickCommands.push({ label, command });
+    await _saveQuickCommands();
+    $("#qc-label").value = "";
+    $("#qc-command").value = "";
+  });
+}
+
 $("#broadcast-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const input = $("#broadcast-message");

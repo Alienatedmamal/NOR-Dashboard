@@ -171,6 +171,7 @@
           <input type="text" id="console-input" placeholder="Type a command, e.g. status" autocomplete="off">
           <button type="submit" class="btn btn-primary">Send</button>
         </form>
+        <div id="quick-commands-bar" class="quick-commands-bar"></div>
 
         <h3 class="panel-subheading">Broadcast Message</h3>
         <p class="muted">Sends a chat message to everyone currently connected.</p>
@@ -577,6 +578,7 @@
       <button class="settings-subnav-btn" data-settings-section="wipe">Wipe Countdown</button>
       <button class="settings-subnav-btn" data-settings-section="notifications">Notifications</button>
       <button class="settings-subnav-btn" data-settings-section="alerts">Alerts</button>
+      <button class="settings-subnav-btn" data-settings-section="quick-commands">Quick Commands</button>
       {% if show_module_settings %}<button class="settings-subnav-btn" data-settings-section="modules">Module Settings</button>{% endif %}
       <button class="settings-subnav-btn" data-settings-section="update">Update</button>
     </nav>
@@ -850,6 +852,19 @@
           <div class="btn-row">
             <button type="button" id="alert-settings-save" class="btn btn-primary">Save</button>
           </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="settings-section-quick-commands" class="settings-section">
+      <div class="panel settings-panel">
+        <h2>Quick Commands</h2>
+        <p class="muted">Shortcut bubbles shown below the RCON console input. Click any bubble to send that command instantly. Max 12.</p>
+        <div id="qc-settings-list" class="qc-settings-list"></div>
+        <form id="qc-add-form" class="qc-add-form" onsubmit="return false;">
+          <input type="text" id="qc-label" placeholder="Label (e.g. Save)" maxlength="30" autocomplete="off">
+          <input type="text" id="qc-command" placeholder="Command (e.g. server.save)" maxlength="200" autocomplete="off">
+          <button type="submit" class="btn btn-primary btn-small">Add</button>
         </form>
       </div>
     </div>
