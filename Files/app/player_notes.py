@@ -89,7 +89,7 @@ def search_notes(client, query):
     return matches, error
 
 
-def add_note(client, steamid, text, note_type="manual"):
+def add_note(client, steamid, text, note_type="manual", added_by=""):
     """Returns (ok, error). ok is True as long as the note was saved
     locally - error is only about whether it also made it to the remote
     server, since a failed push still leaves the note safe in the local
@@ -99,11 +99,14 @@ def add_note(client, steamid, text, note_type="manual"):
     with _lock:
         data, pull_error = _load_latest(client)
         notes = data.setdefault(steamid, [])
-        notes.append({
+        entry = {
             "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "type": note_type,
             "text": text,
-        })
+        }
+        if added_by:
+            entry["added_by"] = added_by
+        notes.append(entry)
         _save(data)
         push_ok, push_error = player_data_sync.push_json(client, NOTES_FILENAME, data)
         if not push_ok:

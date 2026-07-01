@@ -12,7 +12,7 @@ import time
 import types
 from logging.handlers import RotatingFileHandler
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, redirect, render_template, request, url_for
 from flask_sock import Sock
 from werkzeug.exceptions import HTTPException
 
@@ -36,10 +36,10 @@ from oxide_commands import (
 from permissions_catalog import KNOWN_PERMISSIONS
 from player_notes import add_note, delete_note, force_full_sync, get_notes, search_notes
 from player_stats import get_all_stats, get_stats, record_snapshot, sync_with_remote
-from rcon_client import RconClient, RconError, get_log_since, get_log_tail, get_players
+from rcon_client import RconClient, RconError, get_chat_since, get_chat_tail, get_log_since, get_log_tail, get_players
 from server_info import SETTING_CONVARS, get_server_info, get_server_settings, set_convar
 from steam_api import get_player_bans_cached, get_player_summary, get_rust_playtime_hours, lookup_player
-from updater import apply_update, check_for_update
+from updater import apply_release, apply_update, check_for_update, get_releases
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
@@ -176,6 +176,13 @@ def reset_rcon_client():
             _rcon_client.close()
             logger.warning("RCON: connection reset (will reconnect on next request)")
         _rcon_client = None
+
+
+# In-memory set of currently muted SteamIDs (via Better Chat Mute plugin).
+# This doesn't survive a dashboard restart, but is the simplest way to
+# track mute state without querying the plugin's data file over RCON.
+_muted_steamids: set = set()
+_muted_lock = threading.Lock()
 
 
 # Pending "a player with existing notes just reconnected" alerts, drained
@@ -331,9 +338,44 @@ def handle_unhandled_exception(exc):
     return jsonify({"error": "Internal server error"}), 500
 
 
+@app.route("/setup", methods=["GET"])
+def setup_get():
+    return render_template("setup.html")
+
+
+@app.route("/setup", methods=["POST"])
+def setup_post():
+    body = request.get_json(force=True) or {}
+    host = (body.get("rcon_host") or "").strip()
+    password = (body.get("rcon_password") or "").strip()
+    try:
+        port = int(body.get("rcon_port") or 0)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Port must be a number"}), 400
+    if not host or not password or not port:
+        return jsonify({"error": "Host, port, and password are required"}), 400
+
+    updates = {"rcon_host": host, "rcon_port": port, "rcon_password": password}
+    steam = (body.get("steam_api_key") or "").strip()
+    bm_id = (body.get("battlemetrics_id") or "").strip()
+    rm_key = (body.get("rustmaps_api_key") or "").strip()
+    if steam:
+        updates["steam_api_key"] = steam
+    if bm_id:
+        updates["battlemetrics_id"] = bm_id
+    if rm_key:
+        updates["rustmaps_api_key"] = rm_key
+    save_config_fields(updates)
+    reset_rcon_client()
+    logger.info("Setup wizard completed — RCON configured for %s:%s", host, port)
+    return jsonify({"ok": True})
+
+
 @app.route("/")
 def index():
     cfg = load_config()
+    if not cfg.get("rcon_host") or not cfg.get("rcon_password"):
+        return redirect(url_for("setup_get"))
     # Rendered straight into the page rather than fetched after load, so the
     # inline <head> script (see index.html) can apply it before first paint
     # with no flash of the default theme and no dependency on localStorage -
@@ -389,6 +431,23 @@ def api_settings_theme_set():
 
     save_config_fields({"theme_preset_key": preset_key, "theme_vars": theme_vars})
     logger.info("Settings: theme saved (preset=%s)", preset_key or "custom")
+    return jsonify({"ok": True})
+
+
+@app.route("/api/settings/profile")
+def api_settings_profile_get():
+    cfg = load_config()
+    return jsonify({"admin_username": cfg.get("admin_username", "")})
+
+
+@app.route("/api/settings/profile", methods=["POST"])
+def api_settings_profile_set():
+    body = request.get_json(force=True) or {}
+    username = (body.get("admin_username") or "").strip()
+    if not username:
+        return jsonify({"error": "Username is required"}), 400
+    save_config_fields({"admin_username": username})
+    logger.info("Settings: admin username set to '%s'", username)
     return jsonify({"ok": True})
 
 
@@ -522,6 +581,39 @@ def api_settings_update_apply():
 
     logger.info("Update applied (now v%s on disk) - restart needed to run it", VERSION)
     return jsonify({"ok": True, "new_version": VERSION})
+
+
+@app.route("/api/settings/releases")
+def api_settings_releases():
+    try:
+        releases = get_releases()
+        return jsonify({"releases": releases})
+    except Exception as exc:
+        logger.warning("Release list fetch failed: %s", exc)
+        return jsonify({"error": f"Couldn't fetch releases: {exc}"}), 502
+
+
+@app.route("/api/settings/update-rollback", methods=["POST"])
+def api_settings_update_rollback():
+    global VERSION
+    body = request.get_json(force=True) or {}
+    zipball_url = (body.get("zipball_url") or "").strip()
+    tag = (body.get("tag") or "").strip()
+    if not zipball_url:
+        return jsonify({"error": "zipball_url is required"}), 400
+    project_dir = os.path.join(BASE_DIR, "..")
+    try:
+        apply_release(project_dir, zipball_url)
+    except Exception as exc:
+        logger.exception("Rollback to %s failed", tag)
+        return jsonify({"error": f"Rollback failed: {exc}"}), 502
+    try:
+        with open(VERSION_PATH, "r", encoding="utf-8") as f:
+            VERSION = f.read().strip()
+    except OSError:
+        pass
+    logger.info("Rolled back to %s (now v%s on disk) - restart needed", tag, VERSION)
+    return jsonify({"ok": True, "new_version": VERSION or tag})
 
 
 WIPE_FREQUENCIES = {"daily", "biweekly", "monthly"}
@@ -679,6 +771,30 @@ def api_console_log():
     })
 
 
+@app.route("/api/chat/log")
+def api_chat_log():
+    tail = request.args.get("tail")
+    if tail is not None:
+        try:
+            entries, latest = get_chat_tail(int(tail))
+        except ValueError:
+            entries, latest = get_chat_tail(100)
+    else:
+        after = request.args.get("after", "0")
+        try:
+            after = int(after)
+        except ValueError:
+            after = 0
+        entries, latest = get_chat_since(after)
+    return jsonify({
+        "entries": [
+            {"seq": seq, "timestamp": ts, "player": name, "steamid": sid, "message": msg}
+            for seq, ts, name, sid, msg in entries
+        ],
+        "latest": latest,
+    })
+
+
 @app.route("/api/players")
 def api_players():
     try:
@@ -713,9 +829,12 @@ def api_players():
             except Exception:
                 rust_hours = None
         ban_info = bans_by_id.get(steamid) or {}
+        with _muted_lock:
+            is_muted = steamid in _muted_steamids
         enriched.append({
             **p,
             "banned": steamid in banned_ids,
+            "muted": is_muted,
             "rust_hours": rust_hours,
             "last_connected": stats.get("last_connected") if stats else None,
             "total_seconds_on_server": stats.get("total_seconds_on_server") if stats else None,
@@ -732,6 +851,7 @@ def api_players_ban():
     body = request.get_json(force=True) or {}
     steamid = (body.get("steamid") or "").strip()
     reason = (body.get("reason") or "Banned via NOR Dashboard").strip()
+    added_by = (body.get("added_by") or "").strip()
     if not steamid:
         return jsonify({"error": "steamid is required"}), 400
     try:
@@ -739,7 +859,7 @@ def api_players_ban():
     except RconError as exc:
         reset_rcon_client()
         return jsonify({"error": str(exc)}), 502
-    _note_ok, note_error = add_note(get_rcon_client(), steamid, reason, note_type="ban")
+    _note_ok, note_error = add_note(get_rcon_client(), steamid, reason, note_type="ban", added_by=added_by)
     result = {"response": response}
     if note_error:
         result["note_warning"] = f"Ban succeeded, but the ban note couldn't be fully synced: {note_error}"
@@ -760,17 +880,57 @@ def api_players_unban():
         return jsonify({"error": str(exc)}), 502
 
 
+@app.route("/api/players/mute", methods=["POST"])
+def api_players_mute():
+    body = request.get_json(force=True) or {}
+    steamid = (body.get("steamid") or "").strip()
+    duration = (body.get("duration") or "").strip()
+    reason = (body.get("reason") or "").strip()
+    if not steamid:
+        return jsonify({"error": "steamid is required"}), 400
+    cmd = f"bcm.mute {steamid}"
+    if duration:
+        cmd += f" {duration}"
+    if reason:
+        cmd += f" {reason}"
+    try:
+        response = get_rcon_client().send_command(cmd)
+        with _muted_lock:
+            _muted_steamids.add(steamid)
+        return jsonify({"response": response})
+    except RconError as exc:
+        reset_rcon_client()
+        return jsonify({"error": str(exc)}), 502
+
+
+@app.route("/api/players/unmute", methods=["POST"])
+def api_players_unmute():
+    body = request.get_json(force=True) or {}
+    steamid = (body.get("steamid") or "").strip()
+    if not steamid:
+        return jsonify({"error": "steamid is required"}), 400
+    try:
+        response = get_rcon_client().send_command(f"bcm.unmute {steamid}")
+        with _muted_lock:
+            _muted_steamids.discard(steamid)
+        return jsonify({"response": response})
+    except RconError as exc:
+        reset_rcon_client()
+        return jsonify({"error": str(exc)}), 502
+
+
 @app.route("/api/players/kick", methods=["POST"])
 def api_players_kick():
     body = request.get_json(force=True) or {}
     steamid = (body.get("steamid") or "").strip()
     reason = (body.get("reason") or "").strip()
+    added_by = (body.get("added_by") or "").strip()
     if not steamid:
         return jsonify({"error": "steamid is required"}), 400
     try:
         response = kick_player(get_rcon_client(), steamid, reason)
         logger.info("Kicked %s (%s)", steamid, reason or "no reason given")
-        _note_ok, note_error = add_note(get_rcon_client(), steamid, reason or "Kicked via NOR Dashboard (no reason given)", note_type="kick")
+        _note_ok, note_error = add_note(get_rcon_client(), steamid, reason or "Kicked via NOR Dashboard (no reason given)", note_type="kick", added_by=added_by)
         result = {"response": response}
         if note_error:
             result["note_warning"] = f"Kick succeeded, but the kick note couldn't be fully synced: {note_error}"
@@ -809,9 +969,10 @@ def api_players_notes_add():
     body = request.get_json(force=True) or {}
     steamid = (body.get("steamid") or "").strip()
     text = (body.get("text") or "").strip()
+    added_by = (body.get("added_by") or "").strip()
     if not steamid or not text:
         return jsonify({"error": "steamid and text are required"}), 400
-    ok, error = add_note(get_rcon_client(), steamid, text, note_type="manual")
+    ok, error = add_note(get_rcon_client(), steamid, text, note_type="manual", added_by=added_by)
     result = {"ok": ok}
     if error:
         result["sync_warning"] = error

@@ -1,5 +1,20 @@
 // NOR Dashboard frontend logic
 
+// Measure the real rendered heights of the fixed header and tab bar and
+// write them back as CSS vars so the page-wrap offset stays exact regardless
+// of how much content the status-wrap stacks up. Called once on load and
+// again on resize/font-load in case reflow changes the heights.
+function _syncHeaderVars() {
+  const topbar = document.querySelector(".topbar");
+  const tabs   = document.querySelector(".tabs");
+  const root   = document.documentElement;
+  if (topbar) root.style.setProperty("--topbar-h", topbar.offsetHeight + "px");
+  if (tabs)   root.style.setProperty("--tabbar-h",  tabs.offsetHeight  + "px");
+}
+_syncHeaderVars();
+document.fonts.ready.then(_syncHeaderVars);
+window.addEventListener("resize", _syncHeaderVars);
+
 function $(sel, root) { return (root || document).querySelector(sel); }
 function $all(sel, root) { return Array.from((root || document).querySelectorAll(sel)); }
 
@@ -360,6 +375,10 @@ function showToast({ title, message, fix, variant, onClick }) {
     // for long admin sessions.
     el.classList.add("toast-flash");
     setTimeout(() => el.classList.remove("toast-flash"), 1500);
+  } else {
+    // Non-error (info/success) toasts auto-dismiss after 30s if the admin
+    // hasn't already closed them manually.
+    setTimeout(() => { if (el.isConnected) el.remove(); }, 30000);
   }
 }
 
@@ -392,6 +411,10 @@ setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
 
 // ---- Connection status ----
 let wasConnected = null; // null = not yet known - avoids a false "lost connection" toast on the very first poll
+
+// Show session start time immediately
+$("#session-started").textContent = "Session started: " + nowTimestamp();
+
 async function refreshStatus() {
   const badge = $("#connection-status");
   const text = $("#connection-text");
@@ -419,6 +442,11 @@ async function refreshStatus() {
       variant: "error",
     });
   }
+  if (wasConnected === false && connectedNow) {
+    const el = $("#last-reconnected");
+    el.textContent = "Reconnected: " + nowTimestamp();
+    el.hidden = false;
+  }
   wasConnected = connectedNow;
   $("#last-checked").textContent = "Last checked: " + nowTimestamp();
 
@@ -429,6 +457,12 @@ async function refreshStatus() {
       const players = data.Players !== undefined ? data.Players : "-";
       const max = data.MaxPlayers !== undefined ? data.MaxPlayers : "-";
       $("#player-count").textContent = `Players: ${players}/${max}`;
+      const queued = data.Queued !== undefined ? data.Queued : 0;
+      const queueEl = $("#queue-count");
+      if (queueEl) {
+        queueEl.textContent = `Queued: ${queued}`;
+        queueEl.hidden = queued === 0;
+      }
 
       $("#overview-players").textContent = `${players}/${max}`;
       $("#overview-queued").textContent = data.Queued !== undefined ? data.Queued : "-";
@@ -925,7 +959,7 @@ function renderPlayerList(box, players, errorMessage, showActions) {
 async function kickPlayer(steamid, name) {
   const reason = prompt(`Kick ${name} (${steamid})? Optionally give a reason:`, "");
   if (reason === null) return; // cancelled
-  const data = await postJson("/api/players/kick", { steamid, reason: reason.trim() });
+  const data = await postJson("/api/players/kick", { steamid, reason: reason.trim(), added_by: adminUsername });
   if (data.error) {
     alert("Error: " + data.error);
   } else if (data.note_warning) {
@@ -983,85 +1017,139 @@ async function loadOverviewExtras() {
 loadOverviewExtras();
 setInterval(loadOverviewExtras, 30000);
 
-// ---- Overview tab: performance history charts ----
-// Dependency-free canvas line charts. One fetch every 5 minutes drives all
-// three charts (entity count, player count, framerate) from the same
-// /api/server/entity-history response - no extra polling overhead.
+// ---- Overview tab: performance history charts (ApexCharts) ----
+// One fetch every 5 minutes drives all three charts from the same
+// /api/server/entity-history response. Chart instances are created once
+// and updated in place on subsequent calls (no DOM teardown).
 
-function _drawPerfChart(canvas, history, field, color, rangeLabelId, valueFormatter) {
-  const rangeLabel = $("#" + rangeLabelId);
-  const rect = canvas.getBoundingClientRect();
-  canvas.width = Math.max(Math.round(rect.width), 1);
-  canvas.height = Math.max(Math.round(rect.height), 1);
-  const ctx = canvas.getContext("2d");
-  const w = canvas.width;
-  const h = canvas.height;
-  ctx.clearRect(0, 0, w, h);
+let _entityChart = null, _playerChart = null, _fpsChart = null;
 
-  const muted = (getComputedStyle(document.documentElement).getPropertyValue("--text-muted") || "#a6b0a3").trim();
+function _apexOptions(color, labelFormatter, muted, gridColor) {
+  return {
+    chart: {
+      type: "area",
+      height: "100%",
+      background: "transparent",
+      toolbar: { show: false },
+      animations: { enabled: false },
+      zoom: { enabled: false },
+      fontFamily: "inherit",
+    },
+    stroke: { curve: "smooth", width: 2 },
+    colors: [color],
+    fill: {
+      type: "gradient",
+      gradient: {
+        shade: "dark",
+        type: "vertical",
+        shadeIntensity: 0.3,
+        opacityFrom: 0.35,
+        opacityTo: 0.02,
+        stops: [0, 100],
+      },
+    },
+    series: [{ name: "", data: [] }],
+    xaxis: {
+      type: "datetime",
+      labels: { style: { colors: muted }, datetimeUTC: false },
+      axisBorder: { show: false },
+      axisTicks: { show: false },
+    },
+    yaxis: {
+      labels: { style: { colors: muted }, formatter: labelFormatter },
+    },
+    grid: {
+      borderColor: gridColor,
+      strokeDashArray: 4,
+    },
+    tooltip: {
+      theme: "dark",
+      x: { format: "MMM d HH:mm" },
+      y: { formatter: labelFormatter },
+    },
+    dataLabels: { enabled: false },
+    legend: { show: false },
+    noData: {
+      text: "Not enough data yet — check back after the next sample (5 min).",
+      style: { color: muted, fontSize: "13px" },
+    },
+  };
+}
 
-  const points = (history || []).filter((p) => p[field] != null);
-  if (points.length < 2) {
-    ctx.fillStyle = muted;
-    ctx.font = "13px sans-serif";
-    ctx.fillText("Not enough data yet — check back after the next sample (5 min).", 12, h / 2);
-    if (rangeLabel) rangeLabel.textContent = "";
-    return;
-  }
+function _apexSeries(history, field) {
+  return (history || [])
+    .filter((p) => p[field] != null && p.timestamp)
+    .map((p) => ({ x: new Date(p.timestamp).getTime(), y: p[field] }));
+}
 
-  const fmt = valueFormatter || ((v) => String(v));
-  const values = points.map((p) => p[field]);
-  const minVal = Math.min(...values);
-  const maxVal = Math.max(...values);
-  const range = Math.max(maxVal - minVal, 1);
-  const padX = 12, padTop = 20, padBottom = 20;
-
-  ctx.beginPath();
-  points.forEach((point, i) => {
-    const x = padX + (i / (points.length - 1)) * (w - padX * 2);
-    const y = padTop + (1 - (point[field] - minVal) / range) * (h - padTop - padBottom);
-    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-  });
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  ctx.fillStyle = muted;
-  ctx.font = "12px sans-serif";
-  ctx.textAlign = "left";
-  ctx.fillText(`Max: ${fmt(maxVal)}`, padX, 14);
-  ctx.textAlign = "right";
-  ctx.fillText(`Now: ${fmt(values[values.length - 1])}`, w - padX, 14);
-  ctx.textAlign = "left";
-  ctx.fillText(`Min: ${fmt(minVal)}`, padX, h - 6);
-
-  if (rangeLabel) {
-    const start = new Date(points[0].timestamp);
-    const end = new Date(points[points.length - 1].timestamp);
-    rangeLabel.textContent = isNaN(start.getTime()) || isNaN(end.getTime())
-      ? ""
-      : `${start.toLocaleString()} → ${end.toLocaleString()}`;
-  }
+function _apexThemeUpdate(chart, color, muted, gridColor) {
+  chart.updateOptions({
+    colors: [color],
+    xaxis: { labels: { style: { colors: muted } } },
+    yaxis: { labels: { style: { colors: muted } } },
+    grid: { borderColor: gridColor },
+  }, false, false);
 }
 
 async function loadPerformanceHistory() {
   try {
     const data = await fetch("/api/server/entity-history").then((r) => r.json());
     const history = data.history || [];
-    const accent = (getComputedStyle(document.documentElement).getPropertyValue("--accent") || "#39ff14").trim();
-    const entityCanvas = $("#entity-history-chart");
-    const playerCanvas = $("#player-history-chart");
-    const fpsCanvas    = $("#fps-history-chart");
-    if (entityCanvas) _drawPerfChart(entityCanvas, history, "entity_count", accent,       "entity-history-range");
-    if (playerCanvas) _drawPerfChart(playerCanvas, history, "player_count", "#33aaff",    "player-history-range");
-    if (fpsCanvas)    _drawPerfChart(fpsCanvas,    history, "framerate",    "#ffaa00",     "fps-history-range", (v) => `${v} FPS`);
+    const style      = getComputedStyle(document.documentElement);
+    const accent     = (style.getPropertyValue("--accent")       || "#39ff14").trim();
+    const muted      = (style.getPropertyValue("--text-muted")   || "#a6b0a3").trim();
+    const gridColor  = (style.getPropertyValue("--border")       || "rgba(115,118,128,.35)").trim();
+
+    const entityDiv = $("#entity-history-chart");
+    const playerDiv = $("#player-history-chart");
+    const fpsDiv    = $("#fps-history-chart");
+
+    if (entityDiv) {
+      const series = _apexSeries(history, "entity_count");
+      if (!_entityChart) {
+        const opts = _apexOptions(accent, (v) => String(v), muted, gridColor);
+        opts.series = [{ name: "Entities", data: series }];
+        _entityChart = new ApexCharts(entityDiv, opts);
+        _entityChart.render();
+      } else {
+        _apexThemeUpdate(_entityChart, accent, muted, gridColor);
+        _entityChart.updateSeries([{ name: "Entities", data: series }]);
+      }
+    }
+
+    if (playerDiv) {
+      const series = _apexSeries(history, "player_count");
+      if (!_playerChart) {
+        const opts = _apexOptions("#33aaff", (v) => String(v), muted, gridColor);
+        opts.series = [{ name: "Players", data: series }];
+        _playerChart = new ApexCharts(playerDiv, opts);
+        _playerChart.render();
+      } else {
+        _apexThemeUpdate(_playerChart, "#33aaff", muted, gridColor);
+        _playerChart.updateSeries([{ name: "Players", data: series }]);
+      }
+    }
+
+    if (fpsDiv) {
+      const fmt = (v) => `${v} FPS`;
+      const series = _apexSeries(history, "framerate");
+      if (!_fpsChart) {
+        const opts = _apexOptions("#ffaa00", fmt, muted, gridColor);
+        opts.series = [{ name: "FPS", data: series }];
+        _fpsChart = new ApexCharts(fpsDiv, opts);
+        _fpsChart.render();
+      } else {
+        _apexThemeUpdate(_fpsChart, "#ffaa00", muted, gridColor);
+        _fpsChart.updateSeries([{ name: "FPS", data: series }]);
+      }
+    }
   } catch (_) {
-    // leave whatever was last drawn on a transient fetch error
+    // leave current chart state on transient fetch error
   }
 }
 loadPerformanceHistory();
 setInterval(loadPerformanceHistory, 300000);
-window.addEventListener("resize", loadPerformanceHistory);
+$all(".graph-refresh-btn").forEach((btn) => btn.addEventListener("click", loadPerformanceHistory));
 
 // ---- Overview tab extras: description + header image, straight from RCON ----
 // Reuses /api/server/settings (same endpoint the Server Info tab edits
@@ -1209,6 +1297,7 @@ function renderPlayersTable(players) {
           <button class="btn btn-outline btn-small" data-steamid="${escapeHtml(steamid)}">Look up</button>
           <button class="btn btn-outline btn-small" data-notes-steamid="${escapeHtml(steamid)}">Notes</button>
           <button class="btn btn-outline btn-small" data-kick-steamid="${escapeHtml(steamid)}" data-kick-name="${escapeHtml(name)}">Kick</button>
+          <button class="btn ${p.muted ? "btn-warning" : "btn-outline"} btn-small" data-mute-steamid="${escapeHtml(steamid)}" data-muted="${p.muted ? "true" : "false"}" data-name="${escapeHtml(name)}">${p.muted ? "Unmute" : "Mute"}</button>
           <button class="btn ${banClass} btn-small" data-ban-steamid="${escapeHtml(steamid)}" data-banned="${p.banned ? "true" : "false"}" data-name="${escapeHtml(name)}">${banLabel}</button>
         </div>
       </td>
@@ -1254,9 +1343,28 @@ function renderPlayersTable(players) {
           alert("A ban reason is required.");
           return;
         }
-        const data = await postJson("/api/players/ban", { steamid, reason: reason.trim() });
+        const data = await postJson("/api/players/ban", { steamid, reason: reason.trim(), added_by: adminUsername });
         if (data.error) alert("Error: " + data.error);
         else if (data.note_warning) alert("Warning: " + data.note_warning);
+      }
+      refreshAllPlayerTables();
+    });
+  });
+  $all("[data-mute-steamid]", body).forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const steamid = btn.dataset.muteSteamid;
+      const isMuted = btn.dataset.muted === "true";
+      if (isMuted) {
+        const data = await postJson("/api/players/unmute", { steamid });
+        if (data.error) alert("Error: " + data.error);
+        else showToast({ title: "Player unmuted", message: `${btn.dataset.name} can chat again.`, variant: "success" });
+      } else {
+        const duration = prompt(`Mute ${btn.dataset.name}? Enter duration in minutes (0 = permanent):`, "0");
+        if (duration === null) return;
+        const reason = prompt("Mute reason (optional):", "") || "";
+        const data = await postJson("/api/players/mute", { steamid, duration: duration.trim(), reason: reason.trim() });
+        if (data.error) alert("Error: " + data.error);
+        else showToast({ title: "Player muted", message: `${btn.dataset.name} has been muted.`, variant: "success" });
       }
       refreshAllPlayerTables();
     });
@@ -1303,7 +1411,7 @@ async function bulkKickPlayers(steamids) {
   if (!confirmed) return;
   let success = 0, failed = 0;
   for (const steamid of steamids) {
-    const data = await postJson("/api/players/kick", { steamid, reason: "" });
+    const data = await postJson("/api/players/kick", { steamid, reason: "", added_by: adminUsername });
     if (data.error) failed++; else success++;
   }
   showToast({
@@ -1331,7 +1439,7 @@ async function bulkBanPlayers(steamids) {
   if (!confirmed) return;
   let success = 0, failed = 0;
   for (const steamid of steamids) {
-    const data = await postJson("/api/players/ban", { steamid, reason: reason.trim() });
+    const data = await postJson("/api/players/ban", { steamid, reason: reason.trim(), added_by: adminUsername });
     if (data.error) failed++; else success++;
   }
   showToast({
@@ -1585,7 +1693,7 @@ async function loadNotes(steamid) {
       .reverse()
       .map(({ n, i }) => `
         <div class="console-line note-row">
-          <span>[${escapeHtml(formatNoteTimestamp(n.timestamp))}] (${escapeHtml(n.type)}) ${escapeHtml(n.text)}</span>
+          <span>[${escapeHtml(formatNoteTimestamp(n.timestamp))}]${n.added_by ? ` <span class="note-author">${escapeHtml(n.added_by)}</span>` : ""} (${escapeHtml(n.type)}) ${escapeHtml(n.text)}</span>
           <button class="btn btn-danger btn-small" data-delete-note-index="${i}" data-delete-note-steamid="${escapeHtml(steamid)}">Delete</button>
         </div>
       `)
@@ -1659,7 +1767,7 @@ $("#notes-add-form").addEventListener("submit", async (e) => {
     alert("Enter both a SteamID and a note.");
     return;
   }
-  const data = await postJson("/api/players/notes", { steamid, text });
+  const data = await postJson("/api/players/notes", { steamid, text, added_by: adminUsername });
   if (data.error) {
     alert("Error: " + data.error);
     return;
@@ -1739,16 +1847,14 @@ loadGroupNames();
 $("#group-create-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const group = $("#group-create-name").value.trim();
-  const title = $("#group-create-title").value.trim();
   if (!group) {
     alert("Please enter a group name.");
     return;
   }
-  const data = await postJson("/api/group/create", { group, title });
+  const data = await postJson("/api/group/create", { group });
   alert(data.error ? "Error: " + data.error : (data.response || "Done."));
   if (!data.error) {
     $("#group-create-name").value = "";
-    $("#group-create-title").value = "";
     loadGroupNames();
   }
 });
@@ -2051,6 +2157,67 @@ $("#update-apply-btn").addEventListener("click", async () => {
   const versionLabel = $("#update-current-version");
   if (versionLabel) versionLabel.textContent = "v" + newVersion;
   alert('Update installed. Close this window and relaunch the dashboard (e.g. the "Launch NOR Dashboard" shortcut) to start using the new version.');
+});
+
+// ---- Settings: Version Rollback ----
+let _rollbackReleases = [];
+
+$("#rollback-fetch-btn").addEventListener("click", async () => {
+  $("#rollback-status").textContent = "Fetching release history…";
+  let data;
+  try {
+    data = await fetch("/api/settings/releases").then((r) => r.json());
+  } catch (_) {
+    $("#rollback-status").textContent = "Error: couldn't reach the dashboard.";
+    return;
+  }
+  if (data.error) {
+    $("#rollback-status").textContent = "Error: " + data.error;
+    return;
+  }
+  _rollbackReleases = data.releases || [];
+  if (_rollbackReleases.length === 0) {
+    $("#rollback-status").textContent = "No tagged releases found on GitHub.";
+    return;
+  }
+  const sel = $("#rollback-version-select");
+  sel.innerHTML = _rollbackReleases.map((r) =>
+    `<option value="${escapeHtml(r.zipball_url)}">${escapeHtml(r.tag)}${r.name && r.name !== r.tag ? " — " + escapeHtml(r.name) : ""} (${escapeHtml(r.published_at.slice(0, 10))})</option>`
+  ).join("");
+  $("#rollback-select-wrap").hidden = false;
+  $("#rollback-status").textContent = "";
+});
+
+$("#rollback-apply-btn").addEventListener("click", async () => {
+  const sel = $("#rollback-version-select");
+  const zipball_url = sel.value;
+  const tag = sel.options[sel.selectedIndex]?.text || zipball_url;
+  if (!zipball_url) return;
+  const confirmed = await showConfirmModal({
+    title: "Roll back to this version?",
+    message: `This will replace the running dashboard files with ${tag}. Your config and player data are never touched. The dashboard will need a restart after this completes.`,
+    confirmLabel: "Roll Back",
+    confirmClass: "btn-warning",
+  });
+  if (!confirmed) return;
+  $("#rollback-apply-btn").disabled = true;
+  $("#rollback-status").textContent = "Downloading and applying — this may take a moment…";
+  let data;
+  try {
+    data = await postJson("/api/settings/update-rollback", { zipball_url, tag });
+  } catch (_) {
+    $("#rollback-status").textContent = "Error: couldn't reach the dashboard.";
+    $("#rollback-apply-btn").disabled = false;
+    return;
+  }
+  $("#rollback-apply-btn").disabled = false;
+  if (data.error) {
+    $("#rollback-status").textContent = "Error: " + data.error;
+    return;
+  }
+  $("#rollback-status").textContent = `Rolled back to ${data.new_version || tag}. Restart the dashboard to run this version.`;
+  const versionLabel = $("#update-current-version");
+  if (versionLabel) versionLabel.textContent = "v" + (data.new_version || tag);
 });
 
 // ---- Settings tab: Module Settings ----
@@ -2371,6 +2538,74 @@ async function checkSystemAlerts() {
 
 // ---- Notifications settings (tour dismissal + sound alerts) ----
 // Kept in one module-level object since both the guided tour and the
+// ---- Profile settings (admin username) ----
+let adminUsername = "";
+
+async function loadProfileSettings() {
+  try {
+    const data = await fetch("/api/settings/profile").then((r) => r.json());
+    adminUsername = data.admin_username || "";
+  } catch (_) {}
+  const input = $("#profile-setting-username");
+  if (input) input.value = adminUsername;
+  const usernameLabel = $("#topbar-username");
+  if (usernameLabel) usernameLabel.textContent = adminUsername;
+  if (!adminUsername) _showUsernameModal();
+}
+loadProfileSettings();
+
+function _showUsernameModal() {
+  const modal = $("#username-modal");
+  const input = $("#username-modal-input");
+  if (!modal) return;
+  modal.hidden = false;
+  if (input) input.focus();
+}
+
+$("#username-modal-save").addEventListener("click", async () => {
+  const input = $("#username-modal-input");
+  const errEl = $("#username-modal-error");
+  const name = (input.value || "").trim();
+  if (!name) {
+    errEl.textContent = "Please enter a username.";
+    errEl.style.display = "block";
+    return;
+  }
+  const data = await postJson("/api/settings/profile", { admin_username: name });
+  if (data.error) {
+    errEl.textContent = data.error;
+    errEl.style.display = "block";
+    return;
+  }
+  adminUsername = name;
+  const settingInput = $("#profile-setting-username");
+  if (settingInput) settingInput.value = name;
+  $("#username-modal").hidden = true;
+  showToast({ title: "Username set", message: `Welcome, ${name}!`, variant: "info" });
+});
+
+$("#username-modal-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") $("#username-modal-save").click();
+});
+
+$("#profile-settings-form").addEventListener("submit", async () => {
+  const name = ($("#profile-setting-username").value || "").trim();
+  if (!name) {
+    showToast({ title: "Username required", message: "Please enter a username.", variant: "error" });
+    return;
+  }
+  const data = await postJson("/api/settings/profile", { admin_username: name });
+  if (data.error) {
+    showToast({ title: "Save failed", message: data.error, variant: "error" });
+    return;
+  }
+  adminUsername = name;
+  const usernameLabel = $("#topbar-username");
+  if (usernameLabel) usernameLabel.textContent = name;
+  showToast({ title: "Profile saved", message: `Username set to "${name}".`, variant: "info" });
+});
+
+// ---- Notification settings ----
 // join-alert toast (added separately) need to read sound_alerts_enabled/
 // tour_dismissed without each re-fetching it themselves.
 let notificationSettings = { tour_dismissed: false, sound_alerts_enabled: true };
@@ -2404,17 +2639,32 @@ $("#notifications-settings-form").addEventListener("submit", async () => {
 $("#replay-tour-btn").addEventListener("click", startTour);
 
 // ---- First-run guided tour ----
-// Targets the tab buttons themselves (and the settings gear) rather than
-// content inside each tab - the one set of elements guaranteed to exist
-// and be visible regardless of which tab happens to be active when the
-// tour starts.
+// Highlights the tab buttons / settings sub-nav buttons — elements that are
+// guaranteed to exist regardless of which tab is active. Settings sub-section
+// steps include a `setup` key (the data-settings-section value) so the tour
+// can open the right panel before highlighting its button.
+// The `direction` param in showTourStep fixes the back-button bug: when a step's
+// element is missing (e.g. AMAP not installed, Module Settings not shown), the
+// skip now travels in the same direction the user was going rather than always
+// jumping forward.
 const TOUR_STEPS = [
-  { tab: "overview", selector: '[data-tab="overview"]', title: "Overview", text: "Your at-a-glance dashboard - player count, server stats, and entity-count history. This is what loads first every time." },
-  { tab: "console", selector: '[data-tab="console"]', title: "Console", text: "A live feed of everything your server logs, a command box, broadcast messages, and quick kick/give-item actions for whoever's online." },
-  { tab: "players", selector: '[data-tab="players"]', title: "Players", text: "Online, offline, and banned players - kick, ban, bulk actions on multiple players at once, notes, and a filter box to find someone fast." },
-  { tab: "map", selector: '[data-tab="map"]', title: "Live Map", text: "Real-time player positions, world events, and the map's oil rigs, overlaid on your actual map image." },
-  { tab: "amap", selector: '[data-tab="amap"]', title: "AMAP", text: "Run your server's backup, wipe, update, and log-cleaning scripts with one click - no SSH or memorized commands needed." },
-  { tab: "settings", selector: "#settings-gear-btn", title: "Settings", text: "RCON, API keys, theme, wipe schedule, and notification preferences (including turning this tour off for good) all live here." },
+  { tab: "overview",    selector: '[data-tab="overview"]',    title: "Overview",       text: "Your at-a-glance dashboard — player count, queue, FPS, entity count, and performance history graphs. This loads every time you open the dashboard." },
+  { tab: "console",     selector: '[data-tab="console"]',     title: "RCON Console",   text: "Live feed of everything your server logs. Run any RCON command, broadcast messages to all players, and use quick-action buttons for online players." },
+  { tab: "players",     selector: '[data-tab="players"]',     title: "Players",        text: "Manage online, offline, and banned players. Kick, ban, add notes, search by name or SteamID, and bulk-action multiple players at once." },
+  { tab: "lookup",      selector: '[data-tab="lookup"]',      title: "Player Lookup",  text: "Full profile for any player: Steam info, Rust hours, VAC/game ban history, your server notes, and BattleMetrics data. Requires a Steam API key." },
+  { tab: "map",         selector: '[data-tab="map"]',         title: "Live Map",       text: "Real-time player positions and world events (Bradley, Patrol Heli, Cargo Ship, CH47) overlaid on your actual server map. Updates every few seconds." },
+  { tab: "permissions", selector: '[data-tab="permissions"]', title: "Permissions",    text: "Grant and revoke Oxide permissions and groups for any player without touching the console. Search the full permissions catalog and manage group membership." },
+  { tab: "serverinfo",  selector: '[data-tab="serverinfo"]',  title: "Server Info",    text: "View and edit live server settings — hostname, description, header image, max players — changes apply instantly via RCON." },
+  { tab: "help",        selector: '[data-tab="help"]',        title: "Help",           text: "FAQ, troubleshooting tips, and a link to the full admin guide on GitHub." },
+  { tab: "settings",    selector: "#settings-gear-btn",       title: "Settings",       text: "All dashboard configuration lives here. Let's walk through each section.", setup: null },
+  { tab: "settings",    selector: '[data-settings-section="rcon"]',          title: "Settings — RCON",           text: "Edit your RCON host, port, and password. Saving reconnects immediately — no restart needed.",                                                                     setup: "rcon" },
+  { tab: "settings",    selector: '[data-settings-section="api-keys"]',      title: "Settings — API Keys",       text: "Optional keys for Steam (player lookups), RustMaps (map background), and BattleMetrics (rank stat). Leave blank to disable the related feature.",              setup: "api-keys" },
+  { tab: "settings",    selector: '[data-settings-section="theme"]',         title: "Settings — Theme",          text: "Pick a preset or customize accent color, background, and text. Changes preview instantly — click Save to keep them.",                                            setup: "theme" },
+  { tab: "settings",    selector: '[data-settings-section="wipe"]',          title: "Settings — Wipe Countdown", text: "Set your wipe schedule (daily, bi-weekly, or monthly) and the Overview countdown stays accurate automatically.",                                               setup: "wipe" },
+  { tab: "settings",    selector: '[data-settings-section="notifications"]', title: "Settings — Notifications",  text: "Turn this tour off permanently or bring it back with Replay Tour. Also controls the alert sound that plays with join notifications.",                           setup: "notifications" },
+  { tab: "settings",    selector: '[data-settings-section="alerts"]',        title: "Settings — Alerts",         text: "Configure automatic alerts: low FPS, high player count, entity spikes, server offline, a player watchlist, and optional Discord webhook delivery.",             setup: "alerts" },
+  { tab: "settings",    selector: '[data-settings-section="modules"]',       title: "Settings — Module Settings", text: "Each installed module's own settings live here. Modules are dropped into app/modules/ and picked up on the next launch.",                                     setup: "modules" },
+  { tab: "settings",    selector: '[data-settings-section="update"]',        title: "Settings — Update",         text: "Check for and install the latest version without leaving the browser. Your config and local data are never touched by an update.",                              setup: "update" },
 ];
 let tourStepIndex = 0;
 
@@ -2440,20 +2690,29 @@ function positionTourHighlight(el) {
   caption.style.left = Math.max(16, Math.min(rect.left, window.innerWidth - captionWidth - 16)) + "px";
 }
 
-function showTourStep(index) {
+function showTourStep(index, direction) {
+  direction = (direction === undefined) ? 1 : direction;
   const step = TOUR_STEPS[index];
   if (!step) {
     endTour($("#tour-dont-show-again").checked);
     return;
   }
   activateTab(step.tab);
-  // Tab switching can change layout (e.g. content height) - wait a frame
-  // so getBoundingClientRect() below reflects the post-switch layout.
+  if (step.setup) {
+    const subBtn = document.querySelector(`[data-settings-section="${step.setup}"]`);
+    if (subBtn) subBtn.click();
+  }
   requestAnimationFrame(() => {
     const el = document.querySelector(step.selector);
     if (!el) {
-      tourStepIndex++;
-      showTourStep(tourStepIndex);
+      // Element missing (module not installed, etc.) — skip in the direction of travel
+      const next = index + direction;
+      if (next < 0 || next >= TOUR_STEPS.length) {
+        endTour($("#tour-dont-show-again").checked);
+        return;
+      }
+      tourStepIndex = next;
+      showTourStep(next, direction);
       return;
     }
     positionTourHighlight(el);
@@ -2487,12 +2746,12 @@ async function endTour(dismissPermanently) {
 
 $("#tour-next-btn").addEventListener("click", () => {
   tourStepIndex++;
-  showTourStep(tourStepIndex);
+  showTourStep(tourStepIndex, 1);
 });
 $("#tour-back-btn").addEventListener("click", () => {
   if (tourStepIndex > 0) {
     tourStepIndex--;
-    showTourStep(tourStepIndex);
+    showTourStep(tourStepIndex, -1);
   }
 });
 $("#tour-skip-btn").addEventListener("click", () => endTour($("#tour-dont-show-again").checked));
@@ -2605,16 +2864,14 @@ function followSelectedPlayer(players) {
   applyMapTransform();
 }
 
-// Map toggle buttons
-$all(".map-toggle").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    const type = btn.dataset.mapType;
-    if (hiddenMapTypes.has(type)) {
+// Map toggle checkboxes
+$all(".map-toggle-cb").forEach((cb) => {
+  cb.addEventListener("change", () => {
+    const type = cb.dataset.mapType;
+    if (cb.checked) {
       hiddenMapTypes.delete(type);
-      btn.classList.add("active");
     } else {
       hiddenMapTypes.add(type);
-      btn.classList.remove("active");
     }
     loadMapEntities();
   });
@@ -2840,6 +3097,61 @@ function showConfirmModal({ title, message, requiredText, confirmLabel, confirmC
     document.addEventListener("keydown", onKeydown);
   });
 }
+
+// ---- Chat Logs ----
+let _chatSeq = 0;
+let _allChatEntries = [];
+
+async function loadChatLog(tail) {
+  try {
+    const url = tail != null
+      ? `/api/chat/log?tail=${tail}`
+      : `/api/chat/log?after=${_chatSeq}`;
+    const data = await fetch(url).then((r) => r.json());
+    if (data.error) return;
+    if (data.entries && data.entries.length > 0) {
+      _allChatEntries.push(...data.entries);
+      if (_allChatEntries.length > 500) _allChatEntries = _allChatEntries.slice(-500);
+    }
+    _chatSeq = data.latest ?? _chatSeq;
+    _renderChatLog();
+  } catch (_) {}
+}
+
+function _renderChatLog() {
+  const box = $("#chat-log");
+  if (!box) return;
+  const playerFilter = ($("#chat-filter-player")?.value || "").toLowerCase().trim();
+  const textFilter   = ($("#chat-filter-text")?.value   || "").toLowerCase().trim();
+  const filtered = _allChatEntries.filter((e) => {
+    if (playerFilter && !e.player.toLowerCase().includes(playerFilter) && !e.steamid.includes(playerFilter)) return false;
+    if (textFilter   && !e.message.toLowerCase().includes(textFilter)) return false;
+    return true;
+  });
+  if (filtered.length === 0) {
+    box.innerHTML = '<p class="muted">No chat messages yet.</p>';
+    return;
+  }
+  box.innerHTML = filtered.slice(-200).reverse().map((e) => `
+    <div class="chat-line">
+      <span class="console-ts">[${escapeHtml(e.timestamp)}]</span>
+      <span class="chat-player">${escapeHtml(e.player || "Unknown")}${e.steamid ? ` <span class="chat-steamid">(${escapeHtml(e.steamid)})</span>` : ""}</span>
+      <span class="chat-sep">:</span>
+      <span class="chat-text">${escapeHtml(e.message)}</span>
+    </div>
+  `).join("");
+}
+
+loadChatLog(100);
+setInterval(loadChatLog, 10000);
+
+$("#chat-filter-player").addEventListener("input", _renderChatLog);
+$("#chat-filter-text").addEventListener("input", _renderChatLog);
+$("#chat-clear-btn").addEventListener("click", () => {
+  $("#chat-filter-player").value = "";
+  $("#chat-filter-text").value = "";
+  _renderChatLog();
+});
 
 // ---- Help tab ----
 $("#help-faq-toggle").addEventListener("click", () => {

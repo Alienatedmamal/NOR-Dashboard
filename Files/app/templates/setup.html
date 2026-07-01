@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NOR Dashboard — Setup</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0d0a;
+      --bg-elevated: rgba(18,22,16,.9);
+      --accent: #39ff14;
+      --accent-soft: rgba(57,255,20,.12);
+      --accent-border: rgba(57,255,20,.35);
+      --text: #eef1ec;
+      --text-muted: #a6b0a3;
+      --danger: #ff4d4d;
+      --border: rgba(115,118,128,.35);
+      --radius: 12px;
+      --font-heading: 'Rajdhani', 'Arial Narrow', Arial, sans-serif;
+      --font-body: 'Segoe UI', Arial, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-body);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .setup-card {
+      background: var(--bg-elevated);
+      border: 1px solid var(--accent-border);
+      border-radius: var(--radius);
+      width: 100%;
+      max-width: 520px;
+      padding: 36px 40px;
+    }
+    .setup-logo {
+      font-family: var(--font-heading);
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 1px;
+      margin-bottom: 4px;
+    }
+    .setup-subtitle {
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-bottom: 28px;
+    }
+    .step-indicator {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 28px;
+    }
+    .step-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+      transition: background .2s;
+    }
+    .step-dot.active { background: var(--accent); }
+    .step-dot.done { background: var(--accent-border); }
+    h2 {
+      font-family: var(--font-heading);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .step-desc {
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-bottom: 22px;
+    }
+    .field { margin-bottom: 16px; }
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      font-family: var(--font-heading);
+      letter-spacing: .4px;
+    }
+    label .optional { font-weight: 400; color: var(--text-muted); opacity: .6; margin-left: 4px; }
+    input[type="text"], input[type="number"], input[type="password"] {
+      width: 100%;
+      background: rgba(0,0,0,.4);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: var(--font-body);
+      font-size: 14px;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color .15s;
+    }
+    input:focus { border-color: var(--accent-border); }
+    .port-row { display: flex; gap: 10px; }
+    .port-row .field:first-child { flex: 1; }
+    .port-row .field:last-child { width: 110px; flex-shrink: 0; }
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 28px;
+      justify-content: flex-end;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-heading);
+      font-weight: 700;
+      font-size: 15px;
+      padding: 10px 22px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #030a01; }
+    .btn-primary:hover:not(:disabled) { opacity: .85; }
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover:not(:disabled) { border-color: var(--accent-border); color: var(--text); }
+    .error-msg {
+      background: rgba(255,77,77,.1);
+      border: 1px solid rgba(255,77,77,.35);
+      border-radius: 8px;
+      color: var(--danger);
+      font-size: 13px;
+      padding: 10px 14px;
+      margin-top: 16px;
+      display: none;
+    }
+    .success-wrap {
+      text-align: center;
+      padding: 16px 0 8px;
+    }
+    .success-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+    .success-title {
+      font-family: var(--font-heading);
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+    .success-text {
+      color: var(--text-muted);
+      font-size: 14px;
+      margin-bottom: 24px;
+    }
+    #step1, #step2, #step3 { display: none; }
+    #step1.active, #step2.active, #step3.active { display: block; }
+  </style>
+</head>
+<body>
+<div class="setup-card">
+  <div class="setup-logo">NOR Dashboard</div>
+  <div class="setup-subtitle">First-time setup — takes about 30 seconds</div>
+
+  <div class="step-indicator">
+    <div class="step-dot active" id="dot1"></div>
+    <div class="step-dot" id="dot2"></div>
+    <div class="step-dot" id="dot3"></div>
+  </div>
+
+  <!-- Step 1: RCON -->
+  <div id="step1" class="active">
+    <h2>RCON Connection</h2>
+    <p class="step-desc">Connect to your Rust server's WebRCON interface. You'll find these settings in your server's startup config.</p>
+    <div class="port-row">
+      <div class="field">
+        <label for="rcon-host">Server IP / Hostname</label>
+        <input type="text" id="rcon-host" placeholder="10.0.0.1" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="field">
+        <label for="rcon-port">RCON Port</label>
+        <input type="number" id="rcon-port" placeholder="28016" value="28016" min="1" max="65535">
+      </div>
+    </div>
+    <div class="field">
+      <label for="rcon-password">RCON Password</label>
+      <input type="password" id="rcon-password" placeholder="••••••••" autocomplete="new-password">
+    </div>
+    <div class="error-msg" id="step1-error"></div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="step1-next" onclick="goStep2()">Next →</button>
+    </div>
+  </div>
+
+  <!-- Step 2: Optional API Keys -->
+  <div id="step2">
+    <h2>API Keys <span style="font-size:14px;color:var(--text-muted);font-family:var(--font-body);font-weight:400">— optional</span></h2>
+    <p class="step-desc">These unlock extra features. You can add or change them later in Settings → API Keys.</p>
+    <div class="field">
+      <label for="steam-key">Steam Web API Key <span class="optional">(Player lookup, VAC badges)</span></label>
+      <input type="text" id="steam-key" placeholder="Paste key here" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="field">
+      <label for="bm-id">BattleMetrics Server ID <span class="optional">(Population graph)</span></label>
+      <input type="text" id="bm-id" placeholder="e.g. 12345678" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="field">
+      <label for="rm-key">RustMaps API Key <span class="optional">(Live map tab)</span></label>
+      <input type="text" id="rm-key" placeholder="Paste key here" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="error-msg" id="step2-error"></div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="goStep1()">← Back</button>
+      <button class="btn btn-ghost" onclick="finishSetup(true)">Skip</button>
+      <button class="btn btn-primary" onclick="finishSetup(false)">Finish</button>
+    </div>
+  </div>
+
+  <!-- Step 3: Done -->
+  <div id="step3">
+    <div class="success-wrap">
+      <div class="success-icon">✓</div>
+      <div class="success-title">Setup Complete</div>
+      <p class="success-text">Your dashboard is configured and ready. Opening the dashboard now…</p>
+      <button class="btn btn-primary" onclick="window.location='/'">Open Dashboard →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function showStep(n) {
+    document.querySelectorAll("#step1,#step2,#step3").forEach(el => el.classList.remove("active"));
+    document.getElementById("step" + n).classList.add("active");
+    [1,2,3].forEach(i => {
+      const dot = document.getElementById("dot" + i);
+      dot.classList.toggle("active", i === n);
+      dot.classList.toggle("done", i < n);
+    });
+  }
+
+  function showError(id, msg) {
+    const el = document.getElementById(id);
+    el.textContent = msg;
+    el.style.display = "block";
+  }
+  function clearError(id) {
+    const el = document.getElementById(id);
+    el.style.display = "none";
+  }
+
+  function goStep1() { clearError("step1-error"); showStep(1); }
+  function goStep2() {
+    clearError("step1-error");
+    const host = document.getElementById("rcon-host").value.trim();
+    const port = parseInt(document.getElementById("rcon-port").value, 10);
+    const pass = document.getElementById("rcon-password").value.trim();
+    if (!host) { showError("step1-error", "Server IP / Hostname is required."); return; }
+    if (!port || port < 1 || port > 65535) { showError("step1-error", "Enter a valid port number (1–65535)."); return; }
+    if (!pass) { showError("step1-error", "RCON password is required."); return; }
+    showStep(2);
+  }
+
+  async function finishSetup(skip) {
+    clearError("step2-error");
+    const body = {
+      rcon_host:        document.getElementById("rcon-host").value.trim(),
+      rcon_port:        parseInt(document.getElementById("rcon-port").value, 10),
+      rcon_password:    document.getElementById("rcon-password").value.trim(),
+    };
+    if (!skip) {
+      body.steam_api_key    = document.getElementById("steam-key").value.trim();
+      body.battlemetrics_id = document.getElementById("bm-id").value.trim();
+      body.rustmaps_api_key = document.getElementById("rm-key").value.trim();
+    }
+    const btn = document.querySelector("#step2 .btn-primary");
+    btn.disabled = true;
+    btn.textContent = "Saving…";
+    try {
+      const res = await fetch("/setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const data = await res.json();
+      if (!res.ok || data.error) { showError("step2-error", data.error || "Save failed."); btn.disabled = false; btn.textContent = "Finish"; return; }
+      showStep(3);
+      setTimeout(() => { window.location = "/"; }, 2000);
+    } catch (e) {
+      showError("step2-error", "Network error — is the dashboard running?");
+      btn.disabled = false; btn.textContent = "Finish";
+    }
+  }
+
+  // Allow Enter key to advance from step 1
+  document.getElementById("rcon-password").addEventListener("keydown", e => { if (e.key === "Enter") goStep2(); });
+</script>
+</body>
+</html>

@@ -14,6 +14,7 @@ import requests
 
 REPO_ZIP_URL = "https://github.com/Alienatedmamal/NOR-Dashboard/archive/refs/heads/main.zip"
 REPO_VERSION_URL = "https://raw.githubusercontent.com/Alienatedmamal/NOR-Dashboard/main/VERSION"
+REPO_RELEASES_URL = "https://api.github.com/repos/Alienatedmamal/NOR-Dashboard/releases"
 
 
 def _parse_version(text):
@@ -33,6 +34,52 @@ def check_for_update(current_version):
         "latest_version": latest_version,
         "update_available": _parse_version(latest_version) > _parse_version(current_version),
     }
+
+
+def get_releases():
+    """Returns a list of {tag, name, published_at, zipball_url} dicts, newest first."""
+    resp = requests.get(REPO_RELEASES_URL, timeout=10, headers={"Accept": "application/vnd.github+json"})
+    resp.raise_for_status()
+    releases = resp.json()
+    return [
+        {
+            "tag": r.get("tag_name", ""),
+            "name": r.get("name") or r.get("tag_name", ""),
+            "published_at": r.get("published_at", ""),
+            "zipball_url": r.get("zipball_url", ""),
+        }
+        for r in releases
+        if r.get("zipball_url")
+    ]
+
+
+def apply_release(project_dir, zipball_url):
+    """Downloads the ZIP for a specific release (by its GitHub zipball_url) and
+    applies it the same way apply_update() does for the latest main branch."""
+    with tempfile.TemporaryDirectory(prefix="nor_dashboard_rollback_") as temp_dir:
+        zip_path = os.path.join(temp_dir, "release.zip")
+        resp = requests.get(zipball_url, timeout=60, allow_redirects=True)
+        resp.raise_for_status()
+        with open(zip_path, "wb") as f:
+            f.write(resp.content)
+
+        with zipfile.ZipFile(zip_path) as zf:
+            zf.extractall(temp_dir)
+
+        extracted_root = next(
+            (os.path.join(temp_dir, name) for name in os.listdir(temp_dir)
+             if os.path.isdir(os.path.join(temp_dir, name))),
+            None,
+        )
+        if not extracted_root:
+            raise RuntimeError("Release ZIP didn't contain what was expected")
+
+        _robocopy(extracted_root, project_dir)
+
+        files_dir = os.path.join(project_dir, "Files")
+        if os.path.isdir(files_dir):
+            _robocopy(files_dir, project_dir, move=True)
+            shutil.rmtree(files_dir, ignore_errors=True)
 
 
 def apply_update(project_dir):

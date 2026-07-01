@@ -30,6 +30,10 @@ _log = deque(maxlen=1000)
 _log_lock = threading.Lock()
 _log_seq = 0
 
+_chat = deque(maxlen=500)
+_chat_lock = threading.Lock()
+_chat_seq = 0
+
 
 def _append_log(message):
     global _log_seq
@@ -56,6 +60,29 @@ def get_log_tail(n=20):
         lines = list(_log)[-n:]
         latest = _log_seq
     return lines, latest
+
+
+def _append_chat(ts, player_name, steamid, message):
+    global _chat_seq
+    with _chat_lock:
+        _chat_seq += 1
+        _chat.append((_chat_seq, ts, player_name, steamid, message))
+
+
+def get_chat_since(after_seq=0):
+    """Returns (entries, latest_seq) for chat messages newer than after_seq."""
+    with _chat_lock:
+        entries = [item for item in _chat if item[0] > after_seq]
+        latest = _chat_seq
+    return entries, latest
+
+
+def get_chat_tail(n=100):
+    """Returns (entries, latest_seq) for the most recent n chat messages."""
+    with _chat_lock:
+        entries = list(_chat)[-n:]
+        latest = _chat_seq
+    return entries, latest
 
 
 class RconClient:
@@ -130,6 +157,20 @@ class RconClient:
 
             ident = data.get("Identifier")
             message = data.get("Message", "")
+            msg_type = data.get("Type", "")
+
+            if msg_type == "Chat":
+                ts = time.strftime("%H:%M:%S")
+                player_name, steamid, chat_text = "", "", message
+                try:
+                    inner = json.loads(message)
+                    player_name = inner.get("Username", "")
+                    steamid = str(inner.get("UserId", ""))
+                    chat_text = inner.get("Message", "")
+                except (ValueError, TypeError):
+                    if " : " in message:
+                        player_name, _, chat_text = message.partition(" : ")
+                _append_chat(ts, player_name.strip(), steamid.strip(), chat_text.strip())
 
             quiet = False
             if ident:

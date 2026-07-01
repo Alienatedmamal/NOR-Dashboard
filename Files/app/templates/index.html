@@ -45,13 +45,18 @@
     <span class="wipe-countdown-time" id="wipe-countdown-time">--d --h --m --s</span>
   </div>
   <div class="topbar-right">
-    <div id="player-count" class="player-count">Players: -</div>
+    <div class="player-count-wrap">
+      <div id="player-count" class="player-count">Players: -</div>
+      <div id="queue-count" class="queue-count" hidden>Queued: -</div>
+    </div>
     <div class="status-wrap">
       <div id="connection-status" class="status-badge status-unknown">
         <span class="status-dot"></span>
         <span id="connection-text">Checking...</span>
       </div>
       <div id="last-checked" class="last-checked">Last checked: -</div>
+      <div id="session-started" class="last-checked"></div>
+      <div id="last-reconnected" class="last-checked" hidden></div>
     </div>
   </div>
 </header>
@@ -62,11 +67,15 @@
   <button class="tab-btn" data-tab="players">Players</button>
   <button class="tab-btn" data-tab="lookup">Player Lookup</button>
   <button class="tab-btn" data-tab="map">Live Map</button>
+  <button class="tab-btn" data-tab="chat">Chat Logs</button>
   <button class="tab-btn" data-tab="permissions">Permissions</button>
   <button class="tab-btn" data-tab="serverinfo">Server Info</button>
   {% for html in module_tab_buttons %}{{ html|safe }}{% endfor %}
   <button class="tab-btn" data-tab="help">Help</button>
-  <button id="settings-gear-btn" class="settings-gear-btn has-tooltip" aria-label="Settings" data-tooltip="Settings">&#9881;</button>
+  <div class="settings-gear-wrap">
+    <span id="topbar-username" class="topbar-username"></span>
+    <button id="settings-gear-btn" class="settings-gear-btn has-tooltip" aria-label="Settings" data-tooltip="Settings">&#9881;</button>
+  </div>
 </nav>
 
 <main class="page-wrap">
@@ -115,22 +124,28 @@
     <div class="overview-body">
       <div class="overview-charts-col">
         <div class="panel overview-chart-panel">
-          <h2>Entity Count History</h2>
+          <div class="panel-title-row">
+            <h2>Entity Count History</h2>
+            <button type="button" class="btn btn-outline btn-small graph-refresh-btn">Refresh</button>
+          </div>
           <p class="muted">Watch for buildup between wipes — entity count drives server load more than player count.</p>
-          <canvas id="entity-history-chart" class="entity-history-canvas"></canvas>
-          <p class="muted overview-chart-range" id="entity-history-range"></p>
+          <div id="entity-history-chart" class="apex-chart-wrap"></div>
         </div>
         <div class="overview-chart-row">
           <div class="panel overview-chart-panel">
-            <h2>Player Count History</h2>
-            <canvas id="player-history-chart" class="entity-history-canvas"></canvas>
-            <p class="muted overview-chart-range" id="player-history-range"></p>
+            <div class="panel-title-row">
+              <h2>Player Count History</h2>
+              <button type="button" class="btn btn-outline btn-small graph-refresh-btn">Refresh</button>
+            </div>
+            <div id="player-history-chart" class="apex-chart-wrap"></div>
           </div>
           <div class="panel overview-chart-panel">
-            <h2>Framerate History</h2>
+            <div class="panel-title-row">
+              <h2>Framerate History</h2>
+              <button type="button" class="btn btn-outline btn-small graph-refresh-btn">Refresh</button>
+            </div>
             <p class="muted">Below 20 FPS indicates load issues.</p>
-            <canvas id="fps-history-chart" class="entity-history-canvas"></canvas>
-            <p class="muted overview-chart-range" id="fps-history-range"></p>
+            <div id="fps-history-chart" class="apex-chart-wrap"></div>
           </div>
         </div>
       </div>
@@ -321,13 +336,13 @@
       </div>
       <p id="map-status" class="muted">Loading...</p>
       <div class="map-legend">
-        <button class="map-toggle active" data-map-type="players"><span class="map-dot map-dot-player"></span>Players</button>
-        <button class="map-toggle active" data-map-type="cargoship"><span class="map-legend-icon map-icon-cargoship"></span>Cargo Ship</button>
-        <button class="map-toggle active" data-map-type="patrolhelicopter"><span class="map-legend-icon map-icon-patrolhelicopter"></span>Patrol Heli</button>
-        <button class="map-toggle active" data-map-type="bradleyapc"><span class="map-legend-icon map-icon-bradleyapc"></span>Bradley APC</button>
-        <button class="map-toggle active" data-map-type="ch47"><span class="map-legend-icon map-icon-ch47"></span>CH47</button>
-        <button class="map-toggle active" data-map-type="cargoplane"><span class="map-legend-icon map-icon-cargoplane"></span>Cargo Plane</button>
-        <button class="map-toggle active" data-map-type="oilrigs"><span class="map-legend-icon map-icon-oilrig-small"></span>Oil Rigs</button>
+        <label class="map-toggle-label"><input type="checkbox" class="map-toggle-cb" data-map-type="players" checked><span class="map-dot map-dot-player"></span>Players</label>
+        <label class="map-toggle-label"><input type="checkbox" class="map-toggle-cb" data-map-type="cargoship" checked><span class="map-legend-icon map-icon-cargoship"></span>Cargo Ship</label>
+        <label class="map-toggle-label"><input type="checkbox" class="map-toggle-cb" data-map-type="patrolhelicopter" checked><span class="map-legend-icon map-icon-patrolhelicopter"></span>Patrol Heli</label>
+        <label class="map-toggle-label"><input type="checkbox" class="map-toggle-cb" data-map-type="bradleyapc" checked><span class="map-legend-icon map-icon-bradleyapc"></span>Bradley APC</label>
+        <label class="map-toggle-label"><input type="checkbox" class="map-toggle-cb" data-map-type="ch47" checked><span class="map-legend-icon map-icon-ch47"></span>CH47</label>
+        <label class="map-toggle-label"><input type="checkbox" class="map-toggle-cb" data-map-type="cargoplane" checked><span class="map-legend-icon map-icon-cargoplane"></span>Cargo Plane</label>
+        <label class="map-toggle-label"><input type="checkbox" class="map-toggle-cb" data-map-type="oilrigs" checked><span class="map-legend-icon map-icon-oilrig-small"></span>Oil Rigs</label>
       </div>
       <p class="muted" style="font-size:12px; margin: 0 0 8px;">Scroll to zoom &bull; Drag to pan when zoomed &bull; Click a player to track them</p>
       <div class="map-wrap" id="map-wrap">
@@ -336,6 +351,21 @@
           <div class="map-overlay" id="map-overlay"></div>
         </div>
       </div>
+    </div>
+  </section>
+
+  <section id="tab-chat" class="tab-panel">
+    <div class="panel">
+      <div class="panel-title-row">
+        <h2>Chat Logs</h2>
+        <button type="button" id="chat-clear-btn" class="btn btn-outline btn-small">Clear Filter</button>
+      </div>
+      <p class="muted">Live in-game chat. Captured in real-time from the RCON stream — up to 500 messages kept while the dashboard is running.</p>
+      <div class="chat-filters">
+        <input type="text" id="chat-filter-player" placeholder="Filter by player name or SteamID&hellip;" autocomplete="off">
+        <input type="text" id="chat-filter-text" placeholder="Search message text&hellip;" autocomplete="off">
+      </div>
+      <div id="chat-log" class="chat-log"></div>
     </div>
   </section>
 
@@ -385,9 +415,6 @@
         <form class="stacked-form" id="group-create-form" onsubmit="return false;">
           <label>Group name
             <input type="text" id="group-create-name" placeholder="e.g. vip2" autocomplete="off">
-          </label>
-          <label>Title <span class="muted">(optional)</span>
-            <input type="text" id="group-create-title" placeholder="e.g. VIP Tier 2" autocomplete="off">
           </label>
           <div class="btn-row">
             <button type="submit" class="btn btn-primary" id="group-create-submit">Create Group</button>
@@ -483,26 +510,57 @@
       <div id="help-faq-content" class="help-faq" hidden>
         <h3 class="panel-subheading">FAQ / Troubleshooting</h3>
         <dl class="help-faq-list">
+
           <dt>The "Not connected" badge won't clear</dt>
-          <dd>Check that this PC can still reach your Rust server's RCON port - nothing else to do on the dashboard side, it retries automatically. If you just used an AMAP tab action that stops the server, give it a minute to come back up first.</dd>
+          <dd>Check that this PC can still reach your Rust server's RCON port — the dashboard retries automatically, nothing else needed on your end. If you just ran an AMAP action that stops the server, give it a minute to come back up first.</dd>
 
           <dt>A tab's data looks stale or empty</dt>
-          <dd>Most tabs have their own Refresh button - try that first.</dd>
+          <dd>Most tabs have their own Refresh button — try that first. If it's still wrong after a refresh, check the RCON connection badge in the top-right.</dd>
 
           <dt>A red pop-up appears in the bottom-right corner</dt>
-          <dd>Read its suggested fix, then click the &times; to dismiss it - it won't reappear on its own.</dd>
+          <dd>Read the suggested fix in the pop-up, then click &times; to dismiss it. It won't reappear on its own unless the same event happens again.</dd>
 
           <dt>The dashboard closed itself / isn't responding</dt>
-          <dd>Just double-click <code>run.bat</code> again to relaunch it. Closing its browser window is what shuts it down now, by design.</dd>
+          <dd>Just double-click <code>run.bat</code> again to relaunch it. Closing the browser window is what shuts the dashboard down — this is by design so there's no background process to manage.</dd>
 
-          <dt><code>run.bat</code> opens briefly, then a pop-up says the dashboard didn't start within 25 seconds</dt>
-          <dd>Open <code>dashboard.log</code> in the dashboard's main folder (the one with <code>run.bat</code> in it) and check the last few lines for the actual error.</dd>
+          <dt><code>run.bat</code> opens briefly then a pop-up says the dashboard didn't start within 25 seconds</dt>
+          <dd>Open <code>dashboard.log</code> in the main dashboard folder and check the last few lines for the actual Python error. Common causes: the port 5050 is already in use, or a Python package didn't install correctly (run <code>install.bat</code> again to fix packages).</dd>
 
           <dt><code>update.bat</code> says it failed</dt>
-          <dd>Check your internet connection first. If that's fine, let whoever maintains the dashboard know - it can also fail if the GitHub repo itself is temporarily unavailable, which isn't something fixable from your end.</dd>
+          <dd>Check your internet connection first. It can also fail if GitHub is temporarily unavailable — try again in a few minutes. Your config and data are never touched by an update, so it's always safe to retry.</dd>
 
           <dt>Windows shows a blue "Windows protected your PC" warning</dt>
-          <dd>That just means the file came from the internet - click <strong>More info</strong>, then <strong>Run anyway</strong>. Nothing's wrong with the file.</dd>
+          <dd>That just means the file came from the internet — click <strong>More info</strong>, then <strong>Run anyway</strong>. Nothing is wrong with the file itself.</dd>
+
+          <dt>How do I install a module?</dt>
+          <dd>Drop the module's folder into <code>app\modules\</code> inside your dashboard folder, then restart the dashboard by closing the browser window and double-clicking <code>run.bat</code> again. The new tab will appear automatically — no config changes needed.</dd>
+
+          <dt>A module tab isn't showing up after I installed it</dt>
+          <dd>Check <strong>Settings &rsaquo; Module Settings</strong> — if the module failed to load it'll appear there with the reason (usually a version mismatch or a missing file). Make sure the folder name exactly matches the <code>key</code> field in the module's <code>module.json</code>.</dd>
+
+          <dt>Player Lookup shows no Steam data / Rust hours</dt>
+          <dd>This requires a Steam Web API key. Add one in <strong>Settings &rsaquo; API Keys</strong>. Get a free key at <a href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noopener">steamcommunity.com/dev/apikey</a> — any domain name works when registering.</dd>
+
+          <dt>The Live Map background image is missing</dt>
+          <dd>The map overlay requires a RustMaps API key. Add one in <strong>Settings &rsaquo; API Keys</strong>. The player dots and event icons still work without it — only the background image is affected.</dd>
+
+          <dt>BattleMetrics rank shows a dash on the Overview</dt>
+          <dd>Add your server's BattleMetrics ID in <strong>Settings &rsaquo; API Keys</strong>. Find it in your server's BattleMetrics URL — the number at the end, e.g. <code>battlemetrics.com/servers/rust/39370730</code> &rarr; <code>39370730</code>. No account needed.</dd>
+
+          <dt>I'm getting alerts but no sound</dt>
+          <dd>Click anywhere on the dashboard page first — browsers block audio until a user interaction has happened. After that first click the sound will fire on the next alert. You can also test it via the alert sound button in DevTools if that module is installed.</dd>
+
+          <dt>How do I replay the guided tour?</dt>
+          <dd>Go to <strong>Settings &rsaquo; Notifications</strong> and click <strong>Replay Tour</strong>. If you previously checked "Don't show this again", unchecking that box and saving will also re-enable it for future startups.</dd>
+
+          <dt>The Wipe Countdown is wrong</dt>
+          <dd>Go to <strong>Settings &rsaquo; Wipe Countdown</strong> and confirm the schedule type (daily, bi-weekly, or monthly), the wipe time, and your timezone are all set correctly. The countdown recalculates automatically once saved.</dd>
+
+          <dt>I can't grant a permission — it says "invalid permission"</dt>
+          <dd>The permission might not be loaded yet. Check the Permissions tab's catalog — permissions only appear after the associated Oxide plugin has been loaded by the server at least once. If the plugin is new, try <code>oxide.reload PluginName</code> via the Console tab first.</dd>
+
+          <dt>RCON commands in the console return no output</dt>
+          <dd>Some Rust/Oxide events and commands don't send a response over RCON — this is normal for certain plugin commands and server events. The command was still executed. If you expect output and aren't seeing any, try the same command directly in your server console to confirm it's working.</dd>
         </dl>
       </div>
 
@@ -513,6 +571,7 @@
   <section id="tab-settings" class="tab-panel">
     <nav class="settings-subnav">
       <button class="settings-subnav-btn active" data-settings-section="rcon">RCON</button>
+      <button class="settings-subnav-btn" data-settings-section="profile">Profile</button>
       <button class="settings-subnav-btn" data-settings-section="api-keys">API Keys</button>
       <button class="settings-subnav-btn" data-settings-section="theme">Theme</button>
       <button class="settings-subnav-btn" data-settings-section="wipe">Wipe Countdown</button>
@@ -675,6 +734,21 @@
       </div>
     </div>
 
+    <div id="settings-section-profile" class="settings-section">
+      <div class="panel settings-panel">
+        <h2>Profile</h2>
+        <p class="muted">Your admin username is attached to every note, ban, and kick you make — so other admins know who took the action. Required before the dashboard can be used.</p>
+        <form class="stacked-form" id="profile-settings-form" onsubmit="return false;">
+          <label>Admin Username
+            <input type="text" id="profile-setting-username" placeholder="e.g. Alienatedmammal" autocomplete="off" maxlength="32">
+          </label>
+          <div class="btn-row">
+            <button type="submit" class="btn btn-primary" id="profile-settings-save">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <div id="settings-section-notifications" class="settings-section">
       <div class="panel settings-panel">
         <h2>Notifications</h2>
@@ -716,14 +790,13 @@
             <input type="checkbox" id="alert-fps-enabled">
             Alert when server FPS drops below threshold
           </label>
-          <div class="inline-form" style="gap: 16px; align-items: flex-end;">
-            <label style="flex: 1;">Threshold (FPS)
-              <input type="number" id="alert-fps-threshold" min="1" max="60" value="15">
-            </label>
-            <label style="flex: 1;">Consecutive samples before alerting
-              <input type="number" id="alert-fps-consecutive" min="1" max="10" value="3">
-              <span class="muted" style="font-size: 11px;">Each sample is ~5 minutes apart.</span>
-            </label>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; margin-top: 8px;">
+            <span class="field-label-text">Threshold (FPS)</span>
+            <span class="field-label-text">Consecutive samples before alerting</span>
+            <input type="number" id="alert-fps-threshold" min="1" max="60" value="15">
+            <input type="number" id="alert-fps-consecutive" min="1" max="10" value="3">
+            <span></span>
+            <span class="muted" style="font-size: 11px;">Each sample is ~5 minutes apart.</span>
           </div>
         </form>
 
@@ -791,6 +864,22 @@
         </div>
         <p id="update-status" class="muted"></p>
       </div>
+      <div class="panel settings-panel" style="margin-top:16px;">
+        <h3>Version Rollback</h3>
+        <p class="muted">Roll back to a previous release. Your config and data files are never touched. A restart is required after applying.</p>
+        <div class="btn-row">
+          <button type="button" id="rollback-fetch-btn" class="btn btn-outline">Load Release History</button>
+        </div>
+        <div id="rollback-select-wrap" hidden style="margin-top:12px;">
+          <label class="stacked-label">Select version
+            <select id="rollback-version-select" class="custom-select"></select>
+          </label>
+          <div class="btn-row">
+            <button type="button" id="rollback-apply-btn" class="btn btn-warning">Roll Back to Selected Version</button>
+          </div>
+        </div>
+        <p id="rollback-status" class="muted"></p>
+      </div>
     </div>
 
     {% if show_module_settings %}
@@ -823,6 +912,18 @@
   </div>
 </div>
 
+<div id="username-modal" class="modal-overlay" hidden>
+  <div class="modal-box">
+    <h3>Set Your Admin Username</h3>
+    <p class="muted">Your username is attached to every note, ban, and kick so other admins know who took the action. This is required before you can use the dashboard.</p>
+    <input type="text" id="username-modal-input" placeholder="e.g. Alienatedmammal" autocomplete="off" maxlength="32" style="width:100%;margin:12px 0;">
+    <p id="username-modal-error" class="muted" style="color:var(--danger);display:none;margin-bottom:8px;"></p>
+    <div class="btn-row">
+      <button type="button" id="username-modal-save" class="btn btn-primary">Save &amp; Continue</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast-container" class="toast-container" aria-live="polite"></div>
 
 <div id="tour-overlay" class="tour-overlay" hidden>
@@ -843,6 +944,7 @@
   </div>
 </div>
 
+<script src="{{ url_for('static', filename='js/apexcharts.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 {% for src in module_scripts %}<script src="{{ src }}"></script>{% endfor %}
 </body>
