@@ -41,7 +41,12 @@ _ROW_PATTERN = re.compile(
 # "reinforcementslistener" turn up at fixed monument locations even with no
 # CH47 event active). Excluded by name so a CH47 marker only ever means an
 # actual helicopter.
-_NAME_EXCLUDE = {"alarmsytstem", "reinforcementslistener"}
+#
+# "bradleyapc" substring-matches "bradleyapc_corpse" (the wreck entity left
+# behind after a Bradley is destroyed). Corpses persist for ~30 minutes and
+# accumulate across events, so without this exclusion every past Bradley
+# kill shows as an active Bradley icon on the map.
+_NAME_EXCLUDE = {"alarmsytstem", "reinforcementslistener", "bradleyapc_corpse"}
 
 
 def _parse_find_entity(raw, label):

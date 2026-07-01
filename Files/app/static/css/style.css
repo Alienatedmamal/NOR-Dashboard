@@ -443,7 +443,7 @@ input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:foc
   font-size: 13px;
   margin-top: 12px;
 }
-.console-output.small { height: 140px; margin-top: 10px; }
+.console-output.small { height: 140px; margin-top: 10px; overflow-x: hidden; word-break: break-word; white-space: pre-wrap; }
 /* The main Console tab's log specifically scales with the window instead
    of staying a fixed height regardless of how tall the browser is - the
    other, smaller uses of .console-output (AMAP's log, permission lookups,
@@ -919,8 +919,11 @@ input[type="color"] {
 .pb3-category {
   border: 1px solid var(--border);
   border-radius: 6px;
-  margin-bottom: 8px;
   overflow: hidden;
+  flex: 0 0 165px;
+}
+.pb3-category[open] {
+  flex: 1 0 300px;
 }
 .pb3-cat-summary {
   list-style: none;
@@ -955,10 +958,25 @@ input[type="color"] {
 }
 
 .pb3-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
 }
+
+.pb3-customize-summary {
+  list-style: none;
+  padding: 8px 0 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  letter-spacing: .3px;
+}
+.pb3-customize-summary::-webkit-details-marker { display: none; }
+.pb3-customize-summary::before { content: "▶ "; font-size: 9px; }
+details[id="pb3-customize"][open] > .pb3-customize-summary::before { content: "▼ "; }
 .pb3-card {
   display: flex;
   flex-direction: column;
@@ -1002,3 +1020,12 @@ input[type="color"] {
   max-height: 180px;
   overflow-y: auto;
 }
+
+
+/* ---- DevTools module ---- */
+.devtools-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.devtools-row > .panel { margin-bottom: 0; }
