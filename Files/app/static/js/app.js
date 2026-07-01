@@ -1790,17 +1790,17 @@ async function loadNotes(steamid) {
       .map(({ n, i }) => `
         <div class="console-line note-row">
           <span>[${escapeHtml(formatNoteTimestamp(n.timestamp))}]${n.added_by ? ` <span class="note-author">${escapeHtml(n.added_by)}</span>` : ""} (${escapeHtml(n.type)}) ${escapeHtml(n.text)}</span>
-          <button class="btn btn-danger btn-small" data-delete-note-index="${i}" data-delete-note-steamid="${escapeHtml(steamid)}">Delete</button>
+          <button class="btn btn-danger btn-small" data-delete-note-id="${escapeHtml(n.id || String(i))}" data-delete-note-steamid="${escapeHtml(steamid)}">Delete</button>
         </div>
       `)
       .join("");
-    $all("[data-delete-note-index]", box).forEach((btn) => {
+    $all("[data-delete-note-id]", box).forEach((btn) => {
       btn.addEventListener("click", async () => {
         if (!confirm("Delete this note?")) return;
         const delRes = await fetch("/api/players/notes", {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ steamid: btn.dataset.deleteNoteSteamid, index: btn.dataset.deleteNoteIndex }),
+          body: JSON.stringify({ steamid: btn.dataset.deleteNoteSteamid, note_id: btn.dataset.deleteNoteId }),
         });
         const delData = await delRes.json();
         if (delData.error) alert("Error: " + delData.error);

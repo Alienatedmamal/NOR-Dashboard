@@ -1004,14 +1004,15 @@ def api_players_notes_add():
 def api_players_notes_delete():
     body = request.get_json(force=True) or {}
     steamid = (body.get("steamid") or "").strip()
-    index = body.get("index")
-    if not steamid or index is None:
-        return jsonify({"error": "steamid and index are required"}), 400
-    try:
-        index = int(index)
-    except (TypeError, ValueError):
-        return jsonify({"error": "index must be a number"}), 400
-    ok, error = delete_note(get_rcon_client(), steamid, index)
+    note_id = body.get("note_id")
+    if note_id is None:
+        # Backwards compat: old clients send a numeric index
+        index = body.get("index")
+        if index is not None:
+            note_id = str(index)
+    if not steamid or note_id is None:
+        return jsonify({"error": "steamid and note_id are required"}), 400
+    ok, error = delete_note(get_rcon_client(), steamid, note_id)
     result = {"ok": ok}
     if error:
         if ok:

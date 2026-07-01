@@ -14,6 +14,7 @@ not the source of truth on its own anymore.
 """
 import json
 import os
+import secrets
 import threading
 from datetime import datetime, timezone
 
@@ -43,29 +44,29 @@ def _save(data):
     os.replace(tmp_path, NOTES_PATH)
 
 
-def _load_latest(client):
-    """The remote copy if reachable (and keeps the local cache fresh while
-    we're at it), otherwise the local cache as a fallback. Returns
-    (data, error) - error is None when the remote pull succeeded, or a
-    human-readable reason when it didn't (the local cache is still
-    returned either way so callers keep working)."""
+def _pull_latest(client):
+    """Pulls the remote copy and refreshes the local cache. Returns (data, error).
+    Must be called WITHOUT holding _lock - performs network I/O."""
     data, ok, error = player_data_sync.pull_json(client, NOTES_FILENAME)
     if ok:
-        _save(data)
+        with _lock:
+            _save(data)
         return data, None
-    return _load(), error
+    with _lock:
+        return _load(), error
 
 
 def force_full_sync(client):
     """Pulls the full remote notes file and refreshes the local cache with
     it - used by the Players tab's Force Sync button. Every read already
-    pulls fresh (see _load_latest), so this exists mainly to give that
+    pulls fresh (see _pull_latest), so this exists mainly to give that
     button a clear yes/no on whether the remote was actually reachable,
     and to keep the local fallback cache current even if no one happens
     to load a specific player's notes right afterward. Returns (ok, error)."""
     data, ok, error = player_data_sync.pull_json(client, NOTES_FILENAME)
     if ok:
-        _save(data)
+        with _lock:
+            _save(data)
     return ok, error
 
 
@@ -77,8 +78,7 @@ def search_notes(client, query):
     query = (query or "").strip().lower()
     if not query:
         return [], None
-    with _lock:
-        data, error = _load_latest(client)
+    data, error = _pull_latest(client)
     matches = [
         {"steamid": steamid, "timestamp": note.get("timestamp"), "type": note.get("type"), "text": note.get("text")}
         for steamid, notes in data.items()
@@ -96,10 +96,11 @@ def add_note(client, steamid, text, note_type="manual", added_by=""):
     cache (it'll go out on the next successful sync)."""
     if not steamid or not text:
         return False, "Missing steamid or text"
+    data, pull_error = _pull_latest(client)
     with _lock:
-        data, pull_error = _load_latest(client)
         notes = data.setdefault(steamid, [])
         entry = {
+            "id": secrets.token_hex(8),
             "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "type": note_type,
             "text": text,
@@ -108,40 +109,50 @@ def add_note(client, steamid, text, note_type="manual", added_by=""):
             entry["added_by"] = added_by
         notes.append(entry)
         _save(data)
-        push_ok, push_error = player_data_sync.push_json(client, NOTES_FILENAME, data)
-        if not push_ok:
-            return True, f"Note saved locally, but didn't sync to the server: {push_error}"
-        if pull_error:
-            return True, f"Note saved and synced, but the latest remote copy couldn't be confirmed first: {pull_error}"
-        return True, None
+    push_ok, push_error = player_data_sync.push_json(client, NOTES_FILENAME, data)
+    if not push_ok:
+        return True, f"Note saved locally, but didn't sync to the server: {push_error}"
+    if pull_error:
+        return True, f"Note saved and synced, but the latest remote copy couldn't be confirmed first: {pull_error}"
+    return True, None
 
 
 def get_notes(client, steamid):
     """Returns (notes, error)."""
-    with _lock:
-        data, error = _load_latest(client)
-        return data.get(steamid, []), error
+    data, error = _pull_latest(client)
+    return data.get(steamid, []), error
 
 
-def delete_note(client, steamid, index):
-    """Removes the note at position `index` in this player's note list -
-    the same order get_notes() returns them in (oldest first). Returns
-    (ok, error) - ok is False if there was nothing at that index to
-    delete; error covers a failed remote push the same way add_note does."""
+def delete_note(client, steamid, note_id):
+    """Removes the note identified by `note_id` (the stable string ID stored
+    on each note when it is created). Falls back to treating note_id as a
+    numeric list index for notes written before stable IDs were added.
+    Returns (ok, error) - ok is False if no matching note was found; error
+    covers a failed remote push the same way add_note does."""
+    data, pull_error = _pull_latest(client)
     with _lock:
-        data, pull_error = _load_latest(client)
         notes = data.get(steamid)
-        if not notes or index < 0 or index >= len(notes):
-            return False, "No note found at that position"
-        notes.pop(index)
+        if not notes:
+            return False, "No note found"
+        idx = next((i for i, n in enumerate(notes) if n.get("id") == note_id), None)
+        if idx is None:
+            try:
+                idx = int(note_id)
+                if idx < 0 or idx >= len(notes):
+                    idx = None
+            except (TypeError, ValueError):
+                idx = None
+        if idx is None:
+            return False, "No note found with that ID"
+        notes.pop(idx)
         if notes:
             data[steamid] = notes
         else:
             del data[steamid]
         _save(data)
-        push_ok, push_error = player_data_sync.push_json(client, NOTES_FILENAME, data)
-        if not push_ok:
-            return True, f"Note deleted locally, but didn't sync to the server: {push_error}"
-        if pull_error:
-            return True, f"Note deleted and synced, but the latest remote copy couldn't be confirmed first: {pull_error}"
-        return True, None
+    push_ok, push_error = player_data_sync.push_json(client, NOTES_FILENAME, data)
+    if not push_ok:
+        return True, f"Note deleted locally, but didn't sync to the server: {push_error}"
+    if pull_error:
+        return True, f"Note deleted and synced, but the latest remote copy couldn't be confirmed first: {pull_error}"
+    return True, None

@@ -198,12 +198,16 @@ class RconClient:
             if not quiet:
                 _append_log(message)
 
-        if self._ws is ws:
-            self._ws = None
         with self._pending_lock:
-            for waiter in self._pending.values():
-                waiter["event"].set()
-            self._pending.clear()
+            # Guard against a stale reader waking up waiters that already
+            # belong to a fresh reconnection: only drain if we're still the
+            # active connection, not if send_command's retry loop has already
+            # replaced self._ws with a new socket and started a new reader.
+            if self._ws is ws:
+                self._ws = None
+                for waiter in self._pending.values():
+                    waiter["event"].set()
+                self._pending.clear()
 
     def send_command(self, message, quiet=False):
         """Send one RCON command and return the server's text response.
@@ -223,22 +227,29 @@ class RconClient:
                         self._pending[ident] = waiter
 
                     payload = json.dumps({"Identifier": ident, "Message": message, "Name": "WebRcon"})
-                    # _ensure_connected() leaves this socket with no timeout
-                    # at all (see its comment - needed so the reader
-                    # thread's recv() doesn't spuriously time out during
-                    # quiet periods), but that also means send() itself
-                    # could otherwise block forever if the server's TCP
+                    # send() itself could block forever if the server's TCP
                     # buffers back up under load (observed against a live,
-                    # heavily-loaded Rust server - this was the actual
-                    # cause of the dashboard freezing entirely, not the
-                    # connection step). Bound just this one send() call,
-                    # then immediately restore "no timeout" for the
-                    # reader thread's ongoing recv() calls.
-                    self._ws.settimeout(self.timeout)
-                    try:
-                        self._ws.send(payload)
-                    finally:
-                        self._ws.settimeout(None)
+                    # heavily-loaded Rust server). Run it on a daemon thread
+                    # with a hard join timeout - the same approach used for
+                    # _ensure_connected() above - so we never mutate the
+                    # shared socket's timeout while the reader thread's
+                    # recv() is live on the same socket object.
+                    _ws_ref = self._ws
+                    _send_result = {}
+
+                    def _do_send(_ws=_ws_ref, _r=_send_result):
+                        try:
+                            _ws.send(payload)
+                        except Exception as _exc:
+                            _r["error"] = _exc
+
+                    _send_thread = threading.Thread(target=_do_send, daemon=True)
+                    _send_thread.start()
+                    _send_thread.join(self.timeout)
+                    if _send_thread.is_alive():
+                        raise OSError("Timed out sending to the RCON server")
+                    if "error" in _send_result:
+                        raise _send_result["error"]
 
                     got = waiter["event"].wait(self.timeout)
                     # No pop needed here on the success path - _reader_loop

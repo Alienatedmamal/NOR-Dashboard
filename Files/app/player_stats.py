@@ -186,16 +186,18 @@ def sync_with_remote(client):
     fails for any reason - never overwrites the remote with a stale/partial
     local view. Returns (ok, error), so on-demand callers can tell the user
     why the remote was unreachable instead of just that it was."""
+    remote, ok, error = player_data_sync.pull_json(client, STATS_FILENAME)
+    if not ok:
+        return False, error
     with _lock:
+        # Re-read local to pick up any record_snapshot() calls that ran
+        # during the network pull above.
         local = _load()
-        remote, ok, error = player_data_sync.pull_json(client, STATS_FILENAME)
-        if not ok:
-            return False, error
         merged = dict(remote)
         for steamid, local_entry in local.items():
             merged[steamid] = _merge_entries(local_entry, remote.get(steamid, {}))
         _save(merged)
-        push_ok, push_error = player_data_sync.push_json(client, STATS_FILENAME, merged)
-        if not push_ok:
-            return False, f"Pulled and merged, but didn't sync back to the server: {push_error}"
-        return True, None
+    push_ok, push_error = player_data_sync.push_json(client, STATS_FILENAME, merged)
+    if not push_ok:
+        return False, f"Pulled and merged, but didn't sync back to the server: {push_error}"
+    return True, None
