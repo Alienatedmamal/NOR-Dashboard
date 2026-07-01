@@ -193,7 +193,7 @@ a { color: var(--accent); }
   text-shadow: 0 0 8px rgba(57, 255, 20, .4);
 }
 
-.overview-player-list { max-height: none; overflow-y: auto; flex: 1; min-height: 0; }
+#overview-player-list { max-height: none; overflow-y: auto; flex: 1; min-height: 0; }
 
 /* ---- Overview: no-scroll viewport layout ---- */
 #tab-overview.active { display: flex; flex-direction: column; }
@@ -253,6 +253,7 @@ a { color: var(--accent); }
   min-height: 0;
   overflow: hidden;
   margin-bottom: 0;
+  padding-bottom: 0;
 }
 .overview-players-col h2 { flex-shrink: 0; margin: 0 0 10px; }
 
