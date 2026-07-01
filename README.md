@@ -46,6 +46,117 @@ If something goes wrong, errors show up as a pop-up notification in the bottom-r
 
 `install.bat` also puts a **"Launch NOR Dashboard"** shortcut on your Desktop automatically (with its own icon), plus a copy in this folder - pin either one to the taskbar if you want.
 
+## Running on Linux
+
+The dashboard is pure Python/Flask and runs identically on Linux — the only Windows-specific things are the `.bat` and `.ps1` launcher scripts. Everything inside `Files/app/` works as-is.
+
+### One-time setup
+
+1. Make sure Python 3.8+ and pip are installed:
+   ```bash
+   python3 --version
+   pip3 --version
+   ```
+   If not, install them for your distro — on Debian/Ubuntu:
+   ```bash
+   sudo apt install python3 python3-pip python3-venv
+   ```
+
+2. Navigate into the app folder, create a virtual environment, and install dependencies:
+   ```bash
+   cd Files/app
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   ```
+
+3. Copy the config template and fill in your RCON details:
+   ```bash
+   cp config.example.json config.json
+   nano config.json
+   ```
+   The three required fields are `rcon_host`, `rcon_port`, and `rcon_password`. The optional fields (Steam API key, RustMaps key, BattleMetrics ID) are the same as on Windows.
+
+4. Create a launch script in the root `NOR-Dashboard` folder:
+   ```bash
+   nano run.sh
+   ```
+   Paste this in:
+   ```bash
+   #!/bin/bash
+   cd "$(dirname "$0")/Files/app"
+   source venv/bin/activate
+   python app.py
+   ```
+   Make it executable:
+   ```bash
+   chmod +x run.sh
+   ```
+
+### Running it
+
+```bash
+./run.sh
+```
+
+The dashboard binds to `127.0.0.1` on port `5000` by default. Open your browser to `http://127.0.0.1:5000` — or if you're running it on a remote machine, SSH tunnel to that port first:
+```bash
+ssh -L 5000:127.0.0.1:5000 user@your-server
+```
+Then open `http://127.0.0.1:5000` locally.
+
+On first load, the setup wizard will prompt for your RCON details (same as Windows).
+
+> **Note:** The dashboard shuts itself down when the browser window closes (heartbeat watchdog). If you're running it on a headless machine and accessing it via SSH tunnel, that mechanism still works — closing your browser tab eventually stops the process. If you'd rather keep it running persistently, see "Running as a service" below.
+
+### Running as a background service (optional)
+
+To keep the dashboard running without needing an active browser session, set it up as a systemd service.
+
+Create `/etc/systemd/system/nor-dashboard.service` (replace `YOUR_USER` and the path to match your setup):
+```ini
+[Unit]
+Description=NOR Dashboard
+After=network.target
+
+[Service]
+Type=simple
+User=YOUR_USER
+WorkingDirectory=/home/YOUR_USER/NOR-Dashboard/Files/app
+ExecStart=/home/YOUR_USER/NOR-Dashboard/Files/app/venv/bin/python app.py
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start it:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable nor-dashboard
+sudo systemctl start nor-dashboard
+```
+
+Check it's running:
+```bash
+sudo systemctl status nor-dashboard
+```
+
+Stop it:
+```bash
+sudo systemctl stop nor-dashboard
+```
+
+### Updating on Linux
+
+Either use **Settings > Update** inside the dashboard itself (works on Linux the same as Windows), or pull manually:
+```bash
+git pull
+cd Files/app
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
 ## Checking for updates / rolling back
 
 **Settings > Update** inside the dashboard itself:
