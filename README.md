@@ -1,32 +1,40 @@
-# NOR Dashboard v1.6.9
+# NOR Dashboard v1.6.13
 
-A simple admin dashboard for your Rust server: an at-a-glance overview (player count, queue, BattleMetrics rank, and more), a live console feed, server info/settings, online/offline/banned player management with notes, permission management, player ban/Steam history lookups, a live map with player and world-event tracking, and a wipe countdown. Same black-and-neon-green look as nor.workisboring.com. Optional modules add extra tabs - see "Modules" below.
+A simple admin dashboard for your Rust server: an at-a-glance overview (player count, queue, BattleMetrics rank, and more), a live console feed, live chat logs, server info/settings, online/offline/banned player management with notes and mute controls, permission management, player ban/Steam history lookups, a live map with player and world-event tracking, and a wipe countdown. Same black-and-neon-green look as nor.workisboring.com. Optional modules add extra tabs - see "Modules" below.
 
 This doc covers one-time setup. Once it's running, see `ADMIN-GUIDE.md` for how to actually use each tab day-to-day.
 
 ## Prerequisites
 
-Core only needs RCON access to your Rust server - nothing extra to install for Overview, Console, Players, Player Lookup, Permissions, Server Info, or Live Map. Optional modules may have their own prerequisites (documented with each module separately).
+Core only needs RCON access to your Rust server - nothing extra to install for Overview, Console, Chat Logs, Players, Player Lookup, Permissions, Server Info, or Live Map.
+
+**Required Oxide plugins for optional features:**
+- **[Better Chat Mute](https://umod.org/plugins/better-chat-mute)** — needed for the Mute/Unmute buttons on player rows. Install the plugin, then grant the `betterchatmute.use`, `betterchatmute.permanent`, and `betterchatmute.use.global` permissions to your admin group. Without it, the Mute/Unmute buttons still appear but their RCON commands will have no effect.
+
+Optional modules may have their own prerequisites (documented with each module separately).
 
 ## Modules (v1.6+)
 
-Core covers Overview, Console, Players, Player Lookup, Live Map, Permissions, and Server Info - everything else is an optional module, distributed separately from this repo. Drop a module's folder into `app/modules/` and relaunch the dashboard to pick it up; its tab, settings, and any dependencies it needs were already shipped with this release (run.bat's `pip install` covers whatever any known module needs, every launch, regardless of whether you've actually installed that module). A module that needs a newer core than what you're running gets skipped with a clear reason in Settings > Module Settings, rather than failing silently.
+Core covers Overview, Console, Chat Logs, Players, Player Lookup, Live Map, Permissions, and Server Info - everything else is an optional module, distributed separately from this repo. Drop a module's folder into `app/modules/` and relaunch the dashboard to pick it up; its tab, settings, and any dependencies it needs were already shipped with this release (run.bat's `pip install` covers whatever any known module needs, every launch, regardless of whether you've actually installed that module). A module that needs a newer core than what you're running gets skipped with a clear reason in Settings > Module Settings, rather than failing silently.
 
 ## One-time setup
 
 1. **Double-click `install.bat`.** (Everything else in the download is tucked inside the `Files` folder - that's expected, `install.bat` unpacks it into place on first run.) It checks for Python and installs it automatically (via `winget`) if it's missing, then installs the small set of packages this needs (`app/requirements.txt`: Flask, flask-sock, websocket-client, requests, paramiko), and creates `app/config.json` from the template if it doesn't already exist.
    - If Windows shows a blue "Windows protected your PC" warning when you double-click it, that's just because the file came from the internet, not because anything's wrong - click **More info**, then **Run anyway**.
    - If it can't install Python automatically (no `winget`), it'll print a link to download Python yourself - check **"Add python.exe to PATH"** during that install, then run `install.bat` again.
-2. **Edit `app/config.json`**: right-click it → **Open with** → **Notepad**, fill in the values below, then save (Ctrl+S) and close. These three are required - the dashboard won't start without them:
-   - `rcon_host` - your Rust server's IP address
-   - `rcon_port` - your RCON port (LGSM's `rcon.port`, default `28016`)
-   - `rcon_password` - your RCON password (LGSM's `rcon.password`)
+2. **Launch the dashboard** by double-clicking `run.bat`. On first launch, the browser opens to a **setup wizard** instead of the main dashboard. Fill in your RCON details (host, port, password) - these are the only required fields. API keys for Steam, RustMaps, and BattleMetrics are optional and can be added now or later from Settings > API Keys.
+3. **Set your admin username.** After RCON setup, the dashboard prompts you to enter a username on first load. This username is attached to every ban, kick, and note you add, so there's a clear record of who did what. It's shown in the tab bar next to the gear icon and can be changed any time from **Settings > Profile**.
+4. Make sure this PC can actually reach your Rust server's RCON port (same network, or whatever your firewall/router allows).
 
-   These are optional - leave them as `"CHANGE_ME"` for now and the dashboard still runs fine, just with the related feature turned off until you fill them in (or skip editing the file at all and fill them in later from **Settings > API Keys** inside the dashboard itself - same effect, no restart needed either way):
-   - `steam_api_key` - a free key from https://steamcommunity.com/dev/apikey (Player Lookup tab, Rust hours, and player avatars). When it asks for a domain name, you can put anything, e.g. `localhost`.
-   - `rustmaps_api_key` - a free key from https://rustmaps.com/dashboard (Live Map tab's background image - the rest of the Live Map tab works without it)
-   - `battlemetrics_id` - your server's ID from its BattleMetrics page (the number in the URL, e.g. `battlemetrics.com/servers/rust/39370730` → `39370730`). No account or API key needed - just the ID. Powers the Overview tab's Rank stat.
-3. Make sure this PC can actually reach your Rust server's RCON port (same network, or whatever your firewall/router allows).
+If you'd rather skip the wizard and edit the file directly: right-click `app/config.json` → **Open with** → **Notepad**, fill in the values below, then save (Ctrl+S) and close. These three are required:
+- `rcon_host` - your Rust server's IP address
+- `rcon_port` - your RCON port (LGSM's `rcon.port`, default `28016`)
+- `rcon_password` - your RCON password (LGSM's `rcon.password`)
+
+These are optional:
+- `steam_api_key` - a free key from https://steamcommunity.com/dev/apikey (Player Lookup tab, Rust hours, and player avatars). When it asks for a domain name, you can put anything, e.g. `localhost`.
+- `rustmaps_api_key` - a free key from https://rustmaps.com/dashboard (Live Map tab's background image - the rest of the Live Map tab works without it)
+- `battlemetrics_id` - your server's ID from its BattleMetrics page (the number in the URL, e.g. `battlemetrics.com/servers/rust/39370730` → `39370730`). No account or API key needed - just the ID. Powers the Overview tab's Rank stat.
 
 ## Running it
 
@@ -38,11 +46,13 @@ If something goes wrong, errors show up as a pop-up notification in the bottom-r
 
 `install.bat` also puts a **"Launch NOR Dashboard"** shortcut on your Desktop automatically (with its own icon), plus a copy in this folder - pin either one to the taskbar if you want.
 
-## Checking for updates
+## Checking for updates / rolling back
 
-Easiest way: **Settings > Update** inside the dashboard itself - click **Check for Updates**, and if one's available, click **Update Now**. Same effect as `update.bat` below, just without leaving the browser; you'll get a pop-up reminding you to restart `run.bat` once it's done (the page itself doesn't reload, since the running dashboard's already-loaded code can't update itself out from under itself - only a fresh restart picks up the new code).
+**Settings > Update** inside the dashboard itself:
+- **Check for Updates** — compares your running version against the latest on GitHub. If one's available, **Update Now** downloads and applies it without leaving the browser. You'll get a reminder to restart `run.bat` once it's done.
+- **Version Rollback** — click **Load Release History** to see every tagged GitHub release, then pick one from the dropdown and click **Roll Back to Selected Version**. Your config and player data are never touched. Restart `run.bat` after it completes.
 
-Or double-click **`update.bat`**. It downloads the latest version straight from GitHub and overwrites the files in this folder - no git, no command line, nothing to install. Either way, `app/config.json` and your local data (notes, player stats, map cache) are never touched, since they're not part of what gets downloaded. See `ADMIN-GUIDE.md` for the step-by-step version.
+Or double-click **`update.bat`** to update to the latest version straight from GitHub with no git or command line needed. Either way, `app/config.json` and your local data (notes, player stats, map cache) are never touched.
 
 ## Log files
 
@@ -54,24 +64,31 @@ Three show up in this same folder once you've run the dashboard, each for a diff
 
 ## What's in here
 
-- **Overview** - the landing page: hostname/description straight from RCON over your server's own header image (`server.headerimage`, set in the Server Info tab - falls back to a default background if it's not set), stat cards (players, queued, BattleMetrics rank, framerate, game time, uptime, map, entity count), three performance history graphs, and the live connected-players list. All three graphs share the same 5-minute sampling interval (local to this install, no sync needed - each dashboard builds its own history from the moment it first ran):
-  - **Entity Count History** — tracks world entity count over time; watch for buildup between wipes since entity count drives server simulation cost more than player count does.
-  - **Player Count History** — players connected over time; useful for spotting peak hours and population trends across the wipe cycle.
-  - **Framerate History** — server FPS over time; a sustained drop below ~20 FPS typically means the server is under load. Pairs with entity count to help diagnose whether a slowdown is entity-driven or something else.
-  
-  The Overview layout fits a full-screen window without scrolling — stat cards across the top, all three charts filling the left side, connected players on the right.
+- **Overview** - the landing page: hostname/description straight from RCON over your server's own header image (`server.headerimage`, set in the Server Info tab - falls back to a default background if it's not set), stat cards (players, queued, BattleMetrics rank, framerate, game time, uptime, map, entity count), and three live performance history charts (entity count, player count, and framerate — all area charts, 5-minute sampling interval). The player count card also shows a queued count below it when players are waiting to join.
 - **Console** - a live feed of everything your server logs (plugin loads, warnings, chat, command output...), same idea as RustAdmin's console. Type a command and its response shows up in the same feed within a second or two, interleaved with everything else. Below it, **Broadcast Message** sends a chat message to everyone connected. The Online Players sidebar has a one-click **Kick** per player, and above it, **Give Item** gives a chosen item/quantity to a currently-connected player from a curated list of common items.
-- **Players** - online players (name, SteamID, IP, ping, session/total time, last connected, Rust hours, VAC/game ban status) with one-click kick, ban/unban (reason required and logged), and Look up; plus recently-seen offline players (with their last-known IP) and currently-banned players, each with a filter box to find someone by name or SteamID without scrolling. Select multiple players with the checkboxes for bulk kick/ban (online) or bulk unban (banned). A per-player notes log (kick and ban reasons are both added automatically), with a search box to find a keyword across every player's notes at once instead of needing a SteamID first - if a player with existing notes reconnects, you'll get a toast (and optionally a sound, see Settings > Notifications) right when it happens.
+- **Chat Logs** - a live capture of all in-game player chat, pulled directly from the RCON stream. Keeps up to 500 messages while the dashboard is running (resets on restart). Two filter boxes let you narrow the log by player name or SteamID and search message text independently — filtering is instant, client-side, no refetch.
+- **Players** - online players (name, SteamID, IP, ping, session/total time, last connected, Rust hours, VAC/game ban status) with one-click kick, ban/unban (reason required and logged), mute/unmute (requires Better Chat Mute plugin — see Prerequisites), and Look up; plus recently-seen offline players (with their last-known IP) and currently-banned players, each with a filter box to find someone by name or SteamID without scrolling. Select multiple players with the checkboxes for bulk kick/ban (online) or bulk unban (banned). Every ban, kick, and manual note records which admin took the action (shown in the Notes log next to the timestamp). A per-player notes log (kick and ban reasons are both added automatically), with a search box to find a keyword across every player's notes at once instead of needing a SteamID first - if a player with existing notes reconnects, you'll get a toast (and optionally a sound, see Settings > Notifications) right when it happens.
 - **Player Lookup** - paste a SteamID64 to see their Steam profile, account age, VAC/game ban counts, and community/economy ban status.
-- **Live Map** - your actual map image (via RustMaps.com) with live-updating icon markers for online players (avatar + name), world events (cargo ship, patrol helicopter, Bradley APC, CH47, cargo plane), and the map's small/large oil rigs (fixed monument locations, shown as soon as the map loads). No plugin required; built entirely on vanilla RCON commands and RustMaps' own monument data (the seed/world size come straight from `server.seed`/`server.worldsize`, so it always matches the live map).
+- **Live Map** - your actual map image (via RustMaps.com) with live-updating icon markers for online players (avatar + name), world events (cargo ship, patrol helicopter, Bradley APC, CH47, cargo plane), and the map's small/large oil rigs (fixed monument locations, shown as soon as the map loads). Use the checkboxes in the legend to show or hide each layer independently. No plugin required; built entirely on vanilla RCON commands and RustMaps' own monument data (the seed/world size come straight from `server.seed`/`server.worldsize`, so it always matches the live map).
 - **Permissions** - grant/revoke an Oxide permission on a player or group, add/remove a player from a group (picked from a dropdown of your server's actual groups, not typed blind), create a new group, and check what permissions/groups a player or group currently has.
 - **Server Info** - live stats (players, map, framerate, uptime, entity count, etc.) and editable server settings (hostname, URL, description, header image), pre-filled with the current values.
-- **Help** - a Show FAQ / Troubleshooting button for quick answers without leaving the dashboard, and a link out to this project's GitHub repo; more in-app guidance is planned for this tab later.
-- **Settings** (gear icon, top right of the tab bar) - core sub-pages: **RCON** (edit host/port/password without touching `config.json` by hand, reconnects immediately); **API Keys** (Steam Web, RustMaps, and BattleMetrics ID - the same three optional fields from one-time setup above, editable here instead of by hand in `config.json`; the Steam Web and RustMaps fields are masked like a password box, since they're real secrets - BattleMetrics ID isn't, it's just a public server ID); **Theme** (a dropdown of five presets, or your own accent/background/text/alert colors - changes preview instantly, but click **Save** to keep it for next time); **Wipe Countdown** (Daily, Bi-weekly, or Monthly, plus time/timezone); **Notifications** (turn the startup guided tour off for good, or bring it back with Replay Tour; toggle the sound that plays alongside the noted-player-reconnected toast); **Alerts** (configurable in-dashboard alert toasts — see below); **Update** (check for and install the latest version without leaving the browser - see "Checking for updates" below); plus **Module Settings**, shown whenever at least one module is installed - each loaded module's own settings live here. All of these are saved in *this install's* `config.json` - not synced, so a different admin's own separate copy of the dashboard keeps its own independent settings.
+- **Help** - a Show FAQ / Troubleshooting button for quick answers without leaving the dashboard, and a link out to this project's GitHub repo.
+- **Settings** (gear icon, top right of the tab bar — your admin username is shown to its left) - core sub-pages:
+  - **Profile** — set or change your admin username. Required on first launch; shown next to the gear icon and recorded on every ban, kick, and note.
+  - **RCON** — edit host/port/password without touching `config.json` by hand, reconnects immediately.
+  - **API Keys** — Steam Web, RustMaps, and BattleMetrics ID (the same three optional fields from one-time setup, editable here instead of by hand in `config.json`; Steam Web and RustMaps fields are masked like password boxes since they're real secrets).
+  - **Theme** — a dropdown of five presets, or your own accent/background/text/alert colors — changes preview instantly, click Save to keep.
+  - **Wipe Countdown** — Daily, Bi-weekly, or Monthly, plus time and timezone.
+  - **Notifications** — turn the startup guided tour off for good or bring it back with Replay Tour; toggle the sound that plays alongside the noted-player-reconnected toast.
+  - **Alerts** — configurable in-dashboard alert toasts (see below).
+  - **Update** — check for and install the latest version, or roll back to any previous tagged release, without leaving the browser.
+  - **Module Settings** — shown whenever at least one module is installed; each loaded module's own settings live here.
+
+  All settings are saved in *this install's* `config.json` - not synced, so a different admin's own separate copy of the dashboard keeps its own independent settings.
 
 ## Alerts (Settings > Alerts)
 
-Configurable alert toasts that fire automatically in the background — no page needs to be open for the check to run, only for the toast to appear. All alerts are optional and disabled by default; enable only what you need. Saved in `config.json` like any other setting.
+Configurable alert toasts that fire automatically in the background — no page needs to be open for the check to run, only for the toast to appear. All alerts are optional and disabled by default; enable only what you need. Saved in `config.json` like any other setting. Green info/success toasts clear themselves after 30 seconds if you don't dismiss them manually.
 
 - **Player Watchlist** — add specific SteamID64s (with an optional display label) and get an instant toast whenever that player connects to the server, regardless of their note history. Useful for tracking known troublemakers or VIPs.
 - **Low FPS** — fires when the server's framerate has been below your threshold for N consecutive 5-minute samples. The "consecutive samples" setting prevents a single spike from paging you; set it to 1 to alert on the first detection. Resets and repeats each time N consecutive low samples accumulate, so a sustained problem keeps alerting at that interval rather than firing once and going quiet.
@@ -82,7 +99,7 @@ Configurable alert toasts that fire automatically in the background — no page 
 - **Discord Webhook** — optionally post all alerts to a Discord channel. Paste a webhook URL in Settings > Alerts; leave blank to disable. Posts are fire-and-forget in a background thread so a slow or unreachable webhook can never stall the dashboard.
 - **Wipe countdown** - in the header, counting down based on whatever's set in Settings > Wipe Countdown (defaults to 2pm Central on the first Thursday of the month), DST-aware, auto-advancing to the next occurrence once it passes.
 
-The window opens maximized and the whole layout scales to fill it - it's no longer capped to a narrow centered column.
+The window opens maximized and the whole layout scales to fill it.
 
 ## Giving this to other admins
 
@@ -95,9 +112,9 @@ Copy the whole `NOR-Dashboard` folder to their PC (or zip it up).
 Each admin then:
 
 1. Double-clicks `install.bat` (sets up Python/packages and creates a fresh `app/config.json` for them if one isn't already there).
-2. Fills in `app/config.json` with the same server details you use, if it wasn't already filled in.
-3. Double-clicks `run.bat`.
-4. From then on, double-clicks `update.bat` whenever you tell them a new version is out.
+2. On first launch, fills in RCON details via the setup wizard (or edits `app/config.json` directly if they prefer).
+3. Sets their admin username when prompted on first load.
+4. Double-clicks `run.bat` from then on, and `update.bat` whenever you tell them a new version is out.
 
 ## Notes
 
@@ -106,6 +123,7 @@ Each admin then:
 - If the RCON connection drops or the server restarts, the dashboard reconnects automatically next time it needs to talk to it.
 - It's normal to see `NOR Dashboard connected` show up periodically (every 15 seconds) in the server's own console/logs - that's just the dashboard's connection health-check, confirming RCON is reachable and everything is working. It's hidden from the dashboard's own Console tab feed on purpose, but still visible to anyone watching the raw server console directly.
 - The Players list parses your server's `playerlist` RCON response into a table; the Server Info tab uses the built-in `serverinfo` command; the Live Map's event markers use the built-in `find_entity` command - all tested against your actual server and working.
+- The Chat Logs tab captures chat from the RCON stream while the dashboard is running - it does not have access to chat history from before the dashboard was launched.
 - Without a `rustmaps_api_key`, the Live Map tab still shows live player/event markers - just without the background map image or the oil rig markers, since both of those come from RustMaps' own data, not RCON. The very first time RustMaps sees a given seed/world size, generating the image (and the oil rig positions, fetched the same trip) can take a couple minutes; the tab shows a "generating" message and a Refresh button until it's ready.
 - Without a `battlemetrics_id`, the Overview tab still shows everything else - Rank just stays blank.
 - The Overview tab's background image normally comes from `server.headerimage` (see "What's in here" above) - `app/static/img/bg.jpg` is only a fallback, shown if `headerimage` isn't set on your server (or hasn't loaded yet). Swap that file for your own image (same filename) if you want a different fallback.
