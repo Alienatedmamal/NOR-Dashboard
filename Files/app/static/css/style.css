@@ -426,6 +426,7 @@ input[type="text"], input[type="number"], input[type="password"], select {
   padding: 10px 12px;
   font-size: 14px;
   font-family: var(--font-body);
+  color-scheme: dark;
 }
 input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:focus, select:focus {
   outline: none;
