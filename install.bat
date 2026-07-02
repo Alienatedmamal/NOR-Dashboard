@@ -95,8 +95,41 @@ if %errorlevel% neq 0 (
 if not exist "%~dp0app\config.json" (
     copy "%~dp0app\config.example.json" "%~dp0app\config.json" >nul
     echo.
-    echo Created app\config.json - open it and fill in your RCON host/port/password,
-    echo Steam API key, and RustMaps API key before running run.bat.
+    echo -------------------------------------------
+    echo  Server setup - press Enter to skip any field
+    echo  and fill it in later from the Settings tab.
+    echo -------------------------------------------
+    set "RCON_HOST="
+    set "RCON_PORT="
+    set "RCON_PASS="
+    set "STEAM_KEY="
+    set "RUSTMAPS_KEY="
+    set /p "RCON_HOST=RCON host/IP: "
+    set /p "RCON_PORT=RCON port [28016]: "
+    set /p "RCON_PASS=RCON password: "
+    set /p "STEAM_KEY=Steam API key (optional): "
+    set /p "RUSTMAPS_KEY=RustMaps API key (optional): "
+
+    rem Values are read inside PowerShell via $env:VAR, never interpolated
+    rem into the -Command string itself - a password containing a quote,
+    rem backtick, or $ would otherwise be parsed as PowerShell syntax
+    rem instead of literal text. The port is validated here too (not with a
+    rem batch IF/findstr above) since %RCON_PORT% would still hold cmd's
+    rem parse-time-stale value (empty) this early in the same ( ) block -
+    rem $env:RCON_PORT always reflects what set /p actually just wrote.
+    rem Written via [IO.File]::WriteAllText with a BOM-less UTF8Encoding,
+    rem not Set-Content -Encoding utf8 - Windows PowerShell 5.1's utf8
+    rem always prepends a BOM, which app.py's load_config() (plain
+    rem encoding="utf-8", no "-sig") can't parse as JSON at all.
+    powershell -NoProfile -Command "$cfg = Get-Content -Raw '%~dp0app\config.json' | ConvertFrom-Json; if ($env:RCON_HOST) { $cfg.rcon_host = $env:RCON_HOST }; if ($env:RCON_PORT -match '^\d+$') { $cfg.rcon_port = [int]$env:RCON_PORT }; if ($env:RCON_PASS) { $cfg.rcon_password = $env:RCON_PASS }; if ($env:STEAM_KEY) { $cfg.steam_api_key = $env:STEAM_KEY }; if ($env:RUSTMAPS_KEY) { $cfg.rustmaps_api_key = $env:RUSTMAPS_KEY }; $json = $cfg | ConvertTo-Json -Depth 10; [System.IO.File]::WriteAllText('%~dp0app\config.json', $json, (New-Object System.Text.UTF8Encoding $false))"
+
+    set "RCON_PASS="
+    set "STEAM_KEY="
+    set "RUSTMAPS_KEY="
+
+    echo.
+    echo Saved to app\config.json - anything you skipped can be filled in
+    echo later from the dashboard's Settings tab.
 ) else (
     echo.
     echo app\config.json already exists - leaving it as-is.
