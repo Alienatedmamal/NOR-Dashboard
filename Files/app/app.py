@@ -615,13 +615,14 @@ def api_settings_update_apply():
             def _deferred_restart(_p=run_bat):
                 time.sleep(1.5)
                 try:
-                    subprocess.Popen(
-                        ["cmd", "/c", _p],
-                        creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
-                        close_fds=True,
-                    )
-                except Exception:
-                    pass
+                    # os.startfile is the Windows equivalent of double-clicking
+                    # the file - far more reliable for .bat files than
+                    # subprocess.Popen with DETACHED_PROCESS, which doesn't
+                    # work correctly with cmd.exe in a detached console.
+                    os.startfile(_p)
+                    logger.info("Spawned %s for auto-restart", _p)
+                except Exception as exc:
+                    logger.error("Auto-restart failed - run.bat not spawned: %s", exc)
             threading.Thread(target=_deferred_restart, daemon=True).start()
             restarting = True
 
