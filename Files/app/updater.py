@@ -120,6 +120,19 @@ def apply_update(project_dir):
             _robocopy(files_dir, project_dir, move=True)
             shutil.rmtree(files_dir, ignore_errors=True)
 
+        # robocopy can silently skip a file it can't open (e.g. OneDrive
+        # briefly locking it) and still return exit code 1 (success).
+        # Write VERSION explicitly via Python as a belt-and-suspenders
+        # guarantee - it's what the running process reads at startup to
+        # decide whether a restart brought in a new version.
+        src_ver = os.path.join(extracted_root, "VERSION")
+        dst_ver = os.path.join(project_dir, "VERSION")
+        if os.path.exists(src_ver):
+            with open(src_ver, "r", encoding="utf-8") as f:
+                ver_text = f.read().strip()
+            with open(dst_ver, "w", encoding="utf-8") as f:
+                f.write(ver_text)
+
 
 def _robocopy(source, destination, move=False):
     args = ["robocopy", source, destination, "/E"]
