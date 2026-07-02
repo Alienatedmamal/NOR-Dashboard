@@ -99,11 +99,11 @@ The dashboard is pure Python/Flask and runs identically on Linux — the only Wi
 ./run.sh
 ```
 
-The dashboard binds to `127.0.0.1` on port `5000` by default. Open your browser to `http://127.0.0.1:5000` — or if you're running it on a remote machine, SSH tunnel to that port first:
+The dashboard binds to `127.0.0.1` on port `5050` by default. Open your browser to `http://127.0.0.1:5050` — or if you're running it on a remote machine, SSH tunnel to that port first:
 ```bash
-ssh -L 5000:127.0.0.1:5000 user@your-server
+ssh -L 5050:127.0.0.1:5050 user@your-server
 ```
-Then open `http://127.0.0.1:5000` locally.
+Then open `http://127.0.0.1:5050` locally.
 
 On first load, the setup wizard will prompt for your RCON details (same as Windows).
 
@@ -149,7 +149,7 @@ sudo systemctl stop nor-dashboard
 
 ### Updating on Linux
 
-Either use **Settings > Update** inside the dashboard itself (works on Linux the same as Windows), or pull manually:
+**Settings > Update** does *not* work on Linux yet — it shells out to Windows' `robocopy` to apply the downloaded ZIP, which doesn't exist on Linux and will just error. Pull manually instead:
 ```bash
 git pull
 cd Files/app
