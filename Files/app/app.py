@@ -376,7 +376,10 @@ def setup_post():
 @app.route("/")
 def index():
     cfg = load_config()
-    if not cfg.get("rcon_host") or not cfg.get("rcon_password"):
+    # "CHANGE_ME" is config.example.json's placeholder value, not an unset
+    # field - a non-empty string alone would pass the truthiness check below
+    # and skip straight to the dashboard instead of the setup wizard.
+    if cfg.get("rcon_host") in (None, "", "CHANGE_ME") or cfg.get("rcon_password") in (None, "", "CHANGE_ME"):
         return redirect(url_for("setup_get"))
     # Rendered straight into the page rather than fetched after load, so the
     # inline <head> script (see index.html) can apply it before first paint
