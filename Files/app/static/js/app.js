@@ -2245,14 +2245,21 @@ $("#update-apply-btn").addEventListener("click", async () => {
   }
   $("#update-apply-btn").hidden = true;
   const newVersion = data.new_version || updateLatestVersion;
-  $("#update-status").textContent = `Updated to v${newVersion}.`;
-  // The files on disk (and this label) are current immediately, but the
-  // page you're looking at is still running the old code from before the
-  // update - it can't swap itself out mid-request. Reflect the new
-  // version here anyway so it doesn't look like the update did nothing.
-  const versionLabel = $("#update-current-version");
-  if (versionLabel) versionLabel.textContent = "v" + newVersion;
-  alert('Update installed. Close this window and relaunch the dashboard (e.g. the "Launch NOR Dashboard" shortcut) to start using the new version.');
+  if (data.restarting) {
+    $("#update-status").textContent = `Updated to v${newVersion}. Restarting — a new window will open in a few seconds.`;
+    // Close this app window so the fresh one spawned by run.bat is the only one.
+    // Works silently in Chrome/Edge app mode (--app=); in a regular browser
+    // tab it may be blocked, but the new window still opens either way.
+    setTimeout(() => window.close(), 500);
+  } else {
+    // The files on disk (and this label) are current immediately, but the
+    // page you're looking at is still running the old code from before the
+    // update - it can't swap itself out mid-request. Reflect the new
+    // version here anyway so it doesn't look like the update did nothing.
+    const versionLabel = $("#update-current-version");
+    if (versionLabel) versionLabel.textContent = "v" + newVersion;
+    alert('Update installed. Close this window and relaunch the dashboard (e.g. the "Launch NOR Dashboard" shortcut) to start using the new version.');
+  }
 });
 
 // ---- Settings: Version Rollback ----

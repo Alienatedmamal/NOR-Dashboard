@@ -7,6 +7,8 @@ import json
 import logging
 import os
 import re
+import subprocess
+import sys
 import threading
 import time
 import types
@@ -600,8 +602,30 @@ def api_settings_update_apply():
     except OSError:
         pass
 
-    logger.info("Update applied (now v%s on disk) - restart needed to run it", VERSION)
-    return jsonify({"ok": True, "new_version": VERSION})
+    logger.info("Update applied (now v%s on disk) - restarting", VERSION)
+
+    # Spawn run.bat on a short delay so this HTTP response finishes first,
+    # then run.bat kills this process (via /api/shutdown) and opens a fresh
+    # browser window with the new version. Windows-only; on Linux the caller
+    # falls back to the manual-restart message.
+    restarting = False
+    if sys.platform == "win32":
+        run_bat = os.path.normpath(os.path.join(BASE_DIR, "..", "run.bat"))
+        if os.path.exists(run_bat):
+            def _deferred_restart(_p=run_bat):
+                time.sleep(1.5)
+                try:
+                    subprocess.Popen(
+                        ["cmd", "/c", _p],
+                        creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+                        close_fds=True,
+                    )
+                except Exception:
+                    pass
+            threading.Thread(target=_deferred_restart, daemon=True).start()
+            restarting = True
+
+    return jsonify({"ok": True, "new_version": VERSION, "restarting": restarting})
 
 
 @app.route("/api/settings/releases")
