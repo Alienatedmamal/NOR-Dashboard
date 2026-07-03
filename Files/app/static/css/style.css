@@ -819,6 +819,7 @@ input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:foc
 .amap-card-fields { display: flex; flex-direction: column; gap: 8px; }
 .amap-card-fields input, .amap-card-fields select { width: 100%; }
 .amap-field-label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-muted); font-weight: 600; letter-spacing: .03em; }
+.amap-checkbox-label { display: flex; flex-direction: row; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
 .amap-card .btn { width: 100%; justify-content: center; }
 
 .amap-tag {
