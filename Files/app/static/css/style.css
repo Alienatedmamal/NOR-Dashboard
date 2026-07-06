@@ -910,6 +910,18 @@ input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:foc
   .settings-modules-row { grid-template-columns: 1fr; }
 }
 
+/* Update section: core Update/Version Rollback in the left column, any
+   module settings panel opting into settings_section: "update" (e.g.
+   Module Updater) in the right - same 2-column reasoning as
+   .settings-modules-row above, just a fixed 2 columns instead of 3 since
+   there's no equivalent "status list" filling a first slot here. */
+.settings-update-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; align-items: start; }
+.settings-update-row .settings-panel { max-width: none; }
+
+@media (max-width: 900px) {
+  .settings-update-row { grid-template-columns: 1fr; }
+}
+
 .panel-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
 .panel-title-row h2 { margin: 0; }
 

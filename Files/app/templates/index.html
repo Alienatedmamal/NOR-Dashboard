@@ -871,30 +871,37 @@
     </div>
 
     <div id="settings-section-update" class="settings-section">
-      <div class="panel settings-panel">
-        <h2>Update</h2>
-        <p class="muted">Currently running <strong id="update-current-version">v{{ version }}</strong>.</p>
-        <div class="btn-row">
-          <button type="button" id="update-check-btn" class="btn btn-outline">Check for Updates</button>
-          <button type="button" id="update-apply-btn" class="btn btn-primary" hidden>Update Now</button>
-        </div>
-        <p id="update-status" class="muted"></p>
-      </div>
-      <div class="panel settings-panel" style="margin-top:16px;">
-        <h3>Version Rollback</h3>
-        <p class="muted">Roll back to a previous release. Your config and data files are never touched. A restart is required after applying.</p>
-        <div class="btn-row">
-          <button type="button" id="rollback-fetch-btn" class="btn btn-outline">Load Release History</button>
-        </div>
-        <div id="rollback-select-wrap" hidden style="margin-top:12px;">
-          <label class="stacked-label">Select version
-            <select id="rollback-version-select" class="custom-select"></select>
-          </label>
-          <div class="btn-row">
-            <button type="button" id="rollback-apply-btn" class="btn btn-warning">Roll Back to Selected Version</button>
+      <div class="settings-update-row">
+        <div class="settings-update-col">
+          <div class="panel settings-panel">
+            <h2>Update</h2>
+            <p class="muted">Currently running <strong id="update-current-version">v{{ version }}</strong>.</p>
+            <div class="btn-row">
+              <button type="button" id="update-check-btn" class="btn btn-outline">Check for Updates</button>
+              <button type="button" id="update-apply-btn" class="btn btn-primary" hidden>Update Now</button>
+            </div>
+            <p id="update-status" class="muted"></p>
+          </div>
+          <div class="panel settings-panel" style="margin-top:16px;">
+            <h3>Version Rollback</h3>
+            <p class="muted">Roll back to a previous release. Your config and data files are never touched. A restart is required after applying.</p>
+            <div class="btn-row">
+              <button type="button" id="rollback-fetch-btn" class="btn btn-outline">Load Release History</button>
+            </div>
+            <div id="rollback-select-wrap" hidden style="margin-top:12px;">
+              <label class="stacked-label">Select version
+                <select id="rollback-version-select" class="custom-select"></select>
+              </label>
+              <div class="btn-row">
+                <button type="button" id="rollback-apply-btn" class="btn btn-warning">Roll Back to Selected Version</button>
+              </div>
+            </div>
+            <p id="rollback-status" class="muted"></p>
           </div>
         </div>
-        <p id="rollback-status" class="muted"></p>
+        <div class="settings-update-col">
+          {% for m in module_settings_panels if m.section == 'update' %}{{ m.html|safe }}{% endfor %}
+        </div>
       </div>
     </div>
 
@@ -906,9 +913,9 @@
           <p class="muted">Modules are dropped into the dashboard's <code>modules</code> folder and picked up on the next launch - nothing to toggle here beyond each module's own settings below.</p>
           <div id="module-status-list"></div>
         </div>
-        {% for m in module_settings_panels if m.compact %}{{ m.html|safe }}{% endfor %}
+        {% for m in module_settings_panels if m.section == 'modules' and m.compact %}{{ m.html|safe }}{% endfor %}
       </div>
-      {% for m in module_settings_panels if not m.compact %}{{ m.html|safe }}{% endfor %}
+      {% for m in module_settings_panels if m.section == 'modules' and not m.compact %}{{ m.html|safe }}{% endfor %}
     </div>
     {% endif %}
   </section>

@@ -402,6 +402,10 @@ def index():
             # Module Updater) sit next to the Module Settings status list
             # instead of taking a full-width row of its own below it.
             "compact": bool(m.manifest.get("settings_panel_compact")),
+            # Which Settings sub-section this panel renders in - "modules"
+            # (default) for Module Settings, or "update" to sit alongside
+            # the core Update/Version Rollback panels instead.
+            "section": m.manifest.get("settings_section", "modules"),
         }
         for m in loaded_modules if m.manifest.get("settings_panel")
     ]
