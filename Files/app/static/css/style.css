@@ -897,6 +897,19 @@ input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:foc
    fill the page width. */
 .settings-panel { max-width: 460px; padding: 18px 22px; }
 
+/* Module Settings' status list + any "compact" module settings panel
+   (see module.json's settings_panel_compact) sit in a 3-column row here
+   instead of each taking a full-width row of their own. Fewer than 3
+   compact panels just leaves empty grid space on that row rather than
+   stretching to fill it - acceptable since this is expected to fill in
+   as more modules opt in, not something to special-case for. */
+.settings-modules-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 20px; }
+.settings-modules-row .settings-panel { max-width: none; margin-bottom: 0; }
+
+@media (max-width: 900px) {
+  .settings-modules-row { grid-template-columns: 1fr; }
+}
+
 .panel-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
 .panel-title-row h2 { margin: 0; }
 

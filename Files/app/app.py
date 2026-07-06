@@ -394,7 +394,15 @@ def index():
     module_tab_buttons = [m.render_fragment("tab_button") for m in loaded_modules]
     module_tab_panels = [m.render_fragment("tab_panel") for m in loaded_modules]
     module_settings_panels = [
-        {"key": m.key, "label": m.label, "html": m.render_fragment("settings_panel")}
+        {
+            "key": m.key,
+            "label": m.label,
+            "html": m.render_fragment("settings_panel"),
+            # Opt-in via module.json - lets a small settings panel (e.g.
+            # Module Updater) sit next to the Module Settings status list
+            # instead of taking a full-width row of its own below it.
+            "compact": bool(m.manifest.get("settings_panel_compact")),
+        }
         for m in loaded_modules if m.manifest.get("settings_panel")
     ]
     module_scripts = [url for m in loaded_modules for url in m.script_urls()]

@@ -899,12 +899,15 @@
 
     {% if show_module_settings %}
     <div id="settings-section-modules" class="settings-section">
-      <div class="panel settings-panel">
-        <h2>Module Settings</h2>
-        <p class="muted">Modules are dropped into the dashboard's <code>modules</code> folder and picked up on the next launch - nothing to toggle here beyond each module's own settings below.</p>
-        <div id="module-status-list"></div>
+      <div class="settings-modules-row">
+        <div class="panel settings-panel">
+          <h2>Module Settings</h2>
+          <p class="muted">Modules are dropped into the dashboard's <code>modules</code> folder and picked up on the next launch - nothing to toggle here beyond each module's own settings below.</p>
+          <div id="module-status-list"></div>
+        </div>
+        {% for m in module_settings_panels if m.compact %}{{ m.html|safe }}{% endfor %}
       </div>
-      {% for m in module_settings_panels %}{{ m.html|safe }}{% endfor %}
+      {% for m in module_settings_panels if not m.compact %}{{ m.html|safe }}{% endfor %}
     </div>
     {% endif %}
   </section>
