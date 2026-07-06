@@ -220,7 +220,7 @@ $all(".settings-subnav-btn").forEach((btn) => {
 // browser's Intl API what wall-clock time a given instant actually is in
 // the target zone and self-corrects from there, which handles DST
 // correctly without a lookup table - same trick regardless of which zone
-// or schedule (daily/biweekly/monthly) is configured.
+// or schedule (daily/biweekly/monthly/custom) is configured.
 let wipeConfig = { frequency: "monthly", time: "14:00", timezone: "America/Chicago", anchorDate: "" };
 
 function tzPartsFor(utcDate, timezone) {
@@ -279,6 +279,15 @@ function getNextWipeTarget() {
       target = tzWallClockToUtc(parts.year, parts.month, parts.day, hour, minute, timezone);
     }
     return target;
+  }
+
+  if (frequency === "custom" && anchorDate) {
+    // One-time target, not recurring - once it passes there's no "next
+    // occurrence" to roll forward to, unlike the other frequencies. The
+    // countdown just shows "Wiping now..." until this setting is updated
+    // to a new date.
+    const [cy, cm, cd] = anchorDate.split("-").map((n) => parseInt(n, 10));
+    return tzWallClockToUtc(cy, cm, cd, hour, minute, timezone);
   }
 
   // monthly (default/fallback) - first Thursday of the month
@@ -2118,7 +2127,10 @@ $("#rcon-settings-form").addEventListener("submit", async (e) => {
 // ---- Settings tab: Wipe Countdown ----
 function syncWipeFormVisibility() {
   const frequency = $("#wipe-setting-frequency").value;
-  $("#wipe-setting-anchor-wrap").hidden = frequency !== "biweekly";
+  $("#wipe-setting-anchor-wrap").hidden = frequency !== "biweekly" && frequency !== "custom";
+  $("#wipe-setting-anchor-label").textContent = frequency === "custom"
+    ? "Wipe date"
+    : "Anchor date (any past wipe date - counts every 14 days from here)";
 }
 $("#wipe-setting-frequency").addEventListener("change", syncWipeFormVisibility);
 $("#wipe-setting-timezone").addEventListener("change", syncWipeFormVisibility);
@@ -2155,6 +2167,10 @@ $("#wipe-settings-form").addEventListener("submit", async (e) => {
   }
   if (wipe_frequency === "biweekly" && !wipe_anchor_date) {
     alert("Bi-weekly needs an anchor date.");
+    return;
+  }
+  if (wipe_frequency === "custom" && !wipe_anchor_date) {
+    alert("Select date needs a date.");
     return;
   }
   const data = await postJson("/api/settings/wipe", { wipe_frequency, wipe_time, wipe_timezone, wipe_anchor_date });

@@ -673,7 +673,7 @@ def api_settings_update_rollback():
     return jsonify({"ok": True, "new_version": VERSION or tag})
 
 
-WIPE_FREQUENCIES = {"daily", "biweekly", "monthly"}
+WIPE_FREQUENCIES = {"daily", "biweekly", "monthly", "custom"}
 
 
 @app.route("/api/settings/wipe")
@@ -703,6 +703,8 @@ def api_settings_wipe_set():
         return jsonify({"error": "Timezone is required"}), 400
     if frequency == "biweekly" and not re.match(r"^\d{4}-\d{2}-\d{2}$", anchor_date):
         return jsonify({"error": "Bi-weekly needs an anchor date (YYYY-MM-DD)"}), 400
+    if frequency == "custom" and not re.match(r"^\d{4}-\d{2}-\d{2}$", anchor_date):
+        return jsonify({"error": "Select date needs a date (YYYY-MM-DD)"}), 400
 
     save_config_fields({
         "wipe_frequency": frequency,

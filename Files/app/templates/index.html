@@ -667,6 +667,7 @@
               <option value="monthly">Monthly (first Thursday)</option>
               <option value="biweekly">Bi-weekly (every 14 days)</option>
               <option value="daily">Daily</option>
+              <option value="custom">Select date</option>
             </select>
           </label>
           <label>Time
@@ -726,7 +727,7 @@
               <option value="UTC">UTC</option>
             </select>
           </label>
-          <label id="wipe-setting-anchor-wrap" hidden>Anchor date (any past wipe date - counts every 14 days from here)
+          <label id="wipe-setting-anchor-wrap" hidden><span id="wipe-setting-anchor-label">Anchor date (any past wipe date - counts every 14 days from here)</span>
             <input type="date" id="wipe-setting-anchor">
           </label>
           <div class="btn-row">
