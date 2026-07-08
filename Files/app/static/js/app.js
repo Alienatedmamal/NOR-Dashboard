@@ -1769,7 +1769,7 @@ async function searchAllNotes(query) {
           <span>[${escapeHtml(formatNoteTimestamp(m.timestamp))}] (${escapeHtml(m.type)}) <strong>${escapeHtml(m.steamid)}</strong>: ${escapeHtml(m.text)}</span>
           <button class="btn btn-outline btn-small" data-jump-steamid="${escapeHtml(m.steamid)}">Notes</button>
         </div>
-      `)
+      `.trim())
       .join("");
     $all("[data-jump-steamid]", box).forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -1810,7 +1810,7 @@ async function loadNotes(steamid) {
           <span>[${escapeHtml(formatNoteTimestamp(n.timestamp))}]${n.added_by ? ` <span class="note-author">${escapeHtml(n.added_by)}</span>` : ""} (${escapeHtml(n.type)}) ${escapeHtml(n.text)}</span>
           <button class="btn btn-danger btn-small" data-delete-note-id="${escapeHtml(n.id || String(i))}" data-delete-note-steamid="${escapeHtml(steamid)}">Delete</button>
         </div>
-      `)
+      `.trim())
       .join("");
     $all("[data-delete-note-id]", box).forEach((btn) => {
       btn.addEventListener("click", async () => {
