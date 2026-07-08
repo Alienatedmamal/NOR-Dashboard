@@ -1,4 +1,4 @@
-# NOR Dashboard v1.6.26
+# NOR Dashboard v1.6.27
 
 A simple admin dashboard for your Rust server: an at-a-glance overview (player count, queue, BattleMetrics rank, and more), a live console feed, live chat logs, server info/settings, online/offline/banned player management with notes and mute controls, permission management, player ban/Steam history lookups, a live map with player and world-event tracking, and a wipe countdown. Same black-and-neon-green look as nor.workisboring.com. Optional modules add extra tabs - see "Modules" below.
 
