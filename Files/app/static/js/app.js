@@ -805,7 +805,7 @@ function initGiveItemCombo() {
           .map(
             (i) =>
               `<div class="combo-option" data-value="${escapeHtml(i.shortname)}">` +
-              `<img class="combo-option-icon" src="/static/img/items/${escapeHtml(i.shortname)}.png" alt="">` +
+              `<img class="combo-option-icon" src="/static/img/items/${escapeHtml(i.shortname)}.png" alt="" onerror="this.style.display='none'">` +
               `${escapeHtml(i.category)} - ${escapeHtml(i.name)}</div>`
           )
           .join("")
