@@ -791,14 +791,23 @@ function initGiveItemCombo() {
 
   function renderOptions() {
     const q = searchInput.value.trim().toLowerCase();
-    const matches = q
-      ? itemCatalog.filter(
-          (i) =>
-            i.name.toLowerCase().includes(q) ||
-            i.shortname.toLowerCase().includes(q) ||
-            i.category.toLowerCase().includes(q)
-        )
-      : itemCatalog;
+    // With 500+ items, an unfiltered browse would just show the first 80
+    // in catalog order (Resources, Components, Building...) - most
+    // categories, including Clothing, wouldn't be reachable without
+    // scrolling past items no one's looking for. Prompt to search instead
+    // of showing a misleadingly partial, order-biased slice.
+    if (!q) {
+      list.innerHTML =
+        `<div class="combo-option combo-empty muted">Type to search ${itemCatalog.length} items across ${new Set(itemCatalog.map((i) => i.category)).size} categories...</div>`;
+      list.hidden = false;
+      return;
+    }
+    const matches = itemCatalog.filter(
+      (i) =>
+        i.name.toLowerCase().includes(q) ||
+        i.shortname.toLowerCase().includes(q) ||
+        i.category.toLowerCase().includes(q)
+    );
     list.innerHTML = matches.length
       ? matches
           .slice(0, 80)
