@@ -887,7 +887,7 @@ async function pollConsoleLog() {
   }
 }
 pollConsoleLog();
-setInterval(pollConsoleLog, 1500);
+setInterval(pollConsoleLog, 1000);
 
 // Custom dropdown for the various "SteamID" fields - a single box you can
 // either type into freely or click to browse online players. Built by hand
