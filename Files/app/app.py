@@ -415,14 +415,23 @@ def index():
     # inside them) plus a <script> tag for its JS - assembled here instead
     # of core's templates/JS needing to know which modules exist.
     #
-    # "Disabled" (Settings > Module Settings) only filters the tab button/panel
-    # below - the module stays fully loaded (routes registered, background
-    # threads running) exactly as module_loader.discover() left it at startup.
-    # This is deliberately a lightweight "hide from the tab bar, refresh to
-    # apply" toggle, not an unload - a real unload needs discover() to skip
-    # the module, which only happens on a full dashboard restart. Settings
-    # panels are intentionally NOT filtered here, so a disabled module's own
-    # settings (e.g. its license key) stay reachable to re-enable it later.
+    # "Disabled" (Settings > Module Settings) excludes a module from every
+    # fragment below - tab button/panel, settings panel, AND its script/style
+    # includes. The module stays fully loaded server-side (routes registered,
+    # background threads running) exactly as module_loader.discover() left it
+    # at startup - this is deliberately a lightweight "hide from the page,
+    # refresh to apply" toggle, not an unload; a real unload needs discover()
+    # to skip it, which only happens on a full dashboard restart.
+    #
+    # Scripts/styles and the settings panel are excluded too, not just the
+    # tab - a module's single JS file typically wires up both its tab panel
+    # AND its settings panel unconditionally at the top level (e.g. amap.js
+    # calls loadAmapBackups() and binds #amap-restore-run on load, both of
+    # which only exist in the tab panel). Loading that script while the tab
+    # panel HTML is missing throws "Cannot read properties of null" the
+    # moment it runs - confirmed the hard way. Hiding the whole module
+    # consistently avoids every version of that half-loaded state; the
+    # Module Settings toggle itself (never filtered) is what re-enables it.
     disabled_keys = set(cfg.get("disabled_modules") or [])
     visible_modules = [m for m in loaded_modules if m.key not in disabled_keys]
     module_tab_buttons = [m.render_fragment("tab_button") for m in visible_modules]
@@ -441,10 +450,10 @@ def index():
             # the core Update/Version Rollback panels instead.
             "section": m.manifest.get("settings_section", "modules"),
         }
-        for m in loaded_modules if m.manifest.get("settings_panel")
+        for m in visible_modules if m.manifest.get("settings_panel")
     ]
-    module_scripts = [url for m in loaded_modules for url in m.script_urls()]
-    module_styles = [url for m in loaded_modules for url in m.style_urls()]
+    module_scripts = [url for m in visible_modules for url in m.script_urls()]
+    module_styles = [url for m in visible_modules for url in m.style_urls()]
     # Module Settings is worth showing even for a module with no settings
     # form of its own (e.g. Terminal) - it's still the only place an admin
     # can see "this module is actually loaded" or "this one was skipped."
