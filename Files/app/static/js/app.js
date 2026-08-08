@@ -248,12 +248,16 @@ function tzWallClockToUtc(year, month, day, hour, minute, timezone) {
   return new Date(guess.getTime() + (wanted - gotAsUtc));
 }
 
-function firstThursdayOfMonth(year, month) {
-  // month is 1-indexed; returns the day-of-month (1-7) for the first Thursday.
+function firstWeekdayOfMonth(year, month, targetDow) {
+  // month is 1-indexed; returns the day-of-month (1-7) for the first
+  // occurrence of targetDow (0=Sunday..6=Saturday - same field/selector
+  // Weekly uses, wipeConfig.weeklyDay). Defaults to Thursday (4) if unset,
+  // matching the original hardcoded "first Thursday" behavior.
+  const dow = targetDow !== undefined && targetDow !== null ? targetDow : 4;
   for (let day = 1; day <= 7; day++) {
-    if (new Date(Date.UTC(year, month - 1, day)).getUTCDay() === 4) return day;
+    if (new Date(Date.UTC(year, month - 1, day)).getUTCDay() === dow) return day;
   }
-  return 1; // unreachable - every week has a Thursday in days 1-7
+  return 1; // unreachable - every week has each weekday in days 1-7
 }
 
 function getNextWipeTarget() {
@@ -304,12 +308,14 @@ function getNextWipeTarget() {
     return tzWallClockToUtc(cy, cm, cd, hour, minute, timezone);
   }
 
-  // monthly (default/fallback) - first Thursday of the month
+  // monthly (default/fallback) - first occurrence of the configured day of
+  // the week each month (Thursday by default, matching Rust's own usual
+  // force-wipe convention, but any day works - e.g. "first Monday").
   const nowParts = tzPartsFor(nowUtc, timezone);
   let year = nowParts.year;
   let month = nowParts.month;
   for (let i = 0; i < 13; i++) {
-    const day = firstThursdayOfMonth(year, month);
+    const day = firstWeekdayOfMonth(year, month, wipeConfig.weeklyDay);
     const target = tzWallClockToUtc(year, month, day, hour, minute, timezone);
     if (target.getTime() > nowUtc.getTime()) return target;
     month += 1;
@@ -2158,7 +2164,7 @@ function syncWipeFormVisibility() {
   $("#wipe-setting-anchor-label").textContent = frequency === "custom"
     ? "Wipe date"
     : "Anchor date (any past wipe date - counts every 14 days from here)";
-  $("#wipe-setting-day-wrap").hidden = frequency !== "weekly";
+  $("#wipe-setting-day-wrap").hidden = frequency !== "weekly" && frequency !== "monthly";
 }
 $("#wipe-setting-frequency").addEventListener("change", syncWipeFormVisibility);
 $("#wipe-setting-timezone").addEventListener("change", syncWipeFormVisibility);
@@ -2197,8 +2203,8 @@ $("#wipe-settings-form").addEventListener("submit", async (e) => {
     alert("Time and timezone are required.");
     return;
   }
-  if (wipe_frequency === "weekly" && !wipe_weekly_day) {
-    alert("Weekly needs a day of the week.");
+  if ((wipe_frequency === "weekly" || wipe_frequency === "monthly") && !wipe_weekly_day) {
+    alert("Day of the week is required.");
     return;
   }
   if (wipe_frequency === "biweekly" && !wipe_anchor_date) {

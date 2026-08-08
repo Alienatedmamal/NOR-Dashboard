@@ -753,8 +753,8 @@ def api_settings_wipe_set():
         return jsonify({"error": "Time must be in HH:MM format"}), 400
     if not timezone:
         return jsonify({"error": "Timezone is required"}), 400
-    if frequency == "weekly" and weekly_day not in WIPE_WEEKLY_DAYS:
-        return jsonify({"error": "Weekly needs a day of the week"}), 400
+    if frequency in ("weekly", "monthly") and weekly_day not in WIPE_WEEKLY_DAYS:
+        return jsonify({"error": "Day of the week is required"}), 400
     if frequency == "biweekly" and not re.match(r"^\d{4}-\d{2}-\d{2}$", anchor_date):
         return jsonify({"error": "Bi-weekly needs an anchor date (YYYY-MM-DD)"}), 400
     if frequency == "custom" and not re.match(r"^\d{4}-\d{2}-\d{2}$", anchor_date):
