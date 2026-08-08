@@ -806,7 +806,14 @@ input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:foc
 }
 .toast-flash { animation: toast-flash-pulse 0.5s ease-in-out 3; }
 
-.amap-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 16px; align-items: start; }
+/* Masonry-style columns, not a grid - a grid still packs cards into fixed
+   ROWS (row height = tallest card in that row), so a short card next to
+   something like Wipe Configurator left a big empty gap below it even with
+   align-items:start. Columns let each card size and stack independently -
+   noncritical-before-critical grouping is handled in amap.js's render
+   order instead of CSS `order` here, since order has no effect outside a
+   flex/grid container. */
+.amap-cards { columns: 260px; column-gap: 16px; margin-top: 16px; }
 .amap-card {
   background: rgba(255, 255, 255, .03);
   border: 1px solid var(--border);
@@ -816,11 +823,10 @@ input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:foc
   display: flex;
   flex-direction: column;
   gap: 10px;
-  /* Noncritical sorts before critical regardless of source order - see
-     .amap-card-critical below, which bumps this up to 2. */
-  order: 1;
+  break-inside: avoid;
+  margin-bottom: 16px;
 }
-.amap-card-critical { border-left-color: var(--danger); order: 2; }
+.amap-card-critical { border-left-color: var(--danger); }
 .amap-card-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .amap-card-title { font-family: var(--font-heading); font-weight: 700; font-size: 16px; }
 .amap-card-desc { font-size: 13px; color: var(--text-muted); margin: 0; flex: 1; }
