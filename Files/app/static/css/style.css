@@ -806,7 +806,7 @@ input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:foc
 }
 .toast-flash { animation: toast-flash-pulse 0.5s ease-in-out 3; }
 
-.amap-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 16px; }
+.amap-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 16px; align-items: start; }
 .amap-card {
   background: rgba(255, 255, 255, .03);
   border: 1px solid var(--border);
@@ -816,8 +816,11 @@ input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:foc
   display: flex;
   flex-direction: column;
   gap: 10px;
+  /* Noncritical sorts before critical regardless of source order - see
+     .amap-card-critical below, which bumps this up to 2. */
+  order: 1;
 }
-.amap-card-critical { border-left-color: var(--danger); }
+.amap-card-critical { border-left-color: var(--danger); order: 2; }
 .amap-card-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .amap-card-title { font-family: var(--font-heading); font-weight: 700; font-size: 16px; }
 .amap-card-desc { font-size: 13px; color: var(--text-muted); margin: 0; flex: 1; }
