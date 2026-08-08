@@ -720,7 +720,10 @@ def api_settings_update_rollback():
     return jsonify({"ok": True, "new_version": VERSION or tag})
 
 
-WIPE_FREQUENCIES = {"daily", "biweekly", "monthly", "custom"}
+WIPE_FREQUENCIES = {"daily", "weekly", "biweekly", "monthly", "custom"}
+# 0=Sunday..6=Saturday, matching JS Date.getUTCDay() - the frontend's
+# getNextWipeTarget() computes the next occurrence in that same convention.
+WIPE_WEEKLY_DAYS = {"0", "1", "2", "3", "4", "5", "6"}
 
 
 @app.route("/api/settings/wipe")
@@ -731,6 +734,7 @@ def api_settings_wipe_get():
         "wipe_time": cfg.get("wipe_time", "14:00"),
         "wipe_timezone": cfg.get("wipe_timezone", "America/Chicago"),
         "wipe_anchor_date": cfg.get("wipe_anchor_date", ""),
+        "wipe_weekly_day": cfg.get("wipe_weekly_day", "4"),
     })
 
 
@@ -741,6 +745,7 @@ def api_settings_wipe_set():
     time_str = (body.get("wipe_time") or "").strip()
     timezone = (body.get("wipe_timezone") or "").strip()
     anchor_date = (body.get("wipe_anchor_date") or "").strip()
+    weekly_day = (body.get("wipe_weekly_day") or "").strip()
 
     if frequency not in WIPE_FREQUENCIES:
         return jsonify({"error": "Unknown wipe frequency"}), 400
@@ -748,6 +753,8 @@ def api_settings_wipe_set():
         return jsonify({"error": "Time must be in HH:MM format"}), 400
     if not timezone:
         return jsonify({"error": "Timezone is required"}), 400
+    if frequency == "weekly" and weekly_day not in WIPE_WEEKLY_DAYS:
+        return jsonify({"error": "Weekly needs a day of the week"}), 400
     if frequency == "biweekly" and not re.match(r"^\d{4}-\d{2}-\d{2}$", anchor_date):
         return jsonify({"error": "Bi-weekly needs an anchor date (YYYY-MM-DD)"}), 400
     if frequency == "custom" and not re.match(r"^\d{4}-\d{2}-\d{2}$", anchor_date):
@@ -758,6 +765,7 @@ def api_settings_wipe_set():
         "wipe_time": time_str,
         "wipe_timezone": timezone,
         "wipe_anchor_date": anchor_date,
+        "wipe_weekly_day": weekly_day or "4",
     })
     logger.info("Settings: wipe schedule changed to %s %s %s", frequency, time_str, timezone)
     return jsonify({"ok": True})

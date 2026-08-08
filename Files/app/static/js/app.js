@@ -220,8 +220,8 @@ $all(".settings-subnav-btn").forEach((btn) => {
 // browser's Intl API what wall-clock time a given instant actually is in
 // the target zone and self-corrects from there, which handles DST
 // correctly without a lookup table - same trick regardless of which zone
-// or schedule (daily/biweekly/monthly/custom) is configured.
-let wipeConfig = { frequency: "monthly", time: "14:00", timezone: "America/Chicago", anchorDate: "" };
+// or schedule (daily/weekly/biweekly/monthly/custom) is configured.
+let wipeConfig = { frequency: "monthly", time: "14:00", timezone: "America/Chicago", anchorDate: "", weeklyDay: 4 };
 
 function tzPartsFor(utcDate, timezone) {
   const dtf = new Intl.DateTimeFormat("en-US", {
@@ -266,6 +266,20 @@ function getNextWipeTarget() {
     let target = tzWallClockToUtc(parts.year, parts.month, parts.day, hour, minute, timezone);
     if (target.getTime() <= nowUtc.getTime()) {
       parts = tzPartsFor(new Date(target.getTime() + 86400000), timezone);
+      target = tzWallClockToUtc(parts.year, parts.month, parts.day, hour, minute, timezone);
+    }
+    return target;
+  }
+
+  if (frequency === "weekly") {
+    const targetDow = wipeConfig.weeklyDay;
+    let parts = tzPartsFor(nowUtc, timezone);
+    let target = tzWallClockToUtc(parts.year, parts.month, parts.day, hour, minute, timezone);
+    const currentDow = new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay();
+    let daysUntil = (targetDow - currentDow + 7) % 7;
+    if (daysUntil === 0 && target.getTime() <= nowUtc.getTime()) daysUntil = 7;
+    if (daysUntil > 0) {
+      parts = tzPartsFor(new Date(target.getTime() + daysUntil * 86400000), timezone);
       target = tzWallClockToUtc(parts.year, parts.month, parts.day, hour, minute, timezone);
     }
     return target;
@@ -341,6 +355,10 @@ async function loadWipeConfig() {
       time: data.wipe_time || "14:00",
       timezone: data.wipe_timezone || "America/Chicago",
       anchorDate: data.wipe_anchor_date || "",
+      // Not `|| 4` - that would silently override a legitimately-saved
+      // Sunday (0), since 0 is falsy. Only fall back when the field is
+      // genuinely missing (e.g. an older config from before this existed).
+      weeklyDay: data.wipe_weekly_day !== undefined ? parseInt(data.wipe_weekly_day, 10) : 4,
     };
     wipeTargetUtc = null; // recompute against the real config instead of the built-in default
     updateWipeCountdown();
@@ -2140,6 +2158,7 @@ function syncWipeFormVisibility() {
   $("#wipe-setting-anchor-label").textContent = frequency === "custom"
     ? "Wipe date"
     : "Anchor date (any past wipe date - counts every 14 days from here)";
+  $("#wipe-setting-day-wrap").hidden = frequency !== "weekly";
 }
 $("#wipe-setting-frequency").addEventListener("change", syncWipeFormVisibility);
 $("#wipe-setting-timezone").addEventListener("change", syncWipeFormVisibility);
@@ -2154,9 +2173,12 @@ async function loadWipeSettingsForm() {
     const tzSelect = $("#wipe-setting-timezone");
     tzSelect.value = tz;
     $("#wipe-setting-anchor").value = data.wipe_anchor_date || "";
+    const daySelect = $("#wipe-setting-day");
+    daySelect.value = data.wipe_weekly_day !== undefined ? data.wipe_weekly_day : "4";
     syncWipeFormVisibility();
     $("#wipe-setting-frequency")._syncCustomSelectTrigger && $("#wipe-setting-frequency")._syncCustomSelectTrigger();
     tzSelect._syncCustomSelectTrigger && tzSelect._syncCustomSelectTrigger();
+    daySelect._syncCustomSelectTrigger && daySelect._syncCustomSelectTrigger();
   } catch (err) {
     // form just keeps its defaults - Save will surface any real problem
   }
@@ -2169,9 +2191,14 @@ $("#wipe-settings-form").addEventListener("submit", async (e) => {
   const wipe_time = $("#wipe-setting-time").value;
   const wipe_timezone = $("#wipe-setting-timezone").value;
   const wipe_anchor_date = $("#wipe-setting-anchor").value;
+  const wipe_weekly_day = $("#wipe-setting-day").value;
 
   if (!wipe_time || !wipe_timezone) {
     alert("Time and timezone are required.");
+    return;
+  }
+  if (wipe_frequency === "weekly" && !wipe_weekly_day) {
+    alert("Weekly needs a day of the week.");
     return;
   }
   if (wipe_frequency === "biweekly" && !wipe_anchor_date) {
@@ -2182,7 +2209,7 @@ $("#wipe-settings-form").addEventListener("submit", async (e) => {
     alert("Select date needs a date.");
     return;
   }
-  const data = await postJson("/api/settings/wipe", { wipe_frequency, wipe_time, wipe_timezone, wipe_anchor_date });
+  const data = await postJson("/api/settings/wipe", { wipe_frequency, wipe_time, wipe_timezone, wipe_anchor_date, wipe_weekly_day });
   if (data.error) {
     alert("Error: " + data.error);
     return;
