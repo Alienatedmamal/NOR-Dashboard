@@ -910,8 +910,11 @@
       <div class="settings-modules-row">
         <div class="panel settings-panel">
           <h2>Module Settings</h2>
-          <p class="muted">Modules are dropped into the dashboard's <code>modules</code> folder and picked up on the next launch - nothing to toggle here beyond each module's own settings below.</p>
+          <p class="muted">Modules are dropped into the dashboard's <code>modules</code> folder and picked up on the next launch. Toggle a loaded module off and click Save to hide its tab (a page refresh applies it - the module itself keeps running in the background, this just hides it).</p>
           <div id="module-status-list"></div>
+          <div id="module-status-save-row" class="btn-row" style="display:none;">
+            <button type="button" class="btn btn-primary btn-small" id="module-status-save-btn">Save</button>
+          </div>
         </div>
         {% for m in module_settings_panels if m.section == 'modules' and m.compact %}{{ m.html|safe }}{% endfor %}
       </div>

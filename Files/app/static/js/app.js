@@ -2350,9 +2350,13 @@ $("#rollback-apply-btn").addEventListener("click", async () => {
 
 // ---- Settings tab: Module Settings ----
 // Each loaded module's own settings form (if it has one) is already
-// server-rendered into the page - this just shows what's installed and
-// flags anything that was found but skipped (e.g. needs a newer core
-// version), since that'd otherwise fail silently.
+// server-rendered into the page - this just shows what's installed, flags
+// anything that was found but skipped (e.g. needs a newer core version),
+// and lets a loaded module's tab be hidden via the checkbox + Save button.
+// Disabling only hides the tab button/panel on next refresh - the module
+// keeps running in the background either way (see index() in app.py).
+let moduleStatusInitialDisabled = new Set();
+
 async function loadModuleStatusList() {
   const box = $("#module-status-list");
   if (!box) return;
@@ -2360,17 +2364,70 @@ async function loadModuleStatusList() {
     const data = await fetch("/api/modules").then((res) => res.json());
     const rows = [];
     (data.loaded || []).forEach((m) => {
-      rows.push(`<div class="stat-row"><span class="stat-label">${escapeHtml(m.label)}</span><span class="stat-value">Loaded</span></div>`);
+      rows.push(`
+        <div class="stat-row">
+          <label class="map-toggle-label" style="flex:1;">
+            <input type="checkbox" data-module-toggle="${escapeHtml(m.key)}" ${m.disabled ? "" : "checked"}>
+            ${escapeHtml(m.label)}
+          </label>
+          <span class="stat-value">${m.disabled ? "Disabled" : "Loaded"}</span>
+        </div>`);
     });
     (data.skipped || []).forEach((s) => {
       rows.push(`<div class="stat-row"><span class="stat-label">${escapeHtml(s.key)}</span><span class="stat-value">Skipped - ${escapeHtml(s.reason)}</span></div>`);
     });
     box.innerHTML = rows.join("") || '<p class="muted">No modules found in the modules folder.</p>';
+
+    moduleStatusInitialDisabled = new Set((data.loaded || []).filter((m) => m.disabled).map((m) => m.key));
+    box.querySelectorAll("[data-module-toggle]").forEach((cb) => {
+      cb.addEventListener("change", updateModuleStatusSaveVisibility);
+    });
   } catch (err) {
     box.innerHTML = `<p class="muted">Error loading module status: ${escapeHtml(err.message)}</p>`;
   }
 }
 loadModuleStatusList();
+
+function updateModuleStatusSaveVisibility() {
+  const box = $("#module-status-list");
+  const saveRow = $("#module-status-save-row");
+  if (!box || !saveRow) return;
+  const currentlyDisabled = new Set(
+    Array.from(box.querySelectorAll("[data-module-toggle]"))
+      .filter((cb) => !cb.checked)
+      .map((cb) => cb.dataset.moduleToggle)
+  );
+  const changed =
+    currentlyDisabled.size !== moduleStatusInitialDisabled.size ||
+    Array.from(currentlyDisabled).some((k) => !moduleStatusInitialDisabled.has(k));
+  saveRow.style.display = changed ? "" : "none";
+}
+
+const moduleStatusSaveBtn = $("#module-status-save-btn");
+if (moduleStatusSaveBtn) {
+  moduleStatusSaveBtn.addEventListener("click", async () => {
+    const box = $("#module-status-list");
+    const disabledKeys = Array.from(box.querySelectorAll("[data-module-toggle]"))
+      .filter((cb) => !cb.checked)
+      .map((cb) => cb.dataset.moduleToggle);
+    moduleStatusSaveBtn.disabled = true;
+    moduleStatusSaveBtn.textContent = "Saving...";
+    try {
+      const data = await postJson("/api/modules/disabled", { disabled: disabledKeys });
+      if (data.error) {
+        alert("Error: " + data.error);
+        moduleStatusSaveBtn.disabled = false;
+        moduleStatusSaveBtn.textContent = "Save";
+        return;
+      }
+      location.reload();
+    } catch (err) {
+      alert("Error: " + err.message);
+      moduleStatusSaveBtn.disabled = false;
+      moduleStatusSaveBtn.textContent = "Save";
+    }
+  });
+}
 
 // ---- Settings tab: Theme ----
 // Themes only ever touch color custom properties (never --radius or the
