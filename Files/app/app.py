@@ -307,6 +307,7 @@ module_loader.register_static_route(app)
 def api_modules():
     """Powers Settings > Module Settings - what's installed, plus a status
     string for anything that didn't load (e.g. needs a newer core version)."""
+    disabled_keys = set(load_config().get("disabled_modules") or [])
     return jsonify({
         "loaded": [
             {
@@ -315,11 +316,33 @@ def api_modules():
                 "description": m.description,
                 "has_settings": bool(m.manifest.get("settings_panel")),
                 "has_preflight": m.has_preflight(),
+                "disabled": m.key in disabled_keys,
             }
             for m in loaded_modules
         ],
         "skipped": [{"key": key, "reason": reason} for key, reason in skipped_modules],
     })
+
+
+@app.route("/api/modules/disabled", methods=["POST"])
+def api_modules_set_disabled():
+    """Saves which modules are hidden from the dashboard's tab bar. Doesn't
+    unload anything - a disabled module's routes/background threads keep
+    running exactly as before (see index() below); this only controls
+    whether its tab button/panel are rendered into the page. A real unload
+    would need module_loader.discover() to skip it, which only re-runs on
+    a full dashboard restart - this is deliberately the lighter, refresh-only
+    toggle, not an uninstall."""
+    body = request.get_json(force=True) or {}
+    keys = body.get("disabled")
+    if not isinstance(keys, list) or not all(isinstance(k, str) for k in keys):
+        return jsonify({"error": "'disabled' must be a list of module keys"}), 400
+    known_keys = {m.key for m in loaded_modules}
+    unknown = [k for k in keys if k not in known_keys]
+    if unknown:
+        return jsonify({"error": f"Unknown module key(s): {', '.join(unknown)}"}), 400
+    save_config_fields({"disabled_modules": keys})
+    return jsonify({"ok": True})
 
 
 @app.route("/api/modules/<module_key>/preflight")
@@ -391,8 +414,19 @@ def index():
     # markup (rendered through Flask's own Jinja env, so url_for etc. work
     # inside them) plus a <script> tag for its JS - assembled here instead
     # of core's templates/JS needing to know which modules exist.
-    module_tab_buttons = [m.render_fragment("tab_button") for m in loaded_modules]
-    module_tab_panels = [m.render_fragment("tab_panel") for m in loaded_modules]
+    #
+    # "Disabled" (Settings > Module Settings) only filters the tab button/panel
+    # below - the module stays fully loaded (routes registered, background
+    # threads running) exactly as module_loader.discover() left it at startup.
+    # This is deliberately a lightweight "hide from the tab bar, refresh to
+    # apply" toggle, not an unload - a real unload needs discover() to skip
+    # the module, which only happens on a full dashboard restart. Settings
+    # panels are intentionally NOT filtered here, so a disabled module's own
+    # settings (e.g. its license key) stay reachable to re-enable it later.
+    disabled_keys = set(cfg.get("disabled_modules") or [])
+    visible_modules = [m for m in loaded_modules if m.key not in disabled_keys]
+    module_tab_buttons = [m.render_fragment("tab_button") for m in visible_modules]
+    module_tab_panels = [m.render_fragment("tab_panel") for m in visible_modules]
     module_settings_panels = [
         {
             "key": m.key,

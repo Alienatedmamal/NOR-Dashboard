@@ -15,5 +15,6 @@
   "theme_preset_key": "neon-green",
   "theme_vars": {},
   "tour_dismissed": false,
-  "sound_alerts_enabled": true
+  "sound_alerts_enabled": true,
+  "disabled_modules": []
 }
