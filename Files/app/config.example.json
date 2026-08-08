@@ -9,6 +9,7 @@
   "wipe_time": "14:00",
   "wipe_timezone": "America/Chicago",
   "wipe_anchor_date": "",
+  "wipe_weekly_day": "4",
   "plugin_deploy_host": "CHANGE_ME",
   "plugin_deploy_username": "CHANGE_ME",
   "plugin_deploy_path": "CHANGE_ME",
